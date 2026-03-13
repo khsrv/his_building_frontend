@@ -1,6 +1,23 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import * as Dialog from "@radix-ui/react-dialog";
+import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
+import {
+  getCoreRowModel,
+  getPaginationRowModel,
+  getSortedRowModel,
+  type ColumnDef,
+  type ColumnPinningState,
+  type ColumnSort,
+  type PaginationState,
+  type Row,
+  type RowSelectionState,
+  type SortingFn,
+  type SortingState,
+  type VisibilityState,
+  useReactTable,
+} from "@tanstack/react-table";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { cn } from "@/shared/lib/ui/cn";
 import { useI18n } from "@/shared/providers/locale-provider";
 import { AppButton } from "@/shared/ui/primitives/button";
@@ -33,11 +50,6 @@ export interface AppDataTableColumn<TData> {
 interface AddAction {
   label: string;
   onClick: () => void;
-}
-
-interface SortState {
-  columnId: string;
-  direction: SortDirection;
 }
 
 interface AppDataTableProps<TData> {
@@ -225,22 +237,6 @@ function resetColumnState<TData>(columns: readonly AppDataTableColumn<TData>[]) 
   }, {});
 }
 
-function clampPage(page: number, totalPages: number) {
-  if (totalPages <= 0) {
-    return 1;
-  }
-
-  if (page < 1) {
-    return 1;
-  }
-
-  if (page > totalPages) {
-    return totalPages;
-  }
-
-  return page;
-}
-
 function toComparableValue(value: string | number | Date | null | undefined) {
   if (value instanceof Date) {
     return value.getTime();
@@ -293,6 +289,53 @@ function getPageButtons(currentPage: number, totalPages: number) {
   return [currentPage - 2, currentPage - 1, currentPage, currentPage + 1, currentPage + 2];
 }
 
+function toColumnVisibilityState(columnState: Record<string, ColumnRuntimeState>): VisibilityState {
+  return Object.entries(columnState).reduce<VisibilityState>((accumulator, [columnId, state]) => {
+    accumulator[columnId] = state.visible;
+    return accumulator;
+  }, {});
+}
+
+function toColumnPinningState(columnState: Record<string, ColumnRuntimeState>): ColumnPinningState {
+  const left = Object.entries(columnState)
+    .filter(([, state]) => state.pinned)
+    .map(([columnId]) => columnId);
+
+  return { left };
+}
+
+function getActiveColumns<TData>(
+  columns: readonly AppDataTableColumn<TData>[],
+  columnState: Record<string, ColumnRuntimeState>,
+) {
+  const visibleColumns = columns.filter((column) => columnState[column.id]?.visible ?? true);
+
+  return [...visibleColumns].sort((left, right) => {
+    const leftPinned = columnState[left.id]?.pinned ?? false;
+    const rightPinned = columnState[right.id]?.pinned ?? false;
+
+    if (leftPinned === rightPinned) {
+      return 0;
+    }
+
+    return leftPinned ? -1 : 1;
+  });
+}
+
+function triStateSortToggle(columnId: string, sorting: SortingState): SortingState {
+  const current = sorting.find((entry) => entry.id === columnId);
+
+  if (!current) {
+    return [{ id: columnId, desc: false }];
+  }
+
+  if (!current.desc) {
+    return [{ id: columnId, desc: true }];
+  }
+
+  return [];
+}
+
 export function AppDataTable<TData>({
   data,
   columns,
@@ -309,13 +352,14 @@ export function AppDataTable<TData>({
   fileNameBase = "table-data",
 }: AppDataTableProps<TData>) {
   const { t } = useI18n();
-  const exportMenuRef = useRef<HTMLDivElement | null>(null);
 
   const [search, setSearch] = useState("");
-  const [pageSize, setPageSize] = useState(initialPageSize);
-  const [page, setPage] = useState(1);
-  const [sortState, setSortState] = useState<SortState | null>(null);
-  const [selectedKeys, setSelectedKeys] = useState<Set<string>>(() => new Set());
+  const [sorting, setSorting] = useState<SortingState>([]);
+  const [pagination, setPagination] = useState<PaginationState>({
+    pageIndex: 0,
+    pageSize: initialPageSize,
+  });
+  const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [columnState, setColumnState] = useState<Record<string, ColumnRuntimeState>>(() =>
     normalizeColumnState(columns),
   );
@@ -323,45 +367,14 @@ export function AppDataTable<TData>({
   const [settingsDraft, setSettingsDraft] = useState<Record<string, ColumnRuntimeState>>(() =>
     normalizeColumnState(columns),
   );
-  const [exportMenuOpen, setExportMenuOpen] = useState(false);
 
   useEffect(() => {
     setColumnState((current) => normalizeColumnState(columns, current));
     setSettingsDraft((current) => normalizeColumnState(columns, current));
   }, [columns]);
 
-  useEffect(() => {
-    if (!exportMenuOpen) {
-      return;
-    }
-
-    const handleOutsideClick = (event: MouseEvent) => {
-      const target = event.target as Node | null;
-      if (!target || !exportMenuRef.current?.contains(target)) {
-        setExportMenuOpen(false);
-      }
-    };
-
-    document.addEventListener("mousedown", handleOutsideClick);
-
-    return () => {
-      document.removeEventListener("mousedown", handleOutsideClick);
-    };
-  }, [exportMenuOpen]);
-
   const activeColumns = useMemo(() => {
-    const visibleColumns = columns.filter((column) => columnState[column.id]?.visible ?? true);
-
-    return [...visibleColumns].sort((left, right) => {
-      const leftPinned = columnState[left.id]?.pinned ?? false;
-      const rightPinned = columnState[right.id]?.pinned ?? false;
-
-      if (leftPinned === rightPinned) {
-        return 0;
-      }
-
-      return leftPinned ? -1 : 1;
-    });
+    return getActiveColumns(columns, columnState);
   }, [columnState, columns]);
 
   const filteredRows = useMemo(() => {
@@ -384,104 +397,94 @@ export function AppDataTable<TData>({
     });
   }, [activeColumns, data, search]);
 
-  const sortedRows = useMemo(() => {
-    if (!sortState) {
-      return filteredRows;
-    }
+  const collator = useMemo(() => new Intl.Collator(undefined, { numeric: true, sensitivity: "base" }), []);
 
-    const sortColumn = columns.find((column) => column.id === sortState.columnId);
-    if (!sortColumn?.sortAccessor) {
-      return filteredRows;
-    }
+  const appSort = useMemo<SortingFn<TData>>(
+    () =>
+      (rowA: Row<TData>, rowB: Row<TData>, columnId: string) => {
+        const leftValue = toComparableValue(rowA.getValue(columnId) as string | number | Date | null | undefined);
+        const rightValue = toComparableValue(rowB.getValue(columnId) as string | number | Date | null | undefined);
 
-    const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
-    const directionFactor = sortState.direction === "asc" ? 1 : -1;
+        if (leftValue === null || leftValue === undefined) {
+          return 1;
+        }
 
-    return [...filteredRows].sort((left, right) => {
-      const leftValue = toComparableValue(sortColumn.sortAccessor?.(left));
-      const rightValue = toComparableValue(sortColumn.sortAccessor?.(right));
+        if (rightValue === null || rightValue === undefined) {
+          return -1;
+        }
 
-      if (leftValue === null || leftValue === undefined) {
-        return 1;
-      }
+        if (typeof leftValue === "number" && typeof rightValue === "number") {
+          return leftValue - rightValue;
+        }
 
-      if (rightValue === null || rightValue === undefined) {
-        return -1;
-      }
+        return collator.compare(String(leftValue), String(rightValue));
+      },
+    [collator],
+  );
 
-      if (typeof leftValue === "number" && typeof rightValue === "number") {
-        return (leftValue - rightValue) * directionFactor;
-      }
+  const tableColumns = useMemo<ColumnDef<TData>[]>(() => {
+    return columns.map((column) => ({
+      id: column.id,
+      accessorFn: (row) => {
+        return column.sortAccessor?.(row)
+          ?? column.searchAccessor?.(row)
+          ?? column.exportAccessor?.(row)
+          ?? "";
+      },
+      enableSorting: Boolean(column.sortAccessor),
+      sortingFn: appSort,
+    }));
+  }, [appSort, columns]);
 
-      return collator.compare(String(leftValue), String(rightValue)) * directionFactor;
-    });
-  }, [columns, filteredRows, sortState]);
+  const columnVisibility = useMemo(() => {
+    return toColumnVisibilityState(columnState);
+  }, [columnState]);
 
+  const columnPinning = useMemo(() => {
+    return toColumnPinningState(columnState);
+  }, [columnState]);
+
+  const table = useReactTable<TData>({
+    data: filteredRows as TData[],
+    columns: tableColumns,
+    state: {
+      sorting,
+      pagination,
+      rowSelection,
+      columnVisibility,
+      columnPinning,
+    },
+    getRowId: rowKey,
+    onSortingChange: setSorting,
+    onPaginationChange: setPagination,
+    onRowSelectionChange: setRowSelection,
+    enableRowSelection: enableSelection,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+  });
+
+  const sortedRows = table.getSortedRowModel().rows;
+  const pageRows = table.getPaginationRowModel().rows;
   const totalRows = sortedRows.length;
-  const totalPages = Math.max(1, Math.ceil(totalRows / pageSize));
-  const safePage = clampPage(page, totalPages);
-
-  useEffect(() => {
-    if (page !== safePage) {
-      setPage(safePage);
-    }
-  }, [page, safePage]);
-
-  const pageRows = useMemo(() => {
-    const start = (safePage - 1) * pageSize;
-    return sortedRows.slice(start, start + pageSize);
-  }, [pageSize, safePage, sortedRows]);
-
-  const allPageSelected = pageRows.length > 0 && pageRows.every((row) => selectedKeys.has(rowKey(row)));
-  const somePageSelected = pageRows.some((row) => selectedKeys.has(rowKey(row)));
-
+  const totalPages = Math.max(1, table.getPageCount());
+  const safePage = table.getState().pagination.pageIndex + 1;
+  const pageSize = table.getState().pagination.pageSize;
   const showingFrom = totalRows === 0 ? 0 : (safePage - 1) * pageSize + 1;
   const showingTo = totalRows === 0 ? 0 : Math.min(totalRows, safePage * pageSize);
-
   const pageButtons = getPageButtons(safePage, totalPages);
 
-  const toggleSort = (columnId: string) => {
-    setSortState((current) => {
-      if (!current || current.columnId !== columnId) {
-        return { columnId, direction: "asc" };
-      }
+  useEffect(() => {
+    const pageIndex = table.getState().pagination.pageIndex;
+    const maxPageIndex = Math.max(0, totalPages - 1);
 
-      if (current.direction === "asc") {
-        return { columnId, direction: "desc" };
-      }
+    if (pageIndex > maxPageIndex) {
+      table.setPageIndex(maxPageIndex);
+    }
+  }, [table, totalPages]);
 
-      return null;
-    });
-  };
-
-  const toggleSelectAllOnPage = (next: boolean) => {
-    setSelectedKeys((current) => {
-      const nextKeys = new Set(current);
-
-      pageRows.forEach((row) => {
-        const key = rowKey(row);
-        if (next) {
-          nextKeys.add(key);
-        } else {
-          nextKeys.delete(key);
-        }
-      });
-
-      return nextKeys;
-    });
-  };
-
-  const toggleRowSelection = (key: string, next: boolean) => {
-    setSelectedKeys((current) => {
-      const nextKeys = new Set(current);
-      if (next) {
-        nextKeys.add(key);
-      } else {
-        nextKeys.delete(key);
-      }
-      return nextKeys;
-    });
-  };
+  const allPageSelected = enableSelection && table.getIsAllPageRowsSelected();
+  const somePageSelected = enableSelection && table.getIsSomePageRowsSelected();
 
   const openSettings = () => {
     setSettingsDraft(normalizeColumnState(columns, columnState));
@@ -491,7 +494,7 @@ export function AppDataTable<TData>({
   const applySettings = () => {
     setColumnState(settingsDraft);
     setSettingsOpen(false);
-    setPage(1);
+    table.setPageIndex(0);
   };
 
   const resetSettings = () => {
@@ -503,9 +506,9 @@ export function AppDataTable<TData>({
   const exportRows = sortedRows.map((row) => {
     return exportColumns.reduce<Record<string, string>>((record, column) => {
       const exportValue =
-        column.exportAccessor?.(row) ??
-        column.searchAccessor?.(row) ??
-        column.sortAccessor?.(row) ??
+        column.exportAccessor?.(row.original) ??
+        column.searchAccessor?.(row.original) ??
+        column.sortAccessor?.(row.original) ??
         "";
 
       record[column.header] = formatExportValue(exportValue);
@@ -524,7 +527,6 @@ export function AppDataTable<TData>({
 
     xlsx.utils.book_append_sheet(workbook, worksheet, "Data");
     xlsx.writeFileXLSX(workbook, `${fileNameBase}.xlsx`);
-    setExportMenuOpen(false);
   };
 
   const handleExportPdf = async () => {
@@ -555,7 +557,6 @@ export function AppDataTable<TData>({
     });
 
     pdf.save(`${fileNameBase}.pdf`);
-    setExportMenuOpen(false);
   };
 
   return (
@@ -567,8 +568,8 @@ export function AppDataTable<TData>({
           className="h-11 min-w-20 rounded-xl border border-border bg-card px-3 text-sm text-foreground outline-none focus:ring-2 focus:ring-primary/30"
           onChange={(event) => {
             const nextPageSize = Number(event.target.value);
-            setPageSize(nextPageSize);
-            setPage(1);
+            table.setPageSize(nextPageSize);
+            table.setPageIndex(0);
           }}
           value={String(pageSize)}
         >
@@ -583,7 +584,7 @@ export function AppDataTable<TData>({
           <AppInput
             onChangeValue={(value) => {
               setSearch(value);
-              setPage(1);
+              table.setPageIndex(0);
             }}
             placeholder={searchPlaceholder ?? t("table.searchPlaceholder")}
             prefix={<SearchIcon />}
@@ -593,35 +594,37 @@ export function AppDataTable<TData>({
 
         <div className="ml-auto flex items-center gap-2">
           {enableExport ? (
-            <div className="relative" ref={exportMenuRef}>
-              <button
-                className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-border bg-card text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                onClick={() => setExportMenuOpen((current) => !current)}
-                title={t("table.export")}
-                type="button"
-              >
-                <ExportIcon />
-              </button>
-
-              {exportMenuOpen ? (
-                <div className="absolute right-0 top-[calc(100%+8px)] z-30 w-44 rounded-xl border border-border bg-card p-2 shadow-md">
-                  <button
-                    className="w-full rounded-lg px-3 py-2 text-left text-sm text-foreground transition-colors hover:bg-muted"
-                    onClick={handleExportPdf}
-                    type="button"
+            <DropdownMenu.Root>
+              <DropdownMenu.Trigger asChild>
+                <button
+                  className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-border bg-card text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                  title={t("table.export")}
+                  type="button"
+                >
+                  <ExportIcon />
+                </button>
+              </DropdownMenu.Trigger>
+              <DropdownMenu.Portal>
+                <DropdownMenu.Content
+                  align="end"
+                  className="z-30 w-44 rounded-xl border border-border bg-card p-2 shadow-md"
+                  sideOffset={8}
+                >
+                  <DropdownMenu.Item
+                    className="w-full rounded-lg px-3 py-2 text-left text-sm text-foreground outline-none transition-colors focus:bg-muted data-[highlighted]:bg-muted"
+                    onSelect={handleExportPdf}
                   >
                     {t("table.exportPdf")}
-                  </button>
-                  <button
-                    className="w-full rounded-lg px-3 py-2 text-left text-sm text-foreground transition-colors hover:bg-muted"
-                    onClick={handleExportExcel}
-                    type="button"
+                  </DropdownMenu.Item>
+                  <DropdownMenu.Item
+                    className="w-full rounded-lg px-3 py-2 text-left text-sm text-foreground outline-none transition-colors focus:bg-muted data-[highlighted]:bg-muted"
+                    onSelect={handleExportExcel}
                   >
                     {t("table.exportExcel")}
-                  </button>
-                </div>
-              ) : null}
-            </div>
+                  </DropdownMenu.Item>
+                </DropdownMenu.Content>
+              </DropdownMenu.Portal>
+            </DropdownMenu.Root>
           ) : null}
 
           {enableSettings ? (
@@ -651,14 +654,17 @@ export function AppDataTable<TData>({
                     <Checkbox
                       checked={allPageSelected}
                       indeterminate={!allPageSelected && somePageSelected}
-                      onChange={toggleSelectAllOnPage}
+                      onChange={(next) => table.toggleAllPageRowsSelected(next)}
                     />
                   </th>
                 ) : null}
 
                 {activeColumns.map((column) => {
                   const isSortable = Boolean(column.sortAccessor);
-                  const isActiveSort = sortState?.columnId === column.id ? sortState.direction : null;
+                  const currentSort = sorting.find((sort) => sort.id === column.id) as ColumnSort | undefined;
+                  const isActiveSort: SortDirection | null = currentSort
+                    ? (currentSort.desc ? "desc" : "asc")
+                    : null;
 
                   return (
                     <th
@@ -676,7 +682,7 @@ export function AppDataTable<TData>({
                             column.align === "right" && "ml-auto",
                             column.align === "center" && "mx-auto",
                           )}
-                          onClick={() => toggleSort(column.id)}
+                          onClick={() => setSorting((current) => triStateSortToggle(column.id, current))}
                           type="button"
                         >
                           <span>{column.header}</span>
@@ -694,22 +700,22 @@ export function AppDataTable<TData>({
             <tbody>
               {pageRows.length === 0 ? (
                 <tr>
-                  <td className="px-4 py-12 text-center text-sm text-muted-foreground" colSpan={activeColumns.length + (enableSelection ? 1 : 0)}>
+                  <td
+                    className="px-4 py-12 text-center text-sm text-muted-foreground"
+                    colSpan={activeColumns.length + (enableSelection ? 1 : 0)}
+                  >
                     {t("table.empty")}
                   </td>
                 </tr>
               ) : (
                 pageRows.map((row) => {
-                  const key = rowKey(row);
+                  const key = row.id;
 
                   return (
                     <tr className="border-b border-border/80 transition-colors hover:bg-muted/40" key={key}>
                       {enableSelection ? (
                         <td className="px-3 py-3 align-middle">
-                          <Checkbox
-                            checked={selectedKeys.has(key)}
-                            onChange={(next) => toggleRowSelection(key, next)}
-                          />
+                          <Checkbox checked={row.getIsSelected()} onChange={(next) => row.toggleSelected(next)} />
                         </td>
                       ) : null}
 
@@ -722,7 +728,7 @@ export function AppDataTable<TData>({
                           )}
                           key={`${key}-${column.id}`}
                         >
-                          {column.cell(row)}
+                          {column.cell(row.original)}
                         </td>
                       ))}
                     </tr>
@@ -740,8 +746,8 @@ export function AppDataTable<TData>({
         <div className="flex items-center gap-2">
           <button
             className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-border bg-card transition-colors hover:bg-muted disabled:opacity-50"
-            disabled={safePage <= 1}
-            onClick={() => setPage(1)}
+            disabled={!table.getCanPreviousPage()}
+            onClick={() => table.setPageIndex(0)}
             type="button"
           >
             <ChevronLeftIcon />
@@ -750,8 +756,8 @@ export function AppDataTable<TData>({
 
           <button
             className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-border bg-card transition-colors hover:bg-muted disabled:opacity-50"
-            disabled={safePage <= 1}
-            onClick={() => setPage((current) => clampPage(current - 1, totalPages))}
+            disabled={!table.getCanPreviousPage()}
+            onClick={() => table.previousPage()}
             type="button"
           >
             <ChevronLeftIcon />
@@ -769,7 +775,7 @@ export function AppDataTable<TData>({
                     : "border-border bg-card text-foreground hover:bg-muted",
                 )}
                 key={pageNumber}
-                onClick={() => setPage(pageNumber)}
+                onClick={() => table.setPageIndex(pageNumber - 1)}
                 type="button"
               >
                 {pageNumber}
@@ -779,8 +785,8 @@ export function AppDataTable<TData>({
 
           <button
             className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-border bg-card transition-colors hover:bg-muted disabled:opacity-50"
-            disabled={safePage >= totalPages}
-            onClick={() => setPage((current) => clampPage(current + 1, totalPages))}
+            disabled={!table.getCanNextPage()}
+            onClick={() => table.nextPage()}
             type="button"
           >
             <ChevronRightIcon />
@@ -788,8 +794,8 @@ export function AppDataTable<TData>({
 
           <button
             className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-border bg-card transition-colors hover:bg-muted disabled:opacity-50"
-            disabled={safePage >= totalPages}
-            onClick={() => setPage(totalPages)}
+            disabled={!table.getCanNextPage()}
+            onClick={() => table.setPageIndex(totalPages - 1)}
             type="button"
           >
             <ChevronRightIcon />
@@ -798,18 +804,20 @@ export function AppDataTable<TData>({
         </div>
       </div>
 
-      {settingsOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4">
-          <div className="max-h-[86vh] w-full max-w-4xl overflow-hidden rounded-2xl border border-border bg-card shadow-lg">
+      <Dialog.Root onOpenChange={setSettingsOpen} open={settingsOpen}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 z-50 bg-black/45" />
+          <Dialog.Content className="fixed left-1/2 top-1/2 z-50 max-h-[86vh] w-[calc(100%-2rem)] max-w-4xl -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-2xl border border-border bg-card shadow-lg focus:outline-none">
             <div className="flex items-center justify-between border-b border-border px-6 py-4">
-              <h4 className="text-lg font-semibold text-foreground">{t("table.settingsTitle")}</h4>
-              <button
-                className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-border text-muted-foreground hover:bg-muted hover:text-foreground"
-                onClick={() => setSettingsOpen(false)}
-                type="button"
-              >
-                ×
-              </button>
+              <Dialog.Title className="text-lg font-semibold text-foreground">{t("table.settingsTitle")}</Dialog.Title>
+              <Dialog.Close asChild>
+                <button
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-border text-muted-foreground hover:bg-muted hover:text-foreground"
+                  type="button"
+                >
+                  ×
+                </button>
+              </Dialog.Close>
             </div>
 
             <div className="max-h-[58vh] overflow-auto px-4 py-2 md:px-6">
@@ -876,9 +884,9 @@ export function AppDataTable<TData>({
               <AppButton label={t("table.reset")} onClick={resetSettings} variant="secondary" />
               <AppButton label={t("table.save")} onClick={applySettings} variant="primary" />
             </div>
-          </div>
-        </div>
-      ) : null}
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
     </div>
   );
 }

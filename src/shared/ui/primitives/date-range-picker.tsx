@@ -1,5 +1,8 @@
 "use client";
 
+import type { Locale as DateFnsLocale } from "date-fns";
+import { enUS, ru, uz } from "date-fns/locale";
+import { DayPicker, type DateRange } from "react-day-picker";
 import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 import { resolveIntlLocale } from "@/shared/lib/format/intl-locale";
 import { cn } from "@/shared/lib/ui/cn";
@@ -34,9 +37,6 @@ interface AppDateRangePickerProps {
   disabled?: boolean;
 }
 
-const mondayFirstOffset = 1;
-const gridCellCount = 42;
-
 function toStartOfDay(value: Date | null): Date | null {
   if (!value) {
     return null;
@@ -63,9 +63,9 @@ function isSameDay(left: Date | null, right: Date | null) {
   }
 
   return (
-    left.getFullYear() === right.getFullYear() &&
-    left.getMonth() === right.getMonth() &&
-    left.getDate() === right.getDate()
+    left.getFullYear() === right.getFullYear()
+    && left.getMonth() === right.getMonth()
+    && left.getDate() === right.getDate()
   );
 }
 
@@ -106,21 +106,6 @@ function normalizeValue(value: AppDateRangeValue): AppDateRangeValue {
 
 function getMonthStart(value: Date) {
   return createDate(value.getFullYear(), value.getMonth(), 1);
-}
-
-function shiftMonth(currentMonth: Date, delta: number) {
-  return createDate(currentMonth.getFullYear(), currentMonth.getMonth() + delta, 1);
-}
-
-function buildMonthGrid(currentMonth: Date) {
-  const monthStart = getMonthStart(currentMonth);
-  const firstDay = monthStart.getDay();
-  const leadPadding = (firstDay - mondayFirstOffset + 7) % 7;
-
-  return Array.from({ length: gridCellCount }, (_, index) => {
-    const dayOffset = index - leadPadding;
-    return createDate(monthStart.getFullYear(), monthStart.getMonth(), dayOffset + 1);
-  });
 }
 
 function getPresetRange(id: PresetId, now: Date): AppDateRangeValue {
@@ -190,8 +175,29 @@ function formatTriggerValue(mode: AppDateRangeMode, value: AppDateRangeValue, al
   return `${formatCompactDate(start)} - ${formatCompactDate(end)}`;
 }
 
-function formatSelectionSummary(mode: AppDateRangeMode, value: AppDateRangeValue, allLabel: string) {
-  return formatTriggerValue(mode, value, allLabel);
+function resolvePickerLocale(locale: string | undefined): DateFnsLocale {
+  const normalized = resolveIntlLocale(locale);
+
+  if (normalized === "ru" || normalized === "tg") {
+    return ru;
+  }
+
+  if (normalized === "uz") {
+    return uz;
+  }
+
+  return enUS;
+}
+
+function toRangeSelection(value: AppDateRangeValue): DateRange | undefined {
+  if (!value.startDate && !value.endDate) {
+    return undefined;
+  }
+
+  return {
+    from: value.startDate ?? undefined,
+    to: value.endDate ?? undefined,
+  };
 }
 
 function CalendarIcon() {
@@ -218,22 +224,6 @@ function ChevronDownIcon({ className }: { className?: string | undefined }) {
   );
 }
 
-function ChevronLeftIcon() {
-  return (
-    <svg aria-hidden className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-      <path d="M15 18l-6-6 6-6" />
-    </svg>
-  );
-}
-
-function ChevronRightIcon() {
-  return (
-    <svg aria-hidden className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-      <path d="M9 18l6-6-6-6" />
-    </svg>
-  );
-}
-
 export function AppDateRangePicker({
   value,
   onApply,
@@ -244,8 +234,8 @@ export function AppDateRangePicker({
   disabled = false,
 }: AppDateRangePickerProps) {
   const { t } = useI18n();
-  const resolvedLocale = resolveIntlLocale(locale);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const pickerLocale = useMemo(() => resolvePickerLocale(locale), [locale]);
 
   const [isOpen, setIsOpen] = useState(false);
   const [draft, setDraft] = useState<AppDateRangeValue>(() => normalizeValue(value));
@@ -303,26 +293,9 @@ export function AppDateRangePicker({
     ];
   }, [mode, t]);
 
-  const monthTitle = useMemo(() => {
-    return new Intl.DateTimeFormat(resolvedLocale, { month: "long", year: "numeric" }).format(displayedMonth);
-  }, [displayedMonth, resolvedLocale]);
-
-  const weekdayLabels = useMemo(() => {
-    const monday = createDate(2024, 0, 1);
-
-    return Array.from({ length: 7 }, (_, index) => {
-      const day = createDate(monday.getFullYear(), monday.getMonth(), monday.getDate() + index);
-      const shortLabel = new Intl.DateTimeFormat(resolvedLocale, { weekday: "short" }).format(day).replace(".", "");
-      return shortLabel.charAt(0).toUpperCase();
-    });
-  }, [resolvedLocale]);
-
-  const monthGrid = useMemo(() => buildMonthGrid(displayedMonth), [displayedMonth]);
-
   const draftNormalized = normalizeValue(draft);
   const triggerLabel = formatTriggerValue(mode, value, t("datePicker.all"));
-  const selectionSummary = formatSelectionSummary(mode, draftNormalized, t("datePicker.all"));
-
+  const selectionSummary = formatTriggerValue(mode, draftNormalized, t("datePicker.all"));
   const draftStart = draftNormalized.startDate;
   const draftEnd = mode === "single" ? draftNormalized.startDate : draftNormalized.endDate;
 
@@ -348,33 +321,51 @@ export function AppDateRangePicker({
     return isSameDay(preset.startDate, draftNormalized.startDate) && isSameDay(preset.endDate, draftNormalized.endDate);
   };
 
-  const handleDayPick = (day: Date) => {
-    const pickedDay = toStartOfDay(day);
-
-    if (!pickedDay) {
+  const handleSingleSelect = (selectedDay: Date | undefined) => {
+    if (!selectedDay) {
+      setDraft({ startDate: null, endDate: null });
       return;
     }
 
-    if (mode === "single") {
-      setDraft({ startDate: pickedDay, endDate: pickedDay });
+    const day = toStartOfDay(selectedDay);
+    setDraft({ startDate: day, endDate: day });
+  };
+
+  const handleRangeSelect = (selectedRange: DateRange | undefined) => {
+    if (!selectedRange?.from && !selectedRange?.to) {
+      setDraft({ startDate: null, endDate: null });
       return;
     }
 
-    setDraft((current) => {
-      const currentNormalized = normalizeValue(current);
-      const start = currentNormalized.startDate;
-      const end = currentNormalized.endDate;
+    const from = toStartOfDay(selectedRange?.from ?? null);
+    const to = toStartOfDay(selectedRange?.to ?? null);
 
-      if (!start || end) {
-        return { startDate: pickedDay, endDate: null };
-      }
+    if (!from && !to) {
+      setDraft({ startDate: null, endDate: null });
+      return;
+    }
 
-      if (pickedDay.getTime() < start.getTime()) {
-        return { startDate: pickedDay, endDate: start };
-      }
+    if (from && !to) {
+      setDraft({ startDate: from, endDate: null });
+      return;
+    }
 
-      return { startDate: start, endDate: pickedDay };
-    });
+    if (!from && to) {
+      setDraft({ startDate: to, endDate: null });
+      return;
+    }
+
+    if (!from || !to) {
+      setDraft({ startDate: null, endDate: null });
+      return;
+    }
+
+    if (to.getTime() < from.getTime()) {
+      setDraft({ startDate: to, endDate: from });
+      return;
+    }
+
+    setDraft({ startDate: from, endDate: to });
   };
 
   const applyDraft = () => {
@@ -478,85 +469,62 @@ export function AppDateRangePicker({
             </aside>
 
             <div className="p-3 md:p-5">
-              <div className="mb-3 flex items-center justify-between">
-                <div className="inline-flex items-center gap-2 text-base font-medium text-primary">
-                  <span className="capitalize">{monthTitle}</span>
-                  <ChevronDownIcon />
-                </div>
-
-                <div className="flex items-center gap-1">
-                  <button
-                    className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-primary hover:bg-primary/10"
-                    onClick={() => setDisplayedMonth((current) => shiftMonth(current, -1))}
-                    type="button"
-                  >
-                    <ChevronLeftIcon />
-                  </button>
-
-                  <button
-                    className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-primary hover:bg-primary/10"
-                    onClick={() => setDisplayedMonth((current) => shiftMonth(current, 1))}
-                    type="button"
-                  >
-                    <ChevronRightIcon />
-                  </button>
-                </div>
-              </div>
-
-              <div className="mb-2 grid grid-cols-7 gap-1">
-                {weekdayLabels.map((label, index) => (
-                  <div className="flex h-9 items-center justify-center text-sm text-muted-foreground" key={index}>
-                    {label}
-                  </div>
-                ))}
-              </div>
-
-              <div className="grid grid-cols-7 gap-1">
-                {monthGrid.map((day) => {
-                  const isCurrentMonth = day.getMonth() === displayedMonth.getMonth();
-                  const dayTime = day.getTime();
-                  const startTime = draftStart?.getTime() ?? null;
-                  const endTime = draftEnd?.getTime() ?? null;
-                  const rangeStart = startTime !== null && endTime !== null ? Math.min(startTime, endTime) : startTime;
-                  const rangeEnd = startTime !== null && endTime !== null ? Math.max(startTime, endTime) : endTime;
-
-                  const isSingleSelected = mode === "single" && startTime === dayTime;
-                  const isRangeStart = mode === "range" && startTime === dayTime;
-                  const isRangeEnd = mode === "range" && endTime === dayTime;
-                  const isInRange =
-                    mode === "range" &&
-                    rangeStart !== null &&
-                    rangeEnd !== null &&
-                    dayTime > rangeStart &&
-                    dayTime < rangeEnd;
-
-                  return (
-                    <div
-                      className={cn(
-                        "relative flex h-10 items-center justify-center",
-                        isInRange && "bg-primary/15",
-                        isRangeStart && !isRangeEnd && "rounded-l-full bg-primary/15",
-                        isRangeEnd && !isRangeStart && "rounded-r-full bg-primary/15",
-                      )}
-                      key={day.toISOString()}
-                    >
-                      <button
-                        className={cn(
-                          "inline-flex h-8 w-8 items-center justify-center rounded-full text-sm transition-colors",
-                          !isCurrentMonth && "text-muted-foreground/60",
-                          (isSingleSelected || isRangeStart || isRangeEnd) &&
-                            "bg-primary text-primary-foreground shadow-sm",
-                          !(isSingleSelected || isRangeStart || isRangeEnd) && "hover:bg-muted",
-                        )}
-                        onClick={() => handleDayPick(day)}
-                        type="button"
-                      >
-                        {day.getDate()}
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
+              {mode === "single" ? (
+                <DayPicker
+                  ISOWeek
+                  className="text-sm"
+                  classNames={{
+                    month: "space-y-3",
+                    caption: "flex items-center justify-between",
+                    caption_label: "text-base font-medium capitalize text-primary",
+                    nav: "flex items-center gap-1",
+                    button_previous: "inline-flex h-9 w-9 items-center justify-center rounded-lg text-primary hover:bg-primary/10",
+                    button_next: "inline-flex h-9 w-9 items-center justify-center rounded-lg text-primary hover:bg-primary/10",
+                    weekdays: "mt-1",
+                    weekday: "text-sm text-muted-foreground",
+                    day: "h-10 w-10 p-0",
+                    day_button: "inline-flex h-8 w-8 items-center justify-center rounded-full text-sm transition-colors hover:bg-muted",
+                    selected: "rounded-full bg-primary text-primary-foreground shadow-sm",
+                    outside: "text-muted-foreground/60",
+                  }}
+                  locale={pickerLocale}
+                  mode="single"
+                  month={displayedMonth}
+                  onMonthChange={setDisplayedMonth}
+                  onSelect={handleSingleSelect}
+                  selected={draftStart ?? undefined}
+                  showOutsideDays
+                />
+              ) : (
+                <DayPicker
+                  ISOWeek
+                  className="text-sm"
+                  classNames={{
+                    month: "space-y-3",
+                    caption: "flex items-center justify-between",
+                    caption_label: "text-base font-medium capitalize text-primary",
+                    nav: "flex items-center gap-1",
+                    button_previous: "inline-flex h-9 w-9 items-center justify-center rounded-lg text-primary hover:bg-primary/10",
+                    button_next: "inline-flex h-9 w-9 items-center justify-center rounded-lg text-primary hover:bg-primary/10",
+                    weekdays: "mt-1",
+                    weekday: "text-sm text-muted-foreground",
+                    day: "h-10 w-10 p-0",
+                    day_button: "inline-flex h-8 w-8 items-center justify-center rounded-full text-sm transition-colors hover:bg-muted",
+                    selected: "rounded-full bg-primary text-primary-foreground shadow-sm",
+                    range_start: "rounded-full bg-primary text-primary-foreground shadow-sm",
+                    range_end: "rounded-full bg-primary text-primary-foreground shadow-sm",
+                    range_middle: "rounded-none bg-primary/15 text-foreground",
+                    outside: "text-muted-foreground/60",
+                  }}
+                  locale={pickerLocale}
+                  mode="range"
+                  month={displayedMonth}
+                  onMonthChange={setDisplayedMonth}
+                  onSelect={handleRangeSelect}
+                  selected={toRangeSelection(draftNormalized)}
+                  showOutsideDays
+                />
+              )}
             </div>
           </div>
 
