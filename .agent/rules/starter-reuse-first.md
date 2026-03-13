@@ -1,5 +1,7 @@
 # Starter Reuse-First Rule
 
+Core principle: "Велосипед не изобретай" (do not reinvent the wheel).
+
 ## Goal
 Prevent duplicate UI primitives and keep all projects consistent with the starter kit.
 

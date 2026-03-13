@@ -104,6 +104,7 @@ Never expose DTO directly to UI.
 - No horizontal overflow or hidden primary actions on small screens.
 
 ## 10. Reuse-First UI Policy (MANDATORY)
+- Principle: "Do not reinvent the wheel" / "Велосипед не изобретай".
 - Before creating any new UI primitive, audit `src/shared/ui` and starter showcase examples first.
 - If matching or near-matching component exists, compose/extend it instead of cloning or rewriting.
 - New primitive is allowed only when:

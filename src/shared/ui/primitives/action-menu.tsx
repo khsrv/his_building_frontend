@@ -1,7 +1,8 @@
 "use client";
 
+import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import Link from "next/link";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { cn } from "@/shared/lib/ui/cn";
 
 export interface AppActionMenuItem {
@@ -58,116 +59,102 @@ export function AppActionMenu({
   menuClassName,
   onSelectItem,
 }: AppActionMenuProps) {
-  const rootRef = useRef<HTMLDivElement | null>(null);
   const [open, setOpen] = useState(false);
 
-  useEffect(() => {
-    if (!open) {
+  const hasItems = groups.some((group) => group.items.length > 0);
+  const alignMode: "start" | "end" = align === "right" ? "end" : "start";
+
+  const handleItemSelect = (item: AppActionMenuItem) => (event: Event) => {
+    item.onClick?.();
+    onSelectItem?.(item);
+
+    if (item.keepOpen) {
+      event.preventDefault();
       return;
     }
 
-    const handleOutsideClick = (event: MouseEvent) => {
-      const target = event.target as Node | null;
-      if (!target || !rootRef.current?.contains(target)) {
-        setOpen(false);
-      }
-    };
-
-    document.addEventListener("mousedown", handleOutsideClick);
-    return () => {
-      document.removeEventListener("mousedown", handleOutsideClick);
-    };
-  }, [open]);
-
-  const hasItems = groups.some((group) => group.items.length > 0);
+    setOpen(false);
+  };
 
   return (
-    <div className="relative" ref={rootRef}>
+    <DropdownMenu.Root onOpenChange={setOpen} open={open}>
       {open && withBackdrop ? (
-        <div className="fixed inset-0 z-40 bg-black/30" />
+        <div
+          className="fixed inset-0 z-40 bg-black/30"
+          onClick={() => setOpen(false)}
+          role="presentation"
+        />
       ) : null}
 
-      <button
-        className={cn(
-          "relative z-50 inline-flex h-11 items-center gap-2 rounded-xl px-4 text-sm font-medium transition-colors",
-          "bg-primary/30 text-primary hover:bg-primary/35",
-          "disabled:cursor-not-allowed disabled:opacity-60",
-          triggerClassName,
-        )}
-        disabled={disabled || !hasItems}
-        onClick={() => setOpen((current) => !current)}
-        type="button"
-      >
-        {triggerIcon ? <span className="inline-flex h-5 w-5 items-center justify-center">{triggerIcon}</span> : null}
-        <span>{triggerLabel}</span>
-        <ChevronDownIcon open={open} />
-      </button>
-
-      {open ? (
-        <div
+      <DropdownMenu.Trigger asChild>
+        <button
           className={cn(
-            "absolute top-[calc(100%+8px)] z-50 w-[min(360px,calc(100vw-2rem))] overflow-hidden rounded-xl border border-border bg-card shadow-lg",
-            align === "right" ? "right-0" : "left-0",
+            "relative z-50 inline-flex h-11 items-center gap-2 rounded-xl px-4 text-sm font-medium transition-colors",
+            "bg-primary/30 text-primary hover:bg-primary/35",
+            "disabled:cursor-not-allowed disabled:opacity-60",
+            triggerClassName,
+          )}
+          disabled={disabled || !hasItems}
+          type="button"
+        >
+          {triggerIcon ? <span className="inline-flex h-5 w-5 items-center justify-center">{triggerIcon}</span> : null}
+          <span>{triggerLabel}</span>
+          <ChevronDownIcon open={open} />
+        </button>
+      </DropdownMenu.Trigger>
+
+      <DropdownMenu.Portal>
+        <DropdownMenu.Content
+          align={alignMode}
+          className={cn(
+            "z-50 w-[min(360px,calc(100vw-2rem))] overflow-hidden rounded-xl border border-border bg-card p-1 shadow-lg",
             menuClassName,
           )}
+          sideOffset={8}
         >
           {groups.map((group, groupIndex) => (
-            <div
-              className={cn(groupIndex > 0 && "border-t border-border")}
-              key={group.id}
-            >
+            <div className={cn(groupIndex > 0 && "border-t border-border")} key={group.id}>
               {group.items.map((item) => {
                 const itemClassName = cn(
-                  "flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm transition-colors",
+                  "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm transition-colors outline-none",
                   item.destructive
-                    ? "text-danger hover:bg-danger/10"
-                    : "text-foreground hover:bg-muted",
-                  item.disabled && "cursor-not-allowed opacity-50",
+                    ? "text-danger focus:bg-danger/10 data-[highlighted]:bg-danger/10"
+                    : "text-foreground focus:bg-muted data-[highlighted]:bg-muted",
+                  item.disabled && "opacity-50",
                 );
 
                 if (item.href) {
                   return (
-                    <Link
-                      className={itemClassName}
-                      href={item.href}
+                    <DropdownMenu.Item
+                      asChild
                       key={item.id}
-                      onClick={() => {
-                        item.onClick?.();
-                        onSelectItem?.(item);
-                        if (!item.keepOpen) {
-                          setOpen(false);
-                        }
-                      }}
+                      onSelect={handleItemSelect(item)}
+                      {...(item.disabled ? { disabled: true } : {})}
                     >
-                      {item.icon ? <span className="inline-flex h-5 w-5 items-center justify-center">{item.icon}</span> : null}
-                      <span>{item.label}</span>
-                    </Link>
+                      <Link className={itemClassName} href={item.href}>
+                        {item.icon ? <span className="inline-flex h-5 w-5 items-center justify-center">{item.icon}</span> : null}
+                        <span>{item.label}</span>
+                      </Link>
+                    </DropdownMenu.Item>
                   );
                 }
 
                 return (
-                  <button
+                  <DropdownMenu.Item
                     className={itemClassName}
-                    disabled={item.disabled}
                     key={item.id}
-                    onClick={() => {
-                      item.onClick?.();
-                      onSelectItem?.(item);
-                      if (!item.keepOpen) {
-                        setOpen(false);
-                      }
-                    }}
-                    type="button"
+                    onSelect={handleItemSelect(item)}
+                    {...(item.disabled ? { disabled: true } : {})}
                   >
                     {item.icon ? <span className="inline-flex h-5 w-5 items-center justify-center">{item.icon}</span> : null}
                     <span>{item.label}</span>
-                  </button>
+                  </DropdownMenu.Item>
                 );
               })}
             </div>
           ))}
-        </div>
-      ) : null}
-    </div>
+        </DropdownMenu.Content>
+      </DropdownMenu.Portal>
+    </DropdownMenu.Root>
   );
 }
