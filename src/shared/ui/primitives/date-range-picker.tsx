@@ -1,11 +1,19 @@
 "use client";
 
-import type { Locale as DateFnsLocale } from "date-fns";
+import { useMemo, useState, type ElementType, type MouseEvent } from "react";
+import { format } from "date-fns";
 import { enUS, ru, uz } from "date-fns/locale";
-import { DayPicker, type DateRange } from "react-day-picker";
-import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
+import { DateCalendar } from "@mui/x-date-pickers/DateCalendar";
+import { PickersDay, type PickersDayProps } from "@mui/x-date-pickers/PickersDay";
+import {
+  Box,
+  Button,
+  Paper,
+  Popover,
+  Stack,
+  Typography,
+} from "@mui/material";
 import { resolveIntlLocale } from "@/shared/lib/format/intl-locale";
-import { cn } from "@/shared/lib/ui/cn";
 import { useI18n } from "@/shared/providers/locale-provider";
 import { AppButton } from "@/shared/ui/primitives/button";
 
@@ -37,20 +45,12 @@ interface AppDateRangePickerProps {
   disabled?: boolean;
 }
 
-function toStartOfDay(value: Date | null): Date | null {
+function startOfDay(value: Date | null) {
   if (!value) {
     return null;
   }
 
   return new Date(value.getFullYear(), value.getMonth(), value.getDate(), 0, 0, 0, 0);
-}
-
-function toEndOfDay(value: Date | null): Date | null {
-  if (!value) {
-    return null;
-  }
-
-  return new Date(value.getFullYear(), value.getMonth(), value.getDate(), 23, 59, 59, 999);
 }
 
 function createDate(year: number, month: number, day: number) {
@@ -62,24 +62,14 @@ function isSameDay(left: Date | null, right: Date | null) {
     return false;
   }
 
-  return (
-    left.getFullYear() === right.getFullYear()
+  return left.getFullYear() === right.getFullYear()
     && left.getMonth() === right.getMonth()
-    && left.getDate() === right.getDate()
-  );
-}
-
-function formatCompactDate(value: Date) {
-  const day = String(value.getDate()).padStart(2, "0");
-  const month = String(value.getMonth() + 1).padStart(2, "0");
-  const year = value.getFullYear();
-
-  return `${day}.${month}.${year}`;
+    && left.getDate() === right.getDate();
 }
 
 function normalizeValue(value: AppDateRangeValue): AppDateRangeValue {
-  const start = toStartOfDay(value.startDate);
-  const end = toStartOfDay(value.endDate);
+  const start = startOfDay(value.startDate);
+  const end = startOfDay(value.endDate);
 
   if (!start && !end) {
     return { startDate: null, endDate: null };
@@ -97,15 +87,34 @@ function normalizeValue(value: AppDateRangeValue): AppDateRangeValue {
     return { startDate: null, endDate: null };
   }
 
-  if (end.getTime() < start.getTime()) {
+  if (start.getTime() > end.getTime()) {
     return { startDate: end, endDate: start };
   }
 
   return { startDate: start, endDate: end };
 }
 
-function getMonthStart(value: Date) {
-  return createDate(value.getFullYear(), value.getMonth(), 1);
+function selectRangeDay(current: AppDateRangeValue, nextDay: Date): AppDateRangeValue {
+  const selected = startOfDay(nextDay);
+  if (!selected) {
+    return normalizeValue(current);
+  }
+
+  const normalized = normalizeValue(current);
+
+  if (!normalized.startDate || (normalized.startDate && normalized.endDate)) {
+    return { startDate: selected, endDate: null };
+  }
+
+  if (selected.getTime() < normalized.startDate.getTime()) {
+    return { startDate: selected, endDate: normalized.startDate };
+  }
+
+  if (selected.getTime() === normalized.startDate.getTime()) {
+    return { startDate: selected, endDate: selected };
+  }
+
+  return { startDate: normalized.startDate, endDate: selected };
 }
 
 function getPresetRange(id: PresetId, now: Date): AppDateRangeValue {
@@ -120,109 +129,194 @@ function getPresetRange(id: PresetId, now: Date): AppDateRangeValue {
       const yesterday = createDate(now.getFullYear(), now.getMonth(), now.getDate() - 1);
       return { startDate: yesterday, endDate: yesterday };
     }
-    case "last7": {
-      const start = createDate(now.getFullYear(), now.getMonth(), now.getDate() - 6);
-      return { startDate: start, endDate: today };
-    }
-    case "last30": {
-      const start = createDate(now.getFullYear(), now.getMonth(), now.getDate() - 29);
-      return { startDate: start, endDate: today };
-    }
-    case "thisMonth": {
-      const start = createDate(now.getFullYear(), now.getMonth(), 1);
-      return { startDate: start, endDate: today };
-    }
-    case "lastMonth": {
-      const start = createDate(now.getFullYear(), now.getMonth() - 1, 1);
-      const end = createDate(now.getFullYear(), now.getMonth(), 0);
-      return { startDate: start, endDate: end };
-    }
-    case "thisYear": {
-      const start = createDate(now.getFullYear(), 0, 1);
-      return { startDate: start, endDate: today };
-    }
-    case "lastYear": {
-      const start = createDate(now.getFullYear() - 1, 0, 1);
-      const end = createDate(now.getFullYear() - 1, 11, 31);
-      return { startDate: start, endDate: end };
-    }
+    case "last7":
+      return { startDate: createDate(now.getFullYear(), now.getMonth(), now.getDate() - 6), endDate: today };
+    case "last30":
+      return { startDate: createDate(now.getFullYear(), now.getMonth(), now.getDate() - 29), endDate: today };
+    case "thisMonth":
+      return { startDate: createDate(now.getFullYear(), now.getMonth(), 1), endDate: today };
+    case "lastMonth":
+      return {
+        startDate: createDate(now.getFullYear(), now.getMonth() - 1, 1),
+        endDate: createDate(now.getFullYear(), now.getMonth(), 0),
+      };
+    case "thisYear":
+      return { startDate: createDate(now.getFullYear(), 0, 1), endDate: today };
+    case "lastYear":
+      return {
+        startDate: createDate(now.getFullYear() - 1, 0, 1),
+        endDate: createDate(now.getFullYear() - 1, 11, 31),
+      };
     default:
       return { startDate: null, endDate: null };
   }
 }
 
-function formatTriggerValue(mode: AppDateRangeMode, value: AppDateRangeValue, allLabel: string) {
-  const normalized = normalizeValue(value);
-  const start = normalized.startDate;
-  const end = normalized.endDate;
+function resolveDateLocale(locale: string | undefined) {
+  const normalized = resolveIntlLocale(locale);
+  if (normalized === "ru" || normalized === "tg") {
+    return ru;
+  }
+  if (normalized === "uz") {
+    return uz;
+  }
+  return enUS;
+}
 
-  if (!start && !end) {
+function formatDateValue(value: Date | null, locale: string | undefined) {
+  if (!value) {
+    return "—";
+  }
+
+  return format(value, "dd.MM.yyyy", { locale: resolveDateLocale(locale) });
+}
+
+function formatTriggerLabel(mode: AppDateRangeMode, value: AppDateRangeValue, allLabel: string, locale: string | undefined) {
+  const normalized = normalizeValue(value);
+
+  if (!normalized.startDate && !normalized.endDate) {
     return allLabel;
   }
 
   if (mode === "single") {
-    return formatCompactDate(start ?? end ?? new Date());
+    return formatDateValue(normalized.startDate ?? normalized.endDate, locale);
   }
 
-  if (!start) {
+  if (!normalized.startDate && normalized.endDate) {
+    return formatDateValue(normalized.endDate, locale);
+  }
+
+  if (!normalized.startDate) {
     return allLabel;
   }
 
-  if (!end || isSameDay(start, end)) {
-    return formatCompactDate(start);
+  if (!normalized.endDate || isSameDay(normalized.startDate, normalized.endDate)) {
+    return formatDateValue(normalized.startDate, locale);
   }
 
-  return `${formatCompactDate(start)} - ${formatCompactDate(end)}`;
+  return `${formatDateValue(normalized.startDate, locale)} - ${formatDateValue(normalized.endDate, locale)}`;
 }
 
-function resolvePickerLocale(locale: string | undefined): DateFnsLocale {
-  const normalized = resolveIntlLocale(locale);
-
-  if (normalized === "ru" || normalized === "tg") {
-    return ru;
-  }
-
-  if (normalized === "uz") {
-    return uz;
-  }
-
-  return enUS;
-}
-
-function toRangeSelection(value: AppDateRangeValue): DateRange | undefined {
-  if (!value.startDate && !value.endDate) {
-    return undefined;
-  }
-
-  return {
-    from: value.startDate ?? undefined,
-    to: value.endDate ?? undefined,
-  };
-}
-
-function CalendarIcon() {
+function DateField({ label, value }: { label: string; value: string }) {
   return (
-    <svg aria-hidden className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-      <rect height="16" rx="2" width="18" x="3" y="5" />
-      <path d="M16 3v4M8 3v4M3 10h18" />
-    </svg>
-  );
-}
-
-function ChevronDownIcon({ className }: { className?: string | undefined }) {
-  return (
-    <svg
-      aria-hidden
-      className={cn("h-5 w-5 transition-transform", className)}
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      viewBox="0 0 24 24"
+    <Paper
+      sx={{
+        borderRadius: 1.25,
+        px: 1.25,
+        py: 0.7,
+        minHeight: 52,
+        display: "flex",
+        justifyContent: "center",
+        flexDirection: "column",
+        gap: 0.25,
+      }}
+      variant="outlined"
     >
-      <path d="M6 9l6 6 6-6" />
-    </svg>
+      <Typography color="text.secondary" variant="caption">
+        {label}
+      </Typography>
+      <Typography variant="subtitle1">{value}</Typography>
+    </Paper>
   );
 }
+
+interface RangeDayProps extends PickersDayProps {
+  startDate?: Date | null;
+  endDate?: Date | null;
+}
+
+function RangeDay(props: RangeDayProps) {
+  const { day, outsideCurrentMonth, startDate, endDate, ...other } = props;
+  const current = startOfDay(day);
+  const start = startOfDay(startDate ?? null);
+  const end = startOfDay(endDate ?? null);
+
+  const isStart = isSameDay(current, start);
+  const isEnd = isSameDay(current, end);
+  const inRange = Boolean(
+    current
+      && start
+      && end
+      && current.getTime() >= start.getTime()
+      && current.getTime() <= end.getTime(),
+  );
+
+  return (
+    <Box
+      sx={{
+        px: 0.25,
+        borderRadius: 0,
+        ...(inRange && !outsideCurrentMonth
+          ? { bgcolor: "secondary.light" }
+          : null),
+        ...(isStart && !outsideCurrentMonth
+          ? { borderTopLeftRadius: 999, borderBottomLeftRadius: 999 }
+          : null),
+        ...(isEnd && !outsideCurrentMonth
+          ? { borderTopRightRadius: 999, borderBottomRightRadius: 999 }
+          : null),
+      }}
+    >
+      <PickersDay
+        day={day}
+        outsideCurrentMonth={outsideCurrentMonth}
+        {...other}
+        sx={{
+          fontSize: 12,
+          "&.Mui-selected": {
+            bgcolor: "transparent",
+            color: "inherit",
+          },
+          "&.Mui-selected:hover": {
+            bgcolor: "transparent",
+          },
+          ...(isStart || isEnd
+            ? {
+                bgcolor: "secondary.main !important",
+                color: "secondary.contrastText !important",
+              }
+            : null),
+          ...(!isStart && !isEnd && inRange
+            ? {
+                color: "secondary.main",
+              }
+            : null),
+        }}
+      />
+    </Box>
+  );
+}
+
+const calendarSx = {
+  border: "1px solid",
+  borderColor: "divider",
+  borderRadius: 1.25,
+  p: 0.35,
+  width: 336,
+  "& .MuiPickersCalendarHeader-label": { fontWeight: 600 },
+  "& .MuiPickersCalendarHeader-root": {
+    minHeight: 34,
+    margin: 0,
+    px: 0.5,
+  },
+  "& .MuiDayCalendar-header": {
+    mt: 0.25,
+    mb: 0.25,
+  },
+  "& .MuiPickersSlideTransition-root": {
+    minHeight: 210,
+  },
+  "& .MuiDayCalendar-weekContainer": {
+    my: 0.05,
+  },
+  "& .MuiPickersDay-root": {
+    borderRadius: 1,
+    fontSize: 12,
+    width: 34,
+    height: 34,
+    margin: "0 1px",
+  },
+};
 
 export function AppDateRangePicker({
   value,
@@ -234,43 +328,12 @@ export function AppDateRangePicker({
   disabled = false,
 }: AppDateRangePickerProps) {
   const { t } = useI18n();
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const pickerLocale = useMemo(() => resolvePickerLocale(locale), [locale]);
-
-  const [isOpen, setIsOpen] = useState(false);
+  const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
   const [draft, setDraft] = useState<AppDateRangeValue>(() => normalizeValue(value));
-  const [displayedMonth, setDisplayedMonth] = useState<Date>(() => {
-    const initialDate = value.startDate ?? value.endDate ?? new Date();
-    return getMonthStart(initialDate);
-  });
+  const [activePreset, setActivePreset] = useState<PresetId | null>(null);
 
-  useEffect(() => {
-    if (!isOpen) {
-      return;
-    }
-
-    const handleClickOutside = (event: globalThis.MouseEvent) => {
-      const targetNode = event.target as Node | null;
-
-      if (!targetNode || !containerRef.current?.contains(targetNode)) {
-        setIsOpen(false);
-      }
-    };
-
-    const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setIsOpen(false);
-      }
-    };
-
-    document.addEventListener("mousedown", handleClickOutside);
-    document.addEventListener("keydown", handleEscape);
-
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-      document.removeEventListener("keydown", handleEscape);
-    };
-  }, [isOpen]);
+  const open = Boolean(anchorEl);
+  const triggerLabel = formatTriggerLabel(mode, value, t("datePicker.all"), locale);
 
   const presets = useMemo(() => {
     if (mode === "single") {
@@ -293,251 +356,169 @@ export function AppDateRangePicker({
     ];
   }, [mode, t]);
 
-  const draftNormalized = normalizeValue(draft);
-  const triggerLabel = formatTriggerValue(mode, value, t("datePicker.all"));
-  const selectionSummary = formatTriggerValue(mode, draftNormalized, t("datePicker.all"));
-  const draftStart = draftNormalized.startDate;
-  const draftEnd = mode === "single" ? draftNormalized.startDate : draftNormalized.endDate;
-
-  const setDraftByPreset = (id: PresetId) => {
-    const now = new Date();
-    const preset = normalizeValue(getPresetRange(id, now));
-
-    if (mode === "single") {
-      const single = preset.startDate ?? preset.endDate ?? createDate(now.getFullYear(), now.getMonth(), now.getDate());
-      setDraft({ startDate: single, endDate: single });
-      setDisplayedMonth(getMonthStart(single));
-      return;
-    }
-
-    setDraft(preset);
-    setDisplayedMonth(getMonthStart(preset.startDate ?? now));
-  };
-
-  const isPresetActive = (id: PresetId) => {
-    const now = new Date();
-    const preset = normalizeValue(getPresetRange(id, now));
-
-    return isSameDay(preset.startDate, draftNormalized.startDate) && isSameDay(preset.endDate, draftNormalized.endDate);
-  };
-
-  const handleSingleSelect = (selectedDay: Date | undefined) => {
-    if (!selectedDay) {
-      setDraft({ startDate: null, endDate: null });
-      return;
-    }
-
-    const day = toStartOfDay(selectedDay);
-    setDraft({ startDate: day, endDate: day });
-  };
-
-  const handleRangeSelect = (selectedRange: DateRange | undefined) => {
-    if (!selectedRange?.from && !selectedRange?.to) {
-      setDraft({ startDate: null, endDate: null });
-      return;
-    }
-
-    const from = toStartOfDay(selectedRange?.from ?? null);
-    const to = toStartOfDay(selectedRange?.to ?? null);
-
-    if (!from && !to) {
-      setDraft({ startDate: null, endDate: null });
-      return;
-    }
-
-    if (from && !to) {
-      setDraft({ startDate: from, endDate: null });
-      return;
-    }
-
-    if (!from && to) {
-      setDraft({ startDate: to, endDate: null });
-      return;
-    }
-
-    if (!from || !to) {
-      setDraft({ startDate: null, endDate: null });
-      return;
-    }
-
-    if (to.getTime() < from.getTime()) {
-      setDraft({ startDate: to, endDate: from });
-      return;
-    }
-
-    setDraft({ startDate: from, endDate: to });
-  };
-
-  const applyDraft = () => {
-    if (mode === "single") {
-      const single = toStartOfDay(draftStart);
-
-      onApply({
-        startDate: single,
-        endDate: single,
-      });
-
-      setIsOpen(false);
-      return;
-    }
-
-    if (!draftStart || !draftEnd) {
-      onApply({ startDate: null, endDate: null });
-      setIsOpen(false);
-      return;
-    }
-
-    onApply({
-      startDate: toStartOfDay(draftStart),
-      endDate: toEndOfDay(draftEnd),
-    });
-    setIsOpen(false);
-  };
-
-  const clearDraft = () => {
-    setDraft({ startDate: null, endDate: null });
-    if (onClear) {
-      onClear();
-    } else {
-      onApply({ startDate: null, endDate: null });
-    }
-    setIsOpen(false);
-  };
-
-  const handleTriggerClick = (event: ReactMouseEvent<HTMLButtonElement>) => {
-    event.preventDefault();
-    if (disabled) {
-      return;
-    }
-
+  const handleOpen = (event: MouseEvent<HTMLElement>) => {
     setDraft(normalizeValue(value));
-    setDisplayedMonth(getMonthStart(value.startDate ?? value.endDate ?? new Date()));
-    setIsOpen((current) => !current);
+    setActivePreset(null);
+    setAnchorEl(event.currentTarget);
+  };
+
+  const handleClose = () => {
+    setAnchorEl(null);
   };
 
   return (
-    <div className={cn("relative w-full max-w-[560px]", className)} ref={containerRef}>
-      <button
-        aria-expanded={isOpen}
-        aria-haspopup="dialog"
-        className={cn(
-          "inline-flex h-11 w-full items-center justify-between rounded-xl border px-3 text-left text-sm transition-colors",
-          "border-primary/20 bg-primary/15 text-primary hover:bg-primary/20",
-          "disabled:cursor-not-allowed disabled:opacity-60",
-        )}
+    <>
+      <Button
+        className={className}
         disabled={disabled}
-        onClick={handleTriggerClick}
-        type="button"
+        endIcon={(
+          <Box sx={{ display: "inline-flex", transform: open ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 120ms ease" }}>
+            <svg aria-hidden fill="none" height="18" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" width="18">
+              <path d="M6 9l6 6l6-6" />
+            </svg>
+          </Box>
+        )}
+        onClick={handleOpen}
+        startIcon={
+          <svg aria-hidden fill="none" height="18" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" width="18">
+            <rect height="16" rx="2" width="18" x="3" y="5" />
+            <path d="M16 3v4M8 3v4M3 10h18" />
+          </svg>
+        }
+        sx={{
+          height: 40,
+          borderRadius: 1.25,
+          border: "1px solid",
+          borderColor: "divider",
+          bgcolor: "background.paper",
+          color: "text.primary",
+          justifyContent: "space-between",
+          px: 1.5,
+          "&:hover": { bgcolor: "action.hover", borderColor: "divider" },
+        }}
+        variant="outlined"
       >
-        <span className="flex items-center gap-2 text-sm">
-          <CalendarIcon />
-          <span className="font-medium">{triggerLabel}</span>
-        </span>
+        {triggerLabel}
+      </Button>
 
-        <ChevronDownIcon className={isOpen ? "rotate-180" : undefined} />
-      </button>
+      <Popover
+        anchorEl={anchorEl}
+        anchorOrigin={{ horizontal: "left", vertical: "bottom" }}
+        onClose={handleClose}
+        open={open}
+        transformOrigin={{ horizontal: "left", vertical: "top" }}
+      >
+        <Paper sx={{ width: { xs: 352, md: 708 }, p: 1.15 }}>
+          <Stack direction={{ xs: "column", md: "row" }} gap={1.25}>
+            <Stack spacing={0.5} sx={{ width: { xs: "100%", md: 176 } }}>
+              {presets.map((preset) => (
+                <Button
+                  key={preset.id}
+                  onClick={() => {
+                    const next = normalizeValue(getPresetRange(preset.id, new Date()));
+                    setDraft(next);
+                    setActivePreset(preset.id);
+                  }}
+                  sx={{
+                    justifyContent: "flex-start",
+                    borderRadius: 1.25,
+                    color: activePreset === preset.id ? "secondary.main" : "text.primary",
+                    bgcolor: activePreset === preset.id ? "secondary.light" : "transparent",
+                    "&:hover": { bgcolor: activePreset === preset.id ? "secondary.light" : "action.hover" },
+                    py: 0.6,
+                  }}
+                  variant="text"
+                >
+                  {preset.label}
+                </Button>
+              ))}
+            </Stack>
 
-      {isOpen ? (
-        <div
-          className={cn(
-            "absolute right-0 top-[calc(100%+10px)] z-50 w-[min(920px,calc(100vw-2rem))] overflow-hidden rounded-2xl",
-            "border border-border bg-card shadow-lg",
-          )}
-          role="dialog"
-        >
-          <div className="grid max-h-[72vh] grid-cols-1 overflow-auto md:grid-cols-[260px_1fr]">
-            <aside className="border-b border-border p-3 md:border-b-0 md:border-r">
-              <p className="mb-2 px-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                {mode === "single" ? t("datePicker.modeSingle") : t("datePicker.modeRange")}
-              </p>
-
-              <div className="space-y-1">
-                {presets.map((preset) => (
-                  <button
-                    className={cn(
-                      "w-full rounded-lg px-3 py-2 text-left text-sm transition-colors",
-                      isPresetActive(preset.id) ? "bg-primary/20 text-primary" : "text-foreground hover:bg-muted",
-                    )}
-                    key={preset.id}
-                    onClick={() => setDraftByPreset(preset.id)}
-                    type="button"
-                  >
-                    {preset.label}
-                  </button>
-                ))}
-              </div>
-            </aside>
-
-            <div className="p-3 md:p-5">
+            <Stack flex={1} gap={0.9}>
               {mode === "single" ? (
-                <DayPicker
-                  ISOWeek
-                  className="text-sm"
-                  classNames={{
-                    month: "space-y-3",
-                    caption: "flex items-center justify-between",
-                    caption_label: "text-base font-medium capitalize text-primary",
-                    nav: "flex items-center gap-1",
-                    button_previous: "inline-flex h-9 w-9 items-center justify-center rounded-lg text-primary hover:bg-primary/10",
-                    button_next: "inline-flex h-9 w-9 items-center justify-center rounded-lg text-primary hover:bg-primary/10",
-                    weekdays: "mt-1",
-                    weekday: "text-sm text-muted-foreground",
-                    day: "h-10 w-10 p-0",
-                    day_button: "inline-flex h-8 w-8 items-center justify-center rounded-full text-sm transition-colors hover:bg-muted",
-                    selected: "rounded-full bg-primary text-primary-foreground shadow-sm",
-                    outside: "text-muted-foreground/60",
-                  }}
-                  locale={pickerLocale}
-                  mode="single"
-                  month={displayedMonth}
-                  onMonthChange={setDisplayedMonth}
-                  onSelect={handleSingleSelect}
-                  selected={draftStart ?? undefined}
-                  showOutsideDays
-                />
+                <>
+                  <DateField
+                    label={t("datePicker.selectDate")}
+                    value={formatDateValue(draft.startDate ?? draft.endDate, locale)}
+                  />
+                  <DateCalendar
+                    onChange={(nextDate) => {
+                      const normalized = startOfDay(nextDate);
+                      setActivePreset(null);
+                      setDraft({ startDate: normalized, endDate: normalized });
+                    }}
+                    sx={calendarSx}
+                    value={draft.startDate}
+                  />
+                </>
               ) : (
-                <DayPicker
-                  ISOWeek
-                  className="text-sm"
-                  classNames={{
-                    month: "space-y-3",
-                    caption: "flex items-center justify-between",
-                    caption_label: "text-base font-medium capitalize text-primary",
-                    nav: "flex items-center gap-1",
-                    button_previous: "inline-flex h-9 w-9 items-center justify-center rounded-lg text-primary hover:bg-primary/10",
-                    button_next: "inline-flex h-9 w-9 items-center justify-center rounded-lg text-primary hover:bg-primary/10",
-                    weekdays: "mt-1",
-                    weekday: "text-sm text-muted-foreground",
-                    day: "h-10 w-10 p-0",
-                    day_button: "inline-flex h-8 w-8 items-center justify-center rounded-full text-sm transition-colors hover:bg-muted",
-                    selected: "rounded-full bg-primary text-primary-foreground shadow-sm",
-                    range_start: "rounded-full bg-primary text-primary-foreground shadow-sm",
-                    range_end: "rounded-full bg-primary text-primary-foreground shadow-sm",
-                    range_middle: "rounded-none bg-primary/15 text-foreground",
-                    outside: "text-muted-foreground/60",
-                  }}
-                  locale={pickerLocale}
-                  mode="range"
-                  month={displayedMonth}
-                  onMonthChange={setDisplayedMonth}
-                  onSelect={handleRangeSelect}
-                  selected={toRangeSelection(draftNormalized)}
-                  showOutsideDays
-                />
+                <>
+                  <Stack direction={{ xs: "column", md: "row" }} gap={0.75}>
+                    <DateField label={t("datePicker.startDate")} value={formatDateValue(draft.startDate, locale)} />
+                    <DateField label={t("datePicker.endDate")} value={formatDateValue(draft.endDate, locale)} />
+                  </Stack>
+
+                  <DateCalendar
+                    onChange={(nextDate) => {
+                      if (!nextDate) {
+                        return;
+                      }
+                      setActivePreset(null);
+                      setDraft((current) => normalizeValue(selectRangeDay(current, nextDate)));
+                    }}
+                    slots={{ day: RangeDay as ElementType<PickersDayProps> }}
+                    slotProps={{
+                      day: {
+                        startDate: draft.startDate,
+                        endDate: draft.endDate,
+                      } as Record<string, unknown>,
+                    }}
+                    sx={calendarSx}
+                    value={draft.endDate ?? draft.startDate}
+                  />
+                </>
               )}
-            </div>
-          </div>
 
-          <div className="flex flex-col gap-3 border-t border-border p-4 md:flex-row md:items-center md:justify-between">
-            <p className="text-sm text-muted-foreground">{selectionSummary}</p>
+              <Box
+                sx={{
+                  borderTop: "1px solid",
+                  borderColor: "divider",
+                  pt: 0.85,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 1,
+                }}
+              >
+                <Typography color="text.secondary" variant="body2">
+                  {formatTriggerLabel(mode, draft, t("datePicker.all"), locale)}
+                </Typography>
 
-            <div className="flex items-center gap-2">
-              <AppButton label={t("datePicker.clear")} onClick={clearDraft} variant="secondary" />
-              <AppButton label={t("datePicker.apply")} onClick={applyDraft} variant="primary" />
-            </div>
-          </div>
-        </div>
-      ) : null}
-    </div>
+                <Stack direction="row" spacing={1}>
+                  {onClear ? (
+                    <AppButton
+                      label={t("datePicker.clear")}
+                      onClick={() => {
+                        onClear();
+                        handleClose();
+                      }}
+                      variant="secondary"
+                    />
+                  ) : null}
+                  <AppButton
+                    label={t("datePicker.apply")}
+                    onClick={() => {
+                      onApply(normalizeValue(draft));
+                      handleClose();
+                    }}
+                    variant="primary"
+                  />
+                </Stack>
+              </Box>
+            </Stack>
+          </Stack>
+        </Paper>
+      </Popover>
+    </>
   );
 }

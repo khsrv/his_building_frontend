@@ -23,10 +23,10 @@ Prevent duplicate UI primitives and keep all projects consistent with the starte
 4. Create new primitive (last resort).
 
 ## Preferred External Building Blocks (for complex primitives)
-- Menus/overlays/dialog/select internals: Radix UI primitives.
-- Data table engine: TanStack Table.
-- Date and range calendar engine: `react-day-picker` (or chosen UI library equivalent).
-- Advanced select/multi/creatable: `react-select` (or chosen UI library equivalent).
+- Menus/overlays/dialog/select internals for admin: MUI primitives.
+- Data table engine: `MUI DataGrid` (Community by default).
+- Date and range calendar engine: `@mui/x-date-pickers`.
+- Advanced select/multi/creatable: MUI-based `AppSmartTextInput` or `react-select` behind `App*` wrapper.
 - File drag-and-drop upload: `react-dropzone`.
 
 Rule:

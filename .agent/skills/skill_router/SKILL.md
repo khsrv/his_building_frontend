@@ -13,7 +13,7 @@ Default: 1 skill. Use 2 if necessary. Use 3 only for complex deliveries.
 1. Follow `rules/frontend-core.md` first.
 2. For UI-related tasks, run `starter_component_reuse` first (or pair it with primary skill).
 3. Do not scaffold full modules for tiny fixes.
-4. Do not introduce MUI/AntD unless admin requirements justify it.
+4. For admin tasks use MUI-first and do not introduce a second heavy UI system.
 5. Keep output focused on requested scope.
 
 ## Selection Map

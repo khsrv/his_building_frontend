@@ -1,9 +1,19 @@
 "use client";
 
-import * as Dialog from "@radix-ui/react-dialog";
-import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
-import { useState, type HTMLAttributes, type ReactNode } from "react";
-import { cn } from "@/shared/lib/ui/cn";
+import { useState, type HTMLAttributes, type MouseEvent, type ReactNode } from "react";
+import {
+  Backdrop,
+  Box,
+  Button,
+  Dialog,
+  DialogContent,
+  DialogTitle,
+  Divider,
+  ListItemIcon,
+  ListItemText,
+  Menu,
+  MenuItem,
+} from "@mui/material";
 import { AppButton } from "@/shared/ui/primitives/button";
 
 export interface AppWidgetMenuOption {
@@ -44,10 +54,10 @@ interface AppWidgetFieldGridProps extends HTMLAttributes<HTMLDivElement> {
   columns?: WidgetFieldGridColumns;
 }
 
-const fieldGridClass: Record<WidgetFieldGridColumns, string> = {
-  1: "grid-cols-1",
-  2: "grid-cols-1 md:grid-cols-2",
-  3: "grid-cols-1 md:grid-cols-2 xl:grid-cols-3",
+const columnsSx: Record<WidgetFieldGridColumns, object> = {
+  1: { gridTemplateColumns: "1fr" },
+  2: { gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" } },
+  3: { gridTemplateColumns: { xs: "1fr", md: "1fr 1fr", xl: "1fr 1fr 1fr" } },
 };
 
 export function AppWidgetMenu({
@@ -60,73 +70,80 @@ export function AppWidgetMenu({
   triggerClassName,
   menuClassName,
 }: AppWidgetMenuProps) {
-  const [isOpen, setIsOpen] = useState(false);
-  const alignMode: "start" | "end" = align === "right" ? "end" : "start";
+  const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
+  const open = Boolean(anchorEl);
+
+  const handleOpen = (event: MouseEvent<HTMLElement>) => {
+    setAnchorEl(event.currentTarget);
+  };
+
+  const handleClose = () => {
+    setAnchorEl(null);
+  };
 
   return (
-    <DropdownMenu.Root onOpenChange={setIsOpen} open={isOpen}>
-      {isOpen && withBackdrop ? (
-        <div
-          className="fixed inset-0 z-40 bg-black/35"
-          onClick={() => setIsOpen(false)}
-          role="presentation"
-        />
-      ) : null}
+    <>
+      <Backdrop
+        onClick={handleClose}
+        open={open && withBackdrop}
+        sx={{ zIndex: (theme) => theme.zIndex.modal - 1, bgcolor: "rgba(0,0,0,0.35)" }}
+      />
+      <Button
+        className={triggerClassName}
+        onClick={handleOpen}
+        sx={{
+          height: 38,
+          minWidth: 44,
+          borderRadius: 1.25,
+          borderColor: "divider",
+          color: "text.primary",
+          bgcolor: "background.paper",
+          "&:hover": { bgcolor: "action.hover", borderColor: "divider" },
+        }}
+        variant="outlined"
+      >
+        {trigger}
+      </Button>
 
-      <DropdownMenu.Trigger asChild>
-        <button
-          className={cn(
-            "relative z-50 inline-flex h-11 items-center justify-center rounded-xl border border-border bg-card px-3 text-sm text-foreground transition-colors hover:bg-muted",
-            triggerClassName,
-          )}
-          type="button"
-        >
-          {trigger}
-        </button>
-      </DropdownMenu.Trigger>
+      <Menu
+        anchorEl={anchorEl}
+        anchorOrigin={{ horizontal: align === "right" ? "right" : "left", vertical: "bottom" }}
+        onClose={handleClose}
+        open={open}
+        slotProps={{ paper: { className: menuClassName, sx: { minWidth: 260, p: 0.75 } } }}
+        transformOrigin={{ horizontal: align === "right" ? "right" : "left", vertical: "top" }}
+      >
+        {options.map((option) => {
+          const selected = selectedOptionId === option.id;
 
-      <DropdownMenu.Portal>
-        <DropdownMenu.Content
-          align={alignMode}
-          className={cn("z-50 w-64 rounded-xl border border-border bg-card p-1.5 shadow-lg", menuClassName)}
-          sideOffset={8}
-        >
-          <div className="space-y-1">
-            {options.map((option) => {
-              const isSelected = selectedOptionId === option.id;
-
-              return (
-                <DropdownMenu.Item
-                  className={cn(
-                    "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm outline-none transition-colors",
-                    option.disabled && "opacity-50",
-                    isSelected
-                      ? "bg-primary/15 text-primary"
-                      : "text-foreground focus:bg-muted data-[highlighted]:bg-muted",
-                  )}
-                  key={option.id}
-                  onSelect={() => {
-                    onSelectOption?.(option);
-                    setIsOpen(false);
-                  }}
-                  {...(option.disabled ? { disabled: true } : {})}
-                >
-                  {option.icon ? (
-                    <span className="inline-flex h-5 w-5 items-center justify-center">
-                      {option.icon}
-                    </span>
-                  ) : null}
-                  <span className="text-sm leading-none">{option.label}</span>
-                  {option.value ? (
-                    <span className="ml-auto text-sm leading-none text-inherit">{option.value}</span>
-                  ) : null}
-                </DropdownMenu.Item>
-              );
-            })}
-          </div>
-        </DropdownMenu.Content>
-      </DropdownMenu.Portal>
-    </DropdownMenu.Root>
+          return (
+            <MenuItem
+              disabled={option.disabled}
+              key={option.id}
+              onClick={() => {
+                onSelectOption?.(option);
+                handleClose();
+              }}
+              selected={selected}
+              sx={{
+                borderRadius: 1.25,
+                py: 1.1,
+                color: selected ? "primary.main" : "text.primary",
+                bgcolor: selected ? "primary.light" : undefined,
+              }}
+            >
+              {option.icon ? <ListItemIcon sx={{ minWidth: 28 }}>{option.icon}</ListItemIcon> : null}
+              <ListItemText>{option.label}</ListItemText>
+              {option.value ? (
+                <Box component="span" sx={{ ml: 1, color: "text.secondary", fontSize: 14 }}>
+                  {option.value}
+                </Box>
+              ) : null}
+            </MenuItem>
+          );
+        })}
+      </Menu>
+    </>
   );
 }
 
@@ -143,41 +160,23 @@ export function AppWidgetFilterModal({
   children,
 }: AppWidgetFilterModalProps) {
   return (
-    <Dialog.Root onOpenChange={(nextOpen) => {
-      if (!nextOpen) {
-        onClose();
-      }
-    }} open={open}>
-      <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-50 bg-black/40" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 z-50 w-[calc(100%-2rem)] max-w-xl -translate-x-1/2 -translate-y-1/2 rounded-xl border border-border bg-card p-4 shadow-xl focus:outline-none">
-          <div className="space-y-4">
-            <Dialog.Title className="text-xl font-semibold text-foreground">{title}</Dialog.Title>
-
-            {children}
-
-            <div className="grid grid-cols-2 gap-3 pt-1">
-              <AppButton
-                className="h-11 bg-primary/15 text-primary hover:bg-primary/20"
-                disabled={applyDisabled}
-                isLoading={isApplying}
-                label={applyLabel}
-                onClick={onApply}
-                variant="tonal"
-              />
-              <Dialog.Close asChild>
-                <AppButton
-                  className="h-11 bg-rose-100/70 text-rose-500 hover:bg-rose-100"
-                  disabled={closeDisabled}
-                  label={closeLabel}
-                  variant="tonal"
-                />
-              </Dialog.Close>
-            </div>
-          </div>
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
+    <Dialog fullWidth maxWidth="sm" onClose={onClose} open={open}>
+      <DialogTitle>{title}</DialogTitle>
+      <DialogContent>
+        <Box sx={{ py: 0.5 }}>{children}</Box>
+        <Divider sx={{ my: 2 }} />
+        <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1.5 }}>
+          <AppButton
+            disabled={applyDisabled}
+            isLoading={isApplying}
+            label={applyLabel}
+            onClick={onApply}
+            variant="tonal"
+          />
+          <AppButton disabled={closeDisabled} label={closeLabel} onClick={onClose} variant="secondary" />
+        </Box>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -188,8 +187,16 @@ export function AppWidgetFieldGrid({
   ...rest
 }: AppWidgetFieldGridProps) {
   return (
-    <div className={cn("grid gap-3", fieldGridClass[columns], className)} {...rest}>
+    <Box
+      className={className}
+      sx={{
+        display: "grid",
+        gap: 1.5,
+        ...columnsSx[columns],
+      }}
+      {...rest}
+    >
       {children}
-    </div>
+    </Box>
   );
 }

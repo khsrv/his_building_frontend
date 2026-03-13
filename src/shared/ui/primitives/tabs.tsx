@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useState, type ReactNode } from "react";
-import { cn } from "@/shared/lib/ui/cn";
+import { isValidElement, useMemo, useState, type ReactNode, type SyntheticEvent } from "react";
+import { Box, Tab, Tabs } from "@mui/material";
 
 export interface TabSpec {
   id: string;
@@ -30,7 +30,6 @@ export function AppTabs({
 }: AppTabsProps) {
   const fallbackTab = tabs[0]?.id ?? "";
   const [internalTab, setInternalTab] = useState(initialTabId ?? fallbackTab);
-
   const selectedTab = initialTabId ?? internalTab;
   const activeTab = tabs.some((tab) => tab.id === selectedTab) ? selectedTab : fallbackTab;
 
@@ -39,55 +38,53 @@ export function AppTabs({
     [activeTab, tabs],
   );
 
+  const handleChange = (_event: SyntheticEvent, nextTab: string) => {
+    if (!initialTabId) {
+      setInternalTab(nextTab);
+    }
+    onTabChange?.(nextTab);
+  };
+
   return (
-    <div className="flex min-h-0 flex-col gap-3">
+    <Box sx={{ display: "flex", minHeight: 0, flexDirection: "column", gap: 1.5 }}>
       {top}
 
-      <div className="rounded-lg bg-muted p-1">
-        <div className={cn("flex gap-1", isScrollable ? "overflow-x-auto" : "flex-wrap")}>
-          {tabs.map((tab) => {
-            const isActive = tab.id === activeTab;
-
-            return (
-              <button
-                className={cn(
-                  "inline-flex min-h-9 items-center gap-2 rounded-md px-3 text-sm font-medium",
-                  "transition-colors",
-                  isActive
-                    ? "bg-primary text-primary-foreground"
-                    : "text-muted-foreground hover:bg-card/80 hover:text-foreground",
-                )}
-                key={tab.id}
-                onClick={() => {
-                  if (!initialTabId) {
-                    setInternalTab(tab.id);
-                  }
-
-                  onTabChange?.(tab.id);
-                }}
-                type="button"
-              >
-                {tab.icon}
-                <span>{tab.title}</span>
-                {typeof tab.badge === "number" ? (
-                  <span
-                    className={cn(
-                      "rounded-full px-2 py-0.5 text-xs",
-                      isActive ? "bg-primary-foreground/20" : "bg-card",
-                    )}
-                  >
-                    {tab.badge}
-                  </span>
-                ) : null}
-              </button>
-            );
-          })}
-        </div>
-      </div>
+      <Box sx={{ borderRadius: 1.5, bgcolor: "action.hover", p: 0.5 }}>
+        <Tabs
+          onChange={handleChange}
+          scrollButtons={isScrollable ? "auto" : false}
+          sx={{
+            minHeight: 36,
+            "& .MuiTabs-indicator": { display: "none" },
+          }}
+          value={activeTab}
+          variant={isScrollable ? "scrollable" : "standard"}
+        >
+          {tabs.map((tab) => (
+            <Tab
+              icon={isValidElement(tab.icon) ? tab.icon : undefined}
+              iconPosition="start"
+              key={tab.id}
+              label={typeof tab.badge === "number" ? `${tab.title} (${tab.badge})` : tab.title}
+              sx={{
+                minHeight: 36,
+                borderRadius: 1.25,
+                textTransform: "none",
+                color: "text.secondary",
+                "&.Mui-selected": {
+                  bgcolor: "primary.main",
+                  color: "primary.contrastText",
+                },
+              }}
+              value={tab.id}
+            />
+          ))}
+        </Tabs>
+      </Box>
 
       {bottom}
 
-      <div className="min-h-0 flex-1">{activeContent}</div>
-    </div>
+      <Box sx={{ minHeight: 0, flex: 1 }}>{activeContent}</Box>
+    </Box>
   );
 }

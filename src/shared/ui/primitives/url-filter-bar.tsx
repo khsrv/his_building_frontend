@@ -42,9 +42,9 @@ export function AppUrlFilterBar({
             return (
               <AppSelect
                 key={field.key}
-                label={field.label}
                 onChange={(event) => setDraft((current) => ({ ...current, [field.key]: event.target.value }))}
                 options={field.options ?? []}
+                placeholder={field.label}
                 value={draft[field.key] ?? ""}
               />
             );

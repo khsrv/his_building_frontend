@@ -28,10 +28,10 @@ steps:
 
   - choose_ui_path:
       options:
-        - tailwind_shadcn
-        - mui
-        - ant_design
+        - mui_first
+        - mui_plus_ag_grid_exception
       rule:
+        - choose_mui_by_default_for_admin_modules
         - choose_one_primary_library_per_module
 
   - implement_data_layer:

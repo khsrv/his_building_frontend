@@ -440,7 +440,7 @@ export function AppShell({ children }: AppShellProps) {
             className="mb-4"
             leftSlot={
               <button
-                className="inline-flex h-11 w-11 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                 title={t("topbar.openCalendar")}
                 type="button"
               >

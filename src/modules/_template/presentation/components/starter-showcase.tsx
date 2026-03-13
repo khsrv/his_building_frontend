@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import Image from "next/image";
 import { useDateRangeFilter } from "@/shared/hooks/use-date-range-filter";
 import { useUnsavedChangesGuard } from "@/shared/hooks/use-unsaved-changes-guard";
@@ -19,6 +19,7 @@ import {
   AppCrudPageScaffold,
   AppDataTable,
   type AppDataTableColumn,
+  type AppDataTableFilterField,
   AppDateRangePicker,
   AppDrawerForm,
   AppEntityEditor,
@@ -64,6 +65,7 @@ interface UserRow {
   username: string;
   email: string;
   fullName: string;
+  debt: number;
   avatarUrl?: string;
 }
 
@@ -138,17 +140,17 @@ const adminGuardDefaultDraft: AdminGuardDraft = {
 };
 
 const demoUsers: readonly UserRow[] = [
-  { id: "1", role: "Admin", username: "demo", email: "demo@pos.tj", fullName: "Демо", avatarUrl: "https://i.pravatar.cc/100?img=12" },
-  { id: "2", role: "Кассир", username: "faridun", email: "faridun@pos.tj", fullName: "Faridun" },
-  { id: "3", role: "Кассир", username: "baha", email: "assalam313@mail.ru", fullName: "Baha Baha" },
-  { id: "4", role: "Admin", username: "989081065", email: "989081065@pos.tj", fullName: "Faridun" },
-  { id: "5", role: "Кассир", username: "xm", email: "988126263@pos.tj", fullName: "Маъмуров Хушбахт" },
-  { id: "6", role: "Кассир", username: "xuseyn", email: "987654321@pos.tj", fullName: "Ҳусейнчон" },
-  { id: "7", role: "Кассир", username: "davud", email: "ddavid@gmail.com", fullName: "Довуд Довуд" },
-  { id: "8", role: "Кассир", username: "accdd", email: "ddavid@gmail.com", fullName: "acd acd" },
-  { id: "9", role: "Кассир", username: "qwerty", email: "qwerty@qwerty.ry", fullName: "qwerty" },
-  { id: "10", role: "Бухгалтер", username: "qq", email: "qwerty@qwerty.ty", fullName: "qwerty qwerty" },
-  { id: "11", role: "Admin", username: "qq-admin", email: "qwerty@qwerty", fullName: "qwerty qwerty" },
+  { id: "1", role: "Admin", username: "demo", email: "demo@pos.tj", fullName: "Демо", debt: 1200, avatarUrl: "https://i.pravatar.cc/100?img=12" },
+  { id: "2", role: "Кассир", username: "faridun", email: "faridun@pos.tj", fullName: "Faridun", debt: 350 },
+  { id: "3", role: "Кассир", username: "baha", email: "assalam313@mail.ru", fullName: "Baha Baha", debt: 890 },
+  { id: "4", role: "Admin", username: "989081065", email: "989081065@pos.tj", fullName: "Faridun", debt: 0 },
+  { id: "5", role: "Кассир", username: "xm", email: "988126263@pos.tj", fullName: "Маъмуров Хушбахт", debt: 1750 },
+  { id: "6", role: "Кассир", username: "xuseyn", email: "987654321@pos.tj", fullName: "Ҳусейнчон", debt: 420 },
+  { id: "7", role: "Кассир", username: "davud", email: "ddavid@gmail.com", fullName: "Довуд Довуд", debt: 2150 },
+  { id: "8", role: "Кассир", username: "accdd", email: "ddavid@gmail.com", fullName: "acd acd", debt: 640 },
+  { id: "9", role: "Кассир", username: "qwerty", email: "qwerty@qwerty.ry", fullName: "qwerty", debt: 300 },
+  { id: "10", role: "Бухгалтер", username: "qq", email: "qwerty@qwerty.ty", fullName: "qwerty qwerty", debt: 980 },
+  { id: "11", role: "Admin", username: "qq-admin", email: "qwerty@qwerty", fullName: "qwerty qwerty", debt: 150 },
 ];
 
 function initials(value: string) {
@@ -174,11 +176,11 @@ function AvatarCell({ row }: { row: UserRow }) {
     return (
       <Image
         alt={row.username}
-        className="h-12 w-12 rounded-full object-cover"
-        height={48}
+        className="h-10 w-10 rounded-full object-cover"
+        height={40}
         referrerPolicy="no-referrer"
         src={row.avatarUrl}
-        width={48}
+        width={40}
       />
     );
   }
@@ -194,30 +196,9 @@ function AvatarCell({ row }: { row: UserRow }) {
   const colorClass = palette[hashNumber(row.id) % palette.length];
 
   return (
-    <span className={`inline-flex h-12 w-12 items-center justify-center rounded-full text-lg font-medium ${colorClass}`}>
+    <span className={`inline-flex h-10 w-10 items-center justify-center rounded-full text-base font-medium ${colorClass}`}>
       {initials(row.fullName)}
     </span>
-  );
-}
-
-function RowActions({ onEdit, onDelete }: { onEdit: () => void; onDelete: () => void }) {
-  return (
-    <div className="inline-flex items-center gap-2">
-      <button
-        className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-info/15 text-info transition-colors hover:bg-info/25"
-        onClick={onEdit}
-        type="button"
-      >
-        ✎
-      </button>
-      <button
-        className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-danger/15 text-danger transition-colors hover:bg-danger/25"
-        onClick={onDelete}
-        type="button"
-      >
-        🗑
-      </button>
-    </div>
   );
 }
 
@@ -527,22 +508,94 @@ export function StarterShowcase() {
         cell: (row) => row.fullName,
       },
       {
-        id: "actions",
-        header: "Действия",
-        align: "center",
-        defaultPinned: true,
-        canHide: false,
-        canPin: true,
-        exportAccessor: () => "",
-        cell: (row) => (
-          <RowActions
-            onDelete={() => notifier.error(`Delete ${row.username}`)}
-            onEdit={() => notifier.info(`Edit ${row.username}`)}
-          />
-        ),
+        id: "debt",
+        header: "Долг (смн)",
+        align: "right",
+        sortAccessor: (row) => row.debt,
+        searchAccessor: (row) => String(row.debt),
+        exportAccessor: (row) => row.debt,
+        cell: (row) => `${row.debt.toLocaleString(locale)} смн`,
       },
     ];
-  }, [notifier]);
+  }, [locale]);
+
+  const userTableFilterFields = useMemo<readonly AppDataTableFilterField<UserRow>[]>(() => {
+    return [
+      {
+        id: "role",
+        label: "Роль",
+        type: "select",
+        quick: true,
+        options: [
+          { label: "Admin", value: "Admin" },
+          { label: "Кассир", value: "Кассир" },
+          { label: "Бухгалтер", value: "Бухгалтер" },
+        ],
+        getValue: (row) => row.role,
+      },
+      {
+        id: "username",
+        label: "Имя пользователя",
+        type: "text",
+        quick: true,
+        getValue: (row) => row.username,
+      },
+      {
+        id: "email",
+        label: "Эл. почта",
+        type: "text",
+        quick: true,
+        getValue: (row) => row.email,
+      },
+      {
+        id: "fullName",
+        label: "ФИО",
+        type: "text",
+        getValue: (row) => row.fullName,
+      },
+      {
+        id: "id",
+        label: "#",
+        type: "number",
+        getValue: (row) => Number(row.id),
+      },
+      {
+        id: "debt",
+        label: "Долг (смн)",
+        type: "number",
+        getValue: (row) => row.debt,
+      },
+    ];
+  }, []);
+
+  const buildUserRowActions = useCallback((row: UserRow): readonly AppActionMenuGroup[] => {
+    return [
+      {
+        id: "base",
+        items: [
+          {
+            id: "view",
+            label: t("actionMenu.view"),
+            icon: <EyeIcon />,
+            onClick: () => notifier.info(`View ${row.username}`),
+          },
+          {
+            id: "edit",
+            label: t("actionMenu.edit"),
+            icon: <EditIcon />,
+            onClick: () => notifier.info(`Edit ${row.username}`),
+          },
+          {
+            id: "delete",
+            label: t("actionMenu.delete"),
+            icon: <TrashIcon />,
+            destructive: true,
+            onClick: () => notifier.error(`Delete ${row.username}`),
+          },
+        ],
+      },
+    ];
+  }, [notifier, t]);
 
   const widgetCurrencyOptions = useMemo<readonly AppWidgetMenuOption[]>(
     () => [
@@ -700,46 +753,32 @@ export function StarterShowcase() {
   };
 
   return (
-    <ResponsiveContainer className="space-y-6 py-6" width="wide">
+    <ResponsiveContainer className="space-y-4 py-4" width="wide">
       <SectionCard subtitle={t("starter.subtitle")} title={t("starter.title")}>
-        <div className="grid gap-4 lg:grid-cols-[1fr_260px]">
+        <div className="grid gap-3 lg:grid-cols-[1fr_260px]">
           <div className="space-y-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Базовый набор кнопок
+            </p>
+
             <div className="flex flex-wrap gap-2">
-              <AppButton label="Primary" onClick={() => notifier.success("Saved successfully")} variant="primary" />
-              <AppButton label="Secondary" onClick={() => notifier.info("Info message")} variant="secondary" />
-              <AppButton label="Outline" variant="outline" />
-              <AppButton label="Text" variant="text" />
-              <AppButton label="Delete" onClick={() => setConfirmOpen(true)} variant="destructive" />
+              <AppButton label="Основная" onClick={() => notifier.success("Saved successfully")} size="sm" variant="primary" />
+              <AppButton label="Вторичная" onClick={() => notifier.info("Info message")} size="sm" variant="secondary" />
+              <AppButton label="Контур" size="sm" variant="outline" />
+              <AppButton label="Удалить" onClick={() => setConfirmOpen(true)} size="sm" variant="destructive" />
             </div>
 
             <div className="flex flex-wrap gap-2">
-              <AppButton label="XS" size="xs" variant="tonal" />
-              <AppButton label="SM" size="sm" variant="tonal" />
-              <AppButton label="MD" size="md" variant="tonal" />
-              <AppButton label="LG" size="lg" variant="tonal" />
-              <AppButton
-                iconOnly
-                aria-label="Open calendar"
-                leading={<CalendarIcon />}
-                size="md"
-                variant="icon"
-              />
-              <AppButton
-                iconOnly
-                aria-label="Filter options"
-                leading={<FilterIcon />}
-                size="md"
-                variant="outline"
-              />
-            </div>
-
-            <div className="grid gap-2 md:grid-cols-[220px_220px]">
-              <AppButton isLoading label="Saving..." loadingLabel="Saving..." variant="primary" />
-              <AppButton fullWidth label="Full width button" variant="secondary" />
+              <AppButton label="С иконкой" leading={<CalendarIcon />} size="sm" variant="secondary" />
+              <AppButton iconOnly aria-label="Filter options" leading={<FilterIcon />} size="sm" variant="outline" />
+              <AppButton isLoading label="Сохранение" loadingLabel="Сохранение" size="sm" variant="primary" />
             </div>
           </div>
 
-          <div className="grid gap-3">
+          <div className="space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Глобальные настройки
+            </p>
             <ThemeModeSwitcher />
             <LocaleSwitcher />
           </div>
@@ -776,13 +815,13 @@ export function StarterShowcase() {
             />
           )}
           content={(
-            <div className="space-y-4">
+            <div className="space-y-3">
               <AppKpiGrid columns={4} items={demoKpis} />
 
               <AppCard title="Фильтры и быстрые виджеты" variant="outlined">
-                <div className="grid gap-3 xl:grid-cols-2">
+                <div className="grid gap-2 lg:grid-cols-2">
                   <AppDateRangePicker
-                    className="max-w-none"
+                    className="w-full"
                     locale={locale}
                     mode="range"
                     onApply={(next) => dateRange.setRange(next.startDate, next.endDate)}
@@ -791,6 +830,7 @@ export function StarterShowcase() {
                   />
 
                   <AppSmartTextInput
+                    className="w-full"
                     label="Место"
                     mode="multi"
                     onChangeValue={(next) => {
@@ -807,7 +847,7 @@ export function StarterShowcase() {
                   />
                 </div>
 
-                <div className="flex flex-wrap items-center gap-2 pt-3">
+                <div className="flex flex-wrap items-center gap-2 border-t border-border pt-2">
                   <AppWidgetMenu
                     onSelectOption={(option) => {
                       setWidgetCurrencyId(option.id);
@@ -836,13 +876,15 @@ export function StarterShowcase() {
                       setWidgetFilterDraft(widgetFilterApplied);
                       setWidgetFilterOpen(true);
                     }}
-                    variant="secondary"
+                    size="sm"
+                    variant="outline"
                   />
 
                   <AppButton
                     label="Открыть Drawer"
                     onClick={() => setDrawerOpen(true)}
-                    variant="outline"
+                    size="sm"
+                    variant="secondary"
                   />
                 </div>
               </AppCard>
@@ -855,8 +897,12 @@ export function StarterShowcase() {
                 columns={userTableColumns}
                 data={demoUsers}
                 fileNameBase="users-review"
+                filterFields={userTableFilterFields}
                 initialPageSize={5}
+                onRowClick={(row) => notifier.info(`Open profile: ${row.username}`)}
                 rowKey={(row) => row.id}
+                rowActions={buildUserRowActions}
+                syncFiltersToUrl
               />
 
               <AppEntityEditor
@@ -1100,7 +1146,7 @@ export function StarterShowcase() {
             id: "admin-kit",
             title: "Admin Kit",
             content: (
-              <div className="space-y-4">
+              <div className="space-y-3">
                 <AppCrudPageScaffold
                   bulkActions={(
                     <AppBulkActionBar
@@ -1255,8 +1301,8 @@ export function StarterShowcase() {
                   title={t("widget.demo.title")}
                   variant="outlined"
                 >
-                  <div className="space-y-4">
-                    <div className="flex flex-wrap items-center gap-3">
+                  <div className="space-y-3">
+                    <div className="flex flex-wrap items-center gap-2">
                       <div className="min-w-[240px] flex-1">
                         <AppInput
                           onChangeValue={setSearch}
@@ -1300,13 +1346,13 @@ export function StarterShowcase() {
                       />
                     </div>
 
-                    <div className="flex items-center gap-3 rounded-xl border border-border bg-card p-3">
+                    <div className="flex items-center gap-2 rounded-xl border border-border bg-card p-2">
                       <Image
                         alt="product"
-                        className="h-14 w-14 rounded-lg object-cover"
-                        height={56}
+                        className="h-12 w-12 rounded-lg object-cover"
+                        height={48}
                         src="https://i.pravatar.cc/120?img=45"
-                        width={56}
+                        width={48}
                       />
                       <div>
                         <p className="text-base font-semibold text-foreground">Кукуруза 958</p>
@@ -1344,8 +1390,12 @@ export function StarterShowcase() {
                 columns={userTableColumns}
                 data={demoUsers}
                 fileNameBase="users"
-                initialPageSize={25}
+                filterFields={userTableFilterFields}
+                initialPageSize={20}
+                onRowClick={(row) => notifier.info(`Open profile: ${row.username}`)}
                 rowKey={(row) => row.id}
+                rowActions={buildUserRowActions}
+                syncFiltersToUrl
               />
             ),
           },
@@ -1372,7 +1422,7 @@ export function StarterShowcase() {
                   if (activeTabId === "account") {
                     return (
                       <AppEntityEditorSection>
-                        <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
+                        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_300px]">
                           <AppEntityEditorGrid columns={2}>
                             <AppInput
                               label={t("editor.form.firstName")}
@@ -1403,13 +1453,13 @@ export function StarterShowcase() {
                             />
                           </AppEntityEditorGrid>
 
-                          <div className="space-y-3 rounded-xl border border-border p-4">
+                          <div className="space-y-2 rounded-xl border border-border p-3">
                             <Image
                               alt="profile"
-                              className="h-28 w-28 rounded-xl object-cover"
-                              height={112}
+                              className="h-24 w-24 rounded-xl object-cover"
+                              height={96}
                               src="https://i.pravatar.cc/200?img=12"
-                              width={112}
+                              width={96}
                             />
                             <div className="flex flex-wrap gap-2">
                               <AppButton

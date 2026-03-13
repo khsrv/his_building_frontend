@@ -1,5 +1,7 @@
+"use client";
+
 import type { HTMLAttributes, ReactNode } from "react";
-import { cn } from "@/shared/lib/ui/cn";
+import { Box, Paper, Typography } from "@mui/material";
 
 export type CardVariant =
   | "elevated"
@@ -23,21 +25,45 @@ interface AppCardProps extends Omit<HTMLAttributes<HTMLDivElement>, "title" | "c
   children?: ReactNode;
 }
 
-const variantClass: Record<CardVariant, string> = {
-  elevated: "bg-card shadow-sm",
-  outlined: "border border-border bg-card",
-  tonal: "bg-muted",
-  interactive: "bg-card shadow-sm transition-transform hover:-translate-y-0.5 hover:shadow-md",
-  "status-info": "bg-info/10 border border-info/30",
-  "status-success": "bg-success/10 border border-success/30",
-  "status-warning": "bg-warning/15 border border-warning/35",
-  "status-error": "bg-danger/10 border border-danger/30",
+const densitySpacing = {
+  dense: 1.5,
+  regular: 2,
 };
 
-const densityClass: Record<CardDensity, string> = {
-  dense: "p-3",
-  regular: "p-4",
-};
+function getVariantSx(variant: CardVariant) {
+  if (variant === "outlined") {
+    return { boxShadow: "none" };
+  }
+
+  if (variant === "tonal") {
+    return { bgcolor: "action.hover" };
+  }
+
+  if (variant === "interactive") {
+    return {
+      transition: "transform 160ms ease",
+      "&:hover": { transform: "translateY(-2px)" },
+    };
+  }
+
+  if (variant === "status-info") {
+    return { bgcolor: "info.light", borderColor: "info.main" };
+  }
+
+  if (variant === "status-success") {
+    return { bgcolor: "success.light", borderColor: "success.main" };
+  }
+
+  if (variant === "status-warning") {
+    return { bgcolor: "warning.light", borderColor: "warning.main" };
+  }
+
+  if (variant === "status-error") {
+    return { bgcolor: "error.light", borderColor: "error.main" };
+  }
+
+  return {};
+}
 
 export function AppCard({
   variant = "elevated",
@@ -51,19 +77,23 @@ export function AppCard({
   ...rest
 }: AppCardProps) {
   return (
-    <div className={cn("rounded-xl", variantClass[variant], densityClass[density], className)} {...rest}>
-      <div className="flex items-start gap-3">
-        {leading ? <div className="pt-0.5">{leading}</div> : null}
+    <Paper className={className} sx={{ p: densitySpacing[density], ...getVariantSx(variant) }} {...rest}>
+      <Box sx={{ display: "flex", alignItems: "flex-start", gap: 1.5 }}>
+        {leading ? <Box sx={{ pt: 0.25 }}>{leading}</Box> : null}
 
-        <div className="min-w-0 flex-1 space-y-1">
-          {title ? <div className="text-sm font-semibold text-foreground">{title}</div> : null}
-          {subtitle ? <div className="text-sm text-muted-foreground">{subtitle}</div> : null}
-          {children ? <div className="pt-2">{children}</div> : null}
-        </div>
+        <Box sx={{ minWidth: 0, flex: 1 }}>
+          {title ? <Typography variant="subtitle1">{title}</Typography> : null}
+          {subtitle ? (
+            <Typography color="text.secondary" sx={{ mt: 0.25 }} variant="body2">
+              {subtitle}
+            </Typography>
+          ) : null}
+          {children ? <Box sx={{ pt: 1.5 }}>{children}</Box> : null}
+        </Box>
 
-        {trailing ? <div>{trailing}</div> : null}
-      </div>
-    </div>
+        {trailing ? <Box>{trailing}</Box> : null}
+      </Box>
+    </Paper>
   );
 }
 

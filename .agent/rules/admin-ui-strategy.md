@@ -1,32 +1,25 @@
-# Admin UI Strategy (MUI vs Ant Design vs Base Stack)
+# Admin UI Strategy (MUI-First)
 
-## 1. Base Stack (Default)
-- Next.js + TypeScript + Tailwind + shadcn/ui
-- TanStack Query + React Hook Form + Zod + Zustand
-- TanStack Table for most admin grids
+## 1. Base Policy
+- Admin and CRM modules use **MUI-first** by default.
+- Shared UI contract stays behind `App*` wrappers in `src/shared/ui`.
+- Feature code imports `App*` components, not raw `@mui/*`.
 
-## 2. When to Choose MUI
-Choose MUI if:
-- Need fast assembly of classic admin pages
-- Need many ready components with minimal custom design effort
-- Team prefers Material ecosystem and existing templates
+## 2. Table and Date Defaults
+- Data grid default: `MUI DataGrid` (Community).
+- Date input default: `@mui/x-date-pickers` (`DatePicker` based flows).
+- Export remains utility-driven (PDF/Excel), triggered from `AppDataTable`.
 
-## 3. When to Choose Ant Design
-Choose Ant Design if:
-- Product is dense B2B/CRM/ERP/operations UI
-- Table/form/filter workflows are dominant
-- Enterprise visual language is preferred
+## 3. Design Consistency
+- Keep POS.TJ token style across light/dark: compact density, same radius, same spacing scale.
+- No style drift between sidebar, topbar, forms, and table controls.
+- Reuse one size system for controls (`AppButton`, `AppInput`, `AppSelect`, table toolbar actions).
 
-## 4. Selection Rule
-- Select one primary heavy UI library per admin area.
-- Do not mix MUI and Ant Design in the same module unless migration is in progress.
-- Keep shared auth/layout/query/form contracts independent from chosen UI library.
+## 4. Non-Negotiables
+- Do not mix MUI with Ant Design in one module.
+- Do not rebuild complex primitives from scratch when `App*` wrapper already exists.
+- Keep architecture boundaries unchanged regardless of visual implementation.
 
-## 5. Grid Strategy
-- TanStack Table: default for custom control and moderate complexity.
-- AG Grid: for very large enterprise grids (grouping, pivoting, bulk ops, virtualization-heavy workflows).
-
-## 6. Non-Negotiables
-- Architecture boundaries stay the same regardless of UI library.
-- Validation and API contracts remain schema-driven.
-- Access control and audit-critical actions must be server-validated.
+## 5. Escalation Path
+- If DataGrid Community cannot satisfy a required feature, first evaluate wrapper-level workaround.
+- Only then document a scoped exception (MUI X Pro/Premium or AG Grid) with explicit reason.

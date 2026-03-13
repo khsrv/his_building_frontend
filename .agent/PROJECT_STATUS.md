@@ -22,9 +22,9 @@
 
 ## Architecture Target
 - Framework: Next.js (App Router) + React + TypeScript
-- UI: Tailwind CSS + shadcn/ui
+- UI: MUI-first for admin (`App*` wrappers) + Tailwind utility layer
 - Server state: TanStack Query
 - Forms: React Hook Form + Zod
 - Local UI state: Zustand (only shared client state)
-- Tables: TanStack Table by default, AG Grid for very heavy grids
+- Tables: MUI DataGrid Community by default, AG Grid for very heavy grids
 - Auth: Go backend + session tokens (httpOnly cookie refresh is preferred)

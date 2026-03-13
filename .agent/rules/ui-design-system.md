@@ -1,4 +1,4 @@
-# UI Design System Rules (Tailwind + shadcn/ui)
+# UI Design System Rules (MUI-First Admin + Tailwind Utility Layer)
 
 ## 1. Design Tokens First
 - Colors, spacing, radius, typography go through tokens/CSS variables.
@@ -6,7 +6,7 @@
 - Keep dark/light and brand variants token-driven.
 
 ## 2. Component Layering
-- Base primitives in `shared/ui` (shadcn-based).
+- Base primitives in `shared/ui` (`App*` wrappers, MUI internals for admin).
 - Feature components compose primitives; they do not fork design-system internals.
 - Prefer extension by composition instead of cloning primitives.
 - Reuse starter primitives before introducing any new UI primitive (`starter-reuse-first.md`).
@@ -18,7 +18,7 @@
 
 ## 4. Visual Consistency
 - Use one design language per app area.
-- If MUI or Ant Design is chosen for admin, define boundary and do not mix randomly on the same complex screen.
+- For admin modules, MUI is default and should not be mixed with another heavy UI library.
 
 ## 5. Accessibility
 - Color contrast, focus visible styles, keyboard navigation are mandatory.

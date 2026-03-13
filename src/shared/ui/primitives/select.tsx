@@ -1,5 +1,7 @@
+"use client";
+
 import type { SelectHTMLAttributes } from "react";
-import { cn } from "@/shared/lib/ui/cn";
+import { FormControl, FormHelperText, InputLabel, MenuItem, Select } from "@mui/material";
 
 export interface SelectOption<T extends string = string> {
   label: string;
@@ -7,43 +9,69 @@ export interface SelectOption<T extends string = string> {
 }
 
 interface AppSelectProps<T extends string = string>
-  extends Omit<SelectHTMLAttributes<HTMLSelectElement>, "children"> {
+  extends Omit<SelectHTMLAttributes<HTMLSelectElement>, "children" | "onChange"> {
   label?: string;
+  placeholder?: string;
   hint?: string;
   errorText?: string;
   options: readonly SelectOption<T>[];
+  onChange?: (event: { target: { value: string } }) => void;
 }
 
 export function AppSelect<T extends string = string>({
   label,
+  placeholder,
   hint,
   errorText,
   options,
   className,
+  value,
+  onChange,
+  id,
   ...rest
 }: AppSelectProps<T>) {
-  return (
-    <label className="grid gap-1.5">
-      {label ? <span className="text-sm font-medium text-foreground">{label}</span> : null}
+  const currentValue = value ?? "";
+  const hasFloatingLabel = Boolean(label);
 
-      <select
-        className={cn(
-          "h-11 rounded-lg border border-border bg-card px-3 text-sm text-foreground outline-none",
-          "focus:ring-2 focus:ring-primary/30",
-          errorText && "border-danger focus:ring-danger/30",
-          className,
-        )}
-        {...rest}
+  return (
+    <FormControl className={className} error={Boolean(errorText)} fullWidth>
+      {hasFloatingLabel ? <InputLabel id={`${id ?? "app-select"}-label`}>{label}</InputLabel> : null}
+      <Select
+        id={id}
+        label={label}
+        labelId={hasFloatingLabel ? `${id ?? "app-select"}-label` : undefined}
+        displayEmpty={Boolean(placeholder && !hasFloatingLabel)}
+        onChange={(event) => onChange?.({ target: { value: String(event.target.value) } })}
+        renderValue={(selected) => {
+          const next = String(selected ?? "");
+
+          if (!next && placeholder && !hasFloatingLabel) {
+            return <span style={{ color: "rgba(100, 116, 139, 0.95)" }}>{placeholder}</span>;
+          }
+
+          const option = options.find((item) => item.value === next);
+          return option?.label ?? next;
+        }}
+        size="small"
+        value={currentValue}
+        variant="outlined"
+        sx={{
+          "& .MuiSelect-select": {
+            display: "flex",
+            alignItems: "center",
+            minHeight: "0 !important",
+            py: 1.1,
+          },
+        }}
+        {...(rest as Record<string, unknown>)}
       >
         {options.map((option) => (
-          <option key={option.value} value={option.value}>
+          <MenuItem key={option.value} value={option.value}>
             {option.label}
-          </option>
+          </MenuItem>
         ))}
-      </select>
-
-      {errorText ? <span className="text-xs text-danger">{errorText}</span> : null}
-      {hint && !errorText ? <span className="text-xs text-muted-foreground">{hint}</span> : null}
-    </label>
+      </Select>
+      {(errorText || hint) ? <FormHelperText>{errorText ?? hint}</FormHelperText> : null}
+    </FormControl>
   );
 }

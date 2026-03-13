@@ -2,8 +2,19 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useRef, useState, type ReactNode } from "react";
-import { cn } from "@/shared/lib/ui/cn";
+import { useState, type MouseEvent, type ReactNode } from "react";
+import {
+  Avatar,
+  Badge,
+  Box,
+  ButtonBase,
+  IconButton,
+  Menu,
+  MenuItem,
+  Paper,
+  Stack,
+  Typography,
+} from "@mui/material";
 
 export type AppTopBarMenuItemTone = "default" | "primary" | "danger";
 
@@ -58,229 +69,222 @@ function initials(name: string) {
   return chunks.map((item) => item[0]?.toUpperCase() ?? "").join("");
 }
 
-function ActionContent({ action }: { action: AppTopBarAction }) {
-  return (
-    <>
-      <span className="inline-flex h-5 w-5 items-center justify-center">{action.icon}</span>
-      {action.label ? <span className="text-sm font-medium">{action.label}</span> : null}
-    </>
-  );
-}
-
-function getMenuItemClassName(item: AppTopBarMenuItem) {
+function itemSx(item: AppTopBarMenuItem) {
   if (item.tone === "danger") {
-    return "bg-rose-100/80 text-rose-500 hover:bg-rose-100 dark:bg-rose-500/15 dark:text-rose-300 dark:hover:bg-rose-500/25";
+    return {
+      color: "error.main",
+      bgcolor: "error.light",
+      "&:hover": { bgcolor: "error.light" },
+    };
   }
 
   if (item.tone === "primary" || item.active) {
-    return "bg-primary/15 text-primary hover:bg-primary/20";
+    return {
+      color: "primary.main",
+      bgcolor: "primary.light",
+      "&:hover": { bgcolor: "primary.light" },
+    };
   }
 
-  return "text-foreground hover:bg-muted";
+  return {
+    color: "text.primary",
+    "&:hover": { bgcolor: "action.hover" },
+  };
 }
 
-function MenuItem({
-  item,
-  onSelect,
-}: {
-  item: AppTopBarMenuItem;
-  onSelect: () => void;
-}) {
-  const itemClassName = cn(
-    "flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left transition-colors",
-    getMenuItemClassName(item),
-  );
+function renderMenuItem(
+  item: AppTopBarMenuItem,
+  closeMenu: () => void,
+) {
+  const onClick = () => {
+    item.onClick?.();
+    closeMenu();
+  };
 
   if (item.href) {
     return (
-      <Link
-        className={itemClassName}
+      <MenuItem
+        component={Link}
         href={item.href}
-        onClick={() => {
-          item.onClick?.();
-          onSelect();
-        }}
+        key={item.id}
+        onClick={onClick}
+        sx={{ borderRadius: 1, gap: 1, py: 0.8, ...itemSx(item) }}
       >
-        {item.icon ? (
-          <span className="inline-flex h-6 w-6 items-center justify-center">
-            {item.icon}
-          </span>
-        ) : null}
-        <span className="text-sm">{item.label}</span>
-      </Link>
+        {item.icon ? <Box sx={{ display: "inline-flex", width: 20, height: 20 }}>{item.icon}</Box> : null}
+        <Typography variant="body2">{item.label}</Typography>
+      </MenuItem>
     );
   }
 
   return (
-    <button
-      className={itemClassName}
-      onClick={() => {
-        item.onClick?.();
-        onSelect();
-      }}
-      type="button"
-    >
-      {item.icon ? (
-        <span className="inline-flex h-6 w-6 items-center justify-center">
-          {item.icon}
-        </span>
-      ) : null}
-      <span className="text-sm">{item.label}</span>
-    </button>
+    <MenuItem key={item.id} onClick={onClick} sx={{ borderRadius: 1, gap: 1, py: 0.8, ...itemSx(item) }}>
+      {item.icon ? <Box sx={{ display: "inline-flex", width: 20, height: 20 }}>{item.icon}</Box> : null}
+      <Typography variant="body2">{item.label}</Typography>
+    </MenuItem>
   );
 }
 
 export function AppTopBar({ leftSlot, actions = [], profile, className }: AppTopBarProps) {
-  const rootRef = useRef<HTMLDivElement | null>(null);
-  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
+  const [menuOwnerId, setMenuOwnerId] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!openMenuId) {
-      return;
-    }
+  const closeMenu = () => {
+    setMenuAnchor(null);
+    setMenuOwnerId(null);
+  };
 
-    const handleOutsideClick = (event: MouseEvent) => {
-      const target = event.target as Node | null;
-      if (!target || !rootRef.current?.contains(target)) {
-        setOpenMenuId(null);
-      }
-    };
-
-    document.addEventListener("mousedown", handleOutsideClick);
-
-    return () => {
-      document.removeEventListener("mousedown", handleOutsideClick);
-    };
-  }, [openMenuId]);
+  const openMenu = (id: string, event: MouseEvent<HTMLElement>) => {
+    setMenuOwnerId(id);
+    setMenuAnchor(event.currentTarget);
+  };
 
   return (
-    <header className={cn("rounded-2xl border border-border bg-card p-3 shadow-sm", className)} ref={rootRef}>
-      <div className="flex flex-wrap items-center gap-2 md:gap-3">
-        <div className="mr-auto flex items-center gap-2">{leftSlot}</div>
+    <Paper className={className} sx={{ borderRadius: 1.5, p: 1 }}>
+      <Stack alignItems="center" direction="row" flexWrap="wrap" gap={1}>
+        <Box sx={{ mr: "auto" }}>{leftSlot}</Box>
 
-        <div className="flex items-center gap-1.5">
-          {actions.map((action) => {
-            const hasMenu = Boolean(action.menuItems && action.menuItems.length > 0);
-            const menuOpen = openMenuId === action.id;
-            const buttonClass = cn(
-              "inline-flex h-11 items-center justify-center gap-2 rounded-xl px-3 text-muted-foreground transition-colors",
-              action.active
-                ? "bg-primary/12 text-primary"
-                : "hover:bg-muted hover:text-foreground",
-              hasMenu && "bg-muted hover:bg-muted",
-              !action.label && "w-11 px-0",
-            );
+        {actions.map((action) => {
+          const hasMenu = Boolean(action.menuItems && action.menuItems.length > 0);
+          const selected = action.active || menuOwnerId === action.id;
 
-            if (hasMenu) {
-              return (
-                <div className="relative" key={action.id}>
-                  <button
-                    className={buttonClass}
-                    onClick={() => setOpenMenuId((current) => (current === action.id ? null : action.id))}
-                    title={action.title}
-                    type="button"
-                  >
-                    <ActionContent action={action} />
-                  </button>
+          const content = (
+            <Stack alignItems="center" direction="row" gap={action.label ? 1 : 0} justifyContent="center">
+              <Box sx={{ display: "inline-flex", width: 20, height: 20 }}>{action.icon}</Box>
+              {action.label ? <Typography variant="subtitle1">{action.label}</Typography> : null}
+            </Stack>
+          );
 
-                  {menuOpen ? (
-                    <div className="absolute right-0 top-[calc(100%+8px)] z-50 w-64 rounded-xl border border-border bg-card p-1.5 shadow-lg">
-                      <div className="space-y-1">
-                        {action.menuItems?.map((item) => {
-                          return (
-                            <MenuItem
-                              item={item}
-                              key={item.id}
-                              onSelect={() => setOpenMenuId(null)}
-                            />
-                          );
-                        })}
-                      </div>
-                    </div>
-                  ) : null}
-                </div>
-              );
-            }
-
-            if (action.href) {
-              return (
-                <Link className={buttonClass} href={action.href} key={action.id} title={action.title}>
-                  <ActionContent action={action} />
-                </Link>
-              );
-            }
-
+          if (hasMenu) {
             return (
-              <button
-                className={buttonClass}
-                key={action.id}
-                onClick={action.onClick}
-                title={action.title}
-                type="button"
-              >
-                <ActionContent action={action} />
-              </button>
+              <Box key={action.id}>
+                <IconButton
+                  aria-label={action.title}
+                  color={selected ? "primary" : "default"}
+                  onClick={(event) => openMenu(action.id, event)}
+                  sx={{
+                    height: 38,
+                    minWidth: action.label ? 66 : 38,
+                    px: action.label ? 1.2 : 0,
+                    bgcolor: selected ? "primary.light" : "transparent",
+                    borderRadius: 1.25,
+                  }}
+                  title={action.title}
+                >
+                  {content}
+                </IconButton>
+                <Menu
+                  anchorEl={menuAnchor}
+                  onClose={closeMenu}
+                  open={menuOwnerId === action.id}
+                  transformOrigin={{ horizontal: "right", vertical: "top" }}
+                >
+                  {action.menuItems?.map((item) => renderMenuItem(item, closeMenu))}
+                </Menu>
+              </Box>
             );
-          })}
+          }
 
-          {profile ? (
-            <div className="relative">
-              <button
-                className={cn(
-                  "inline-flex h-11 items-center gap-3 rounded-xl px-2.5 transition-colors hover:bg-muted",
-                  openMenuId === "profile" && "bg-muted",
-                )}
-                onClick={() => {
-                  const hasMenu = Boolean(profile.menuItems && profile.menuItems.length > 0);
-                  if (hasMenu) {
-                    setOpenMenuId((current) => (current === "profile" ? null : "profile"));
-                    return;
-                  }
-
-                  profile.onClick?.();
+          if (action.href) {
+            return (
+              <IconButton
+                aria-label={action.title}
+                color={selected ? "primary" : "default"}
+                component={Link}
+                href={action.href}
+                key={action.id}
+                sx={{
+                  height: 38,
+                  minWidth: action.label ? 66 : 38,
+                  px: action.label ? 1.2 : 0,
+                  borderRadius: 1.25,
+                  bgcolor: selected ? "primary.light" : "transparent",
                 }}
-                type="button"
+                title={action.title}
               >
-                <span className="relative inline-flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted text-sm font-semibold text-foreground">
-                  {profile.avatarUrl ? (
-                    <Image
-                      alt={profile.name}
-                      className="h-full w-full object-cover"
-                      height={44}
-                      src={profile.avatarUrl}
-                      width={44}
-                    />
-                  ) : (
-                    initials(profile.name)
-                  )}
-                  {profile.online ? (
-                    <span className="absolute bottom-0.5 right-0.5 h-2.5 w-2.5 rounded-full border border-card bg-success" />
+                {content}
+              </IconButton>
+            );
+          }
+
+          return (
+            <IconButton
+              aria-label={action.title}
+              color={selected ? "primary" : "default"}
+              key={action.id}
+              onClick={action.onClick}
+              sx={{
+                height: 38,
+                minWidth: action.label ? 66 : 38,
+                px: action.label ? 1.2 : 0,
+                borderRadius: 1.25,
+                bgcolor: selected ? "primary.light" : "transparent",
+              }}
+              title={action.title}
+            >
+              {content}
+            </IconButton>
+          );
+        })}
+
+        {profile ? (
+          <Box>
+            <ButtonBase
+              onClick={(event) => {
+                const hasMenu = Boolean(profile.menuItems && profile.menuItems.length > 0);
+                if (hasMenu) {
+                  openMenu("profile", event);
+                  return;
+                }
+                profile.onClick?.();
+              }}
+              sx={{
+                borderRadius: 1.25,
+                px: 0.75,
+                py: 0.35,
+                "&:hover": { bgcolor: "action.hover" },
+              }}
+            >
+              <Stack alignItems="center" direction="row" gap={1}>
+                <Badge
+                  anchorOrigin={{ horizontal: "right", vertical: "bottom" }}
+                  color="success"
+                  invisible={!profile.online}
+                  overlap="circular"
+                  variant="dot"
+                >
+                  <Avatar sx={{ width: 36, height: 36 }}>
+                    {profile.avatarUrl ? (
+                      <Image alt={profile.name} height={36} src={profile.avatarUrl} width={36} />
+                    ) : (
+                      initials(profile.name)
+                    )}
+                  </Avatar>
+                </Badge>
+
+                <Box sx={{ minWidth: 0, textAlign: "left" }}>
+                  <Typography noWrap variant="subtitle1">
+                    {profile.name}
+                  </Typography>
+                  {profile.subtitle ? (
+                    <Typography noWrap color="text.secondary" variant="body2">
+                      {profile.subtitle}
+                    </Typography>
                   ) : null}
-                </span>
+                </Box>
+              </Stack>
+            </ButtonBase>
 
-                <span className="hidden min-w-0 text-left md:block">
-                  <span className="block truncate text-sm font-semibold text-foreground">{profile.name}</span>
-                  {profile.subtitle ? <span className="block truncate text-xs text-muted-foreground">{profile.subtitle}</span> : null}
-                </span>
-              </button>
-
-              {openMenuId === "profile" && profile.menuItems && profile.menuItems.length > 0 ? (
-                <div className="absolute right-0 top-[calc(100%+8px)] z-50 w-72 rounded-xl border border-border bg-card p-1.5 shadow-lg">
-                  <div className="space-y-2">
-                    {profile.menuItems.map((item) => (
-                      <MenuItem
-                        item={item}
-                        key={item.id}
-                        onSelect={() => setOpenMenuId(null)}
-                      />
-                    ))}
-                  </div>
-                </div>
-              ) : null}
-            </div>
-          ) : null}
-        </div>
-      </div>
-    </header>
+            <Menu
+              anchorEl={menuAnchor}
+              onClose={closeMenu}
+              open={menuOwnerId === "profile"}
+              transformOrigin={{ horizontal: "right", vertical: "top" }}
+            >
+              {profile.menuItems?.map((item) => renderMenuItem(item, closeMenu))}
+            </Menu>
+          </Box>
+        ) : null}
+      </Stack>
+    </Paper>
   );
 }

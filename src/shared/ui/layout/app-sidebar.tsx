@@ -183,13 +183,13 @@ export function AppSidebar({
     });
   };
 
-  const width = compact ? 86 : 300;
+  const width = compact ? 82 : 280;
   const commonItemSx = (isActive: boolean, isCompact: boolean) => ({
-    borderRadius: "12px",
-    gap: 1.25,
-    minHeight: 44,
-    px: isCompact ? 1 : 1.5,
-    py: 1,
+    borderRadius: "10px",
+    gap: 1,
+    minHeight: 40,
+    px: isCompact ? 0.9 : 1.25,
+    py: 0.75,
     justifyContent: isCompact ? "center" : "flex-start",
     color: isActive ? sidebarColors.primaryForeground : sidebarColors.text,
     bgcolor: isActive ? sidebarColors.primary : "transparent",
@@ -205,11 +205,11 @@ export function AppSidebar({
     opacity: isCompact ? 1 : 0.9,
   });
   const childItemSx = (isActive: boolean) => ({
-    borderRadius: "10px",
-    minHeight: 36,
-    px: 1,
-    py: 0.75,
-    gap: 1,
+    borderRadius: "8px",
+    minHeight: 32,
+    px: 0.9,
+    py: 0.5,
+    gap: 0.8,
     color: isActive ? sidebarColors.primary : sidebarColors.mutedText,
     bgcolor: isActive ? sidebarColors.primarySoft : "transparent",
     "&:hover": {
@@ -230,17 +230,17 @@ export function AppSidebar({
         transition: "width 180ms ease",
       }}
     >
-      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", px: 1.5, py: 2 }}>
-        <Box sx={{ display: "flex", minWidth: 0, alignItems: "center", gap: 1.5 }}>
+      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", px: 1.25, py: 1.5 }}>
+        <Box sx={{ display: "flex", minWidth: 0, alignItems: "center", gap: 1.25 }}>
           <Box
             component="span"
             sx={{
               display: "inline-flex",
-              width: 40,
-              height: 40,
+              width: 36,
+              height: 36,
               alignItems: "center",
               justifyContent: "center",
-              borderRadius: "12px",
+              borderRadius: "10px",
               border: `1px solid rgb(var(--primary) / 0.35)`,
               color: sidebarColors.primary,
             }}
@@ -284,7 +284,7 @@ export function AppSidebar({
         </IconButton>
       </Box>
 
-      <List disablePadding sx={{ minHeight: 0, flex: 1, overflowY: "auto", px: 1, pb: 1.5 }}>
+      <List disablePadding sx={{ minHeight: 0, flex: 1, overflowY: "auto", px: 0.8, pb: 1 }}>
         {items.map((item) => {
           const hasChildren = Boolean(item.children && item.children.length > 0);
           const isActive = hasActiveDescendant(item, activeItemId);
@@ -310,7 +310,7 @@ export function AppSidebar({
                     {!compact ? (
                       <ListItemText
                         primary={item.label}
-                        primaryTypographyProps={{ noWrap: true, fontSize: 14, fontWeight: 500 }}
+                        primaryTypographyProps={{ noWrap: true, fontSize: 13, fontWeight: 500 }}
                       />
                     ) : null}
                     {!compact ? <ChevronRightIcon open={isExpanded} /> : null}
@@ -324,7 +324,7 @@ export function AppSidebar({
                       {!compact ? (
                         <ListItemText
                           primary={item.label}
-                          primaryTypographyProps={{ noWrap: true, fontSize: 14, fontWeight: 500 }}
+                          primaryTypographyProps={{ noWrap: true, fontSize: 13, fontWeight: 500 }}
                         />
                       ) : null}
                     </ListItemButton>
@@ -337,7 +337,7 @@ export function AppSidebar({
                     {!compact ? (
                       <ListItemText
                         primary={item.label}
-                        primaryTypographyProps={{ noWrap: true, fontSize: 14, fontWeight: 500 }}
+                        primaryTypographyProps={{ noWrap: true, fontSize: 13, fontWeight: 500 }}
                       />
                     ) : null}
                   </ListItemButton>
@@ -354,7 +354,7 @@ export function AppSidebar({
                           <ListItemIcon sx={{ minWidth: 0, color: "inherit", mr: 1 }}>
                             <DotIcon />
                           </ListItemIcon>
-                          <ListItemText primary={child.label} primaryTypographyProps={{ noWrap: true, fontSize: 14 }} />
+                          <ListItemText primary={child.label} primaryTypographyProps={{ noWrap: true, fontSize: 13 }} />
                         </>
                       );
 
@@ -413,7 +413,7 @@ export function AppSidebar({
                               <ListItemIcon sx={{ minWidth: 0, color: "inherit", mr: 1 }}>
                                 <DotIcon />
                               </ListItemIcon>
-                              <ListItemText primary={child.label} primaryTypographyProps={{ noWrap: true, fontSize: 14 }} />
+                              <ListItemText primary={child.label} primaryTypographyProps={{ noWrap: true, fontSize: 13 }} />
                             </ListItemButton>
                           </Link>
                         );
@@ -424,7 +424,7 @@ export function AppSidebar({
                           <ListItemIcon sx={{ minWidth: 0, color: "inherit", mr: 1 }}>
                             <DotIcon />
                           </ListItemIcon>
-                          <ListItemText primary={child.label} primaryTypographyProps={{ noWrap: true, fontSize: 14 }} />
+                          <ListItemText primary={child.label} primaryTypographyProps={{ noWrap: true, fontSize: 13 }} />
                         </ListItemButton>
                       );
                     })}

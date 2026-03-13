@@ -1,7 +1,8 @@
 "use client";
 
 import type { ButtonHTMLAttributes, ReactNode } from "react";
-import { cn } from "@/shared/lib/ui/cn";
+import { Button, CircularProgress, IconButton } from "@mui/material";
+import type { SxProps, Theme } from "@mui/material/styles";
 
 export type ButtonVariant =
   | "primary"
@@ -16,7 +17,7 @@ export type ButtonVariant =
 
 export type ButtonSize = "xs" | "sm" | "md" | "lg";
 
-interface AppButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, "children"> {
+interface AppButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, "children" | "color"> {
   label?: string;
   children?: ReactNode;
   variant?: ButtonVariant;
@@ -29,38 +30,67 @@ interface AppButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, "
   trailing?: ReactNode;
 }
 
-const sizeClass: Record<ButtonSize, string> = {
-  xs: "h-8 px-2.5 text-xs",
-  sm: "h-9 px-3 text-sm",
-  md: "h-11 px-4 text-sm",
-  lg: "h-12 px-5 text-sm",
+const sizeMap = {
+  xs: { button: "small" as const, height: 30, px: 1.1 },
+  sm: { button: "small" as const, height: 34, px: 1.4 },
+  md: { button: "medium" as const, height: 38, px: 1.8 },
+  lg: { button: "large" as const, height: 42, px: 2.2 },
 };
 
-const iconSizeClass: Record<ButtonSize, string> = {
-  xs: "h-8 w-8",
-  sm: "h-9 w-9",
-  md: "h-11 w-11",
-  lg: "h-12 w-12",
-};
+type ButtonColor = "primary" | "secondary" | "success" | "warning" | "inherit" | "error" | "info";
+type IconButtonColor = ButtonColor | "default";
 
-const spinnerSizeClass: Record<ButtonSize, string> = {
-  xs: "h-3.5 w-3.5",
-  sm: "h-4 w-4",
-  md: "h-4 w-4",
-  lg: "h-4 w-4",
-};
+interface MappedVariant {
+  variant: "contained" | "outlined" | "text";
+  buttonColor: ButtonColor;
+  iconColor: IconButtonColor;
+  sx?: SxProps<Theme>;
+}
 
-const variantClass: Record<ButtonVariant, string> = {
-  primary: "bg-primary text-primary-foreground hover:bg-primary/90",
-  secondary: "bg-muted text-foreground hover:bg-muted/80",
-  tonal: "bg-card text-card-foreground hover:bg-muted/60",
-  outline: "border border-border bg-transparent text-foreground hover:bg-muted/40",
-  text: "bg-transparent text-foreground hover:bg-muted/35",
-  destructive: "bg-danger text-white hover:bg-danger/90",
-  success: "bg-success text-white hover:bg-success/90",
-  warning: "bg-warning text-black hover:bg-warning/90",
-  icon: "aspect-square rounded-full bg-primary/10 text-primary hover:bg-primary/20",
-};
+function mapVariant(variant: ButtonVariant): MappedVariant {
+  if (variant === "outline") {
+    return { variant: "outlined", buttonColor: "inherit", iconColor: "default" };
+  }
+
+  if (variant === "text") {
+    return { variant: "text", buttonColor: "inherit", iconColor: "default" };
+  }
+
+  if (variant === "secondary") {
+    return { variant: "contained", buttonColor: "inherit", iconColor: "default", sx: { bgcolor: "action.hover" } };
+  }
+
+  if (variant === "tonal") {
+    return { variant: "contained", buttonColor: "inherit", iconColor: "default", sx: { bgcolor: "action.selected" } };
+  }
+
+  if (variant === "destructive") {
+    return { variant: "contained", buttonColor: "error", iconColor: "error" };
+  }
+
+  if (variant === "success") {
+    return { variant: "contained", buttonColor: "success", iconColor: "success" };
+  }
+
+  if (variant === "warning") {
+    return { variant: "contained", buttonColor: "warning", iconColor: "warning" };
+  }
+
+  if (variant === "icon") {
+    return {
+      variant: "contained",
+      buttonColor: "primary",
+      iconColor: "primary",
+      sx: { bgcolor: "primary.light", color: "primary.main" },
+    };
+  }
+
+  return {
+    variant: "contained",
+    buttonColor: "primary",
+    iconColor: "primary",
+  };
+}
 
 export function AppButton({
   label,
@@ -75,46 +105,62 @@ export function AppButton({
   trailing,
   disabled,
   className,
+  type = "button",
   "aria-label": ariaLabel,
   ...rest
 }: AppButtonProps) {
-  const isDisabled = isLoading || disabled;
+  const isDisabled = disabled || isLoading;
   const isIconOnly = iconOnly || variant === "icon";
+  const content = children ?? label;
+  const mapped = mapVariant(variant);
+  const sizing = sizeMap[size];
 
-  const content = children ?? (label ? <span className="truncate">{label}</span> : null);
-  const iconContent = children ?? leading ?? trailing ?? null;
-  const computedAriaLabel = isIconOnly ? (ariaLabel ?? label) : ariaLabel;
+  if (isIconOnly) {
+    const iconNode = isLoading ? <CircularProgress color="inherit" size={16} /> : (children ?? leading ?? trailing);
+
+    return (
+      <IconButton
+        aria-label={ariaLabel ?? label}
+        className={className}
+        color={mapped.iconColor}
+        disabled={isDisabled}
+        sx={{
+          width: sizing.height,
+          height: sizing.height,
+          borderRadius: variant === "icon" ? "999px" : "12px",
+          ...(mapped.sx ?? {}),
+        }}
+        type={type}
+        {...rest}
+      >
+        {iconNode}
+      </IconButton>
+    );
+  }
 
   return (
-    <button
-      className={cn(
-        "inline-flex shrink-0 items-center justify-center gap-2 rounded-lg font-medium transition-colors",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
-        "disabled:cursor-not-allowed disabled:opacity-60",
-        isIconOnly ? iconSizeClass[size] : sizeClass[size],
-        variantClass[variant],
-        fullWidth && "w-full",
-        className,
-      )}
-      aria-label={computedAriaLabel}
+    <Button
+      aria-label={ariaLabel}
+      className={className}
+      color={mapped.buttonColor}
       disabled={isDisabled}
-      type="button"
+      fullWidth={fullWidth}
+      startIcon={!isLoading ? leading : <CircularProgress color="inherit" size={16} />}
+      sx={{
+        minHeight: sizing.height,
+        px: sizing.px,
+        ...(mapped.sx ?? {}),
+      }}
+      type={type}
+      variant={mapped.variant}
       {...rest}
     >
-      {isLoading ? (
+      {isLoading ? (loadingLabel ?? content) : (
         <>
-          <span className={cn("animate-spin rounded-full border-2 border-current border-t-transparent", spinnerSizeClass[size])} />
-          {!isIconOnly ? (loadingLabel ? <span className="truncate">{loadingLabel}</span> : content) : null}
+          {content}
+          {trailing}
         </>
-      ) : (
-        isIconOnly ? iconContent : (
-          <>
-            {leading}
-            {content}
-            {trailing}
-          </>
-        )
       )}
-    </button>
+    </Button>
   );
 }

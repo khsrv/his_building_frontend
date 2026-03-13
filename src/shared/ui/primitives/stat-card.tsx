@@ -34,19 +34,19 @@ export function AppStatCard({
 }: AppStatCardProps) {
   return (
     <article
-      className={cn("rounded-xl border border-border bg-card p-4 shadow-sm", className)}
+      className={cn("rounded-xl border border-border bg-card p-3 shadow-sm", className)}
       {...rest}
     >
       <div className="flex items-start justify-between gap-2">
         <div className="space-y-1">
           <p className="text-sm text-muted-foreground">{title}</p>
-          <p className="text-xl font-semibold text-foreground">{value}</p>
+          <p className="text-lg font-semibold text-foreground">{value}</p>
         </div>
         {icon ? <div className="text-muted-foreground">{icon}</div> : null}
       </div>
 
       {delta || hint ? (
-        <div className="flex flex-wrap items-center gap-2 pt-3">
+        <div className="flex flex-wrap items-center gap-2 pt-2">
           {delta ? <AppStatusBadge label={delta} tone={deltaTone} /> : null}
           {hint ? <p className="text-xs text-muted-foreground">{hint}</p> : null}
         </div>

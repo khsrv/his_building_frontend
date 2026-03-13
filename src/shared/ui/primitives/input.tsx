@@ -9,7 +9,7 @@ import {
   type InputHTMLAttributes,
   type ReactNode,
 } from "react";
-import { cn } from "@/shared/lib/ui/cn";
+import { InputAdornment, TextField } from "@mui/material";
 
 interface AppInputProps
   extends Omit<InputHTMLAttributes<HTMLInputElement>, "size" | "value" | "defaultValue" | "prefix"> {
@@ -96,35 +96,24 @@ export function AppInput({
   };
 
   return (
-    <label className="grid gap-1.5" htmlFor={inputId}>
-      {label ? <span className="text-sm font-medium text-foreground">{label}</span> : null}
-
-      <div
-        className={cn(
-          "flex h-11 items-center gap-2 rounded-lg border border-border bg-card px-3",
-          "focus-within:ring-2 focus-within:ring-primary/30",
-          errorText && "border-danger/80 focus-within:ring-danger/30",
-        )}
-      >
-        {prefix ? <span className="text-muted-foreground">{prefix}</span> : null}
-
-        <input
-          className={cn(
-            "h-full w-full bg-transparent text-sm text-foreground outline-none",
-            "placeholder:text-muted-foreground",
-            className,
-          )}
-          id={inputId}
-          onChange={handleChange}
-          value={currentValue}
-          {...rest}
-        />
-
-        {suffix ? <span className="text-muted-foreground">{suffix}</span> : null}
-      </div>
-
-      {errorText ? <span className="text-xs text-danger">{errorText}</span> : null}
-      {hint && !errorText ? <span className="text-xs text-muted-foreground">{hint}</span> : null}
-    </label>
+    <TextField
+      className={className}
+      error={Boolean(errorText)}
+      fullWidth
+      helperText={errorText ?? hint}
+      id={inputId}
+      label={label}
+      onChange={handleChange}
+      slotProps={{
+        input: {
+          startAdornment: prefix ? <InputAdornment position="start">{prefix}</InputAdornment> : undefined,
+          endAdornment: suffix ? <InputAdornment position="end">{suffix}</InputAdornment> : undefined,
+        },
+      }}
+      size="small"
+      value={currentValue}
+      variant="outlined"
+      {...(rest as Record<string, unknown>)}
+    />
   );
 }

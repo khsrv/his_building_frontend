@@ -8,7 +8,13 @@ export { AppAuditTimeline, type AuditTimelineItem } from "@/shared/ui/primitives
 export { AppBulkActionBar } from "@/shared/ui/primitives/bulk-action-bar";
 export { AppCard, SectionCard } from "@/shared/ui/primitives/card";
 export { AppCrudPageScaffold } from "@/shared/ui/primitives/crud-page-scaffold";
-export { AppDataTable, type AppDataTableColumn } from "@/shared/ui/primitives/data-table";
+export {
+  AppDataTable,
+  type AppDataTableColumn,
+  type AppDataTableFilterField,
+  type AppDataTableFilterOperator,
+  type AppDataTableFilterOption,
+} from "@/shared/ui/primitives/data-table";
 export { AppDateRangePicker, type AppDateRangeMode, type AppDateRangeValue } from "@/shared/ui/primitives/date-range-picker";
 export { AppDrawerForm } from "@/shared/ui/primitives/drawer-form";
 export {

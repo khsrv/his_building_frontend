@@ -1,6 +1,6 @@
 ---
 name: admin_module_scaffold
-description: Use this skill to implement admin modules with list/filter/detail/edit flows, role-aware actions, and scalable table architecture (TanStack Table, MUI, Ant Design, or AG Grid as needed).
+description: Use this skill to implement admin modules with list/filter/detail/edit flows, role-aware actions, and scalable MUI-first table architecture (DataGrid default, AG Grid only by exception).
 ---
 
 # Admin Module Scaffold
@@ -16,10 +16,9 @@ Ship a dense admin module with reliable behavior and clear scaling path.
 - Empty/error/loading behavior
 
 2. Pick UI path:
-- Tailwind + shadcn for custom flexibility
-- MUI for fast classic dashboards
-- Ant Design for enterprise B2B dense UI
-- AG Grid only when grid complexity requires it
+- MUI-first for admin shell/forms/tables
+- DataGrid Community as default grid engine
+- AG Grid only when grid complexity requires it and exception is documented
 
 3. Build module slices:
 ```txt

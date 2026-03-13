@@ -1,9 +1,8 @@
 "use client";
 
-import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import Link from "next/link";
-import { useState, type ReactNode } from "react";
-import { cn } from "@/shared/lib/ui/cn";
+import { useState, type MouseEvent, type ReactNode } from "react";
+import { Backdrop, Box, Button, Divider, ListItemIcon, ListItemText, Menu, MenuItem } from "@mui/material";
 
 export interface AppActionMenuItem {
   id: string;
@@ -33,21 +32,6 @@ interface AppActionMenuProps {
   onSelectItem?: (item: AppActionMenuItem) => void;
 }
 
-function ChevronDownIcon({ open }: { open: boolean }) {
-  return (
-    <svg
-      aria-hidden
-      className={cn("h-5 w-5 transition-transform", open && "rotate-180")}
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      viewBox="0 0 24 24"
-    >
-      <path d="M6 9l6 6l6-6" />
-    </svg>
-  );
-}
-
 export function AppActionMenu({
   triggerLabel,
   groups,
@@ -59,102 +43,107 @@ export function AppActionMenu({
   menuClassName,
   onSelectItem,
 }: AppActionMenuProps) {
-  const [open, setOpen] = useState(false);
-
+  const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
+  const open = Boolean(anchorEl);
   const hasItems = groups.some((group) => group.items.length > 0);
-  const alignMode: "start" | "end" = align === "right" ? "end" : "start";
 
-  const handleItemSelect = (item: AppActionMenuItem) => (event: Event) => {
-    item.onClick?.();
-    onSelectItem?.(item);
+  const handleOpen = (event: MouseEvent<HTMLElement>) => {
+    setAnchorEl(event.currentTarget);
+  };
 
-    if (item.keepOpen) {
-      event.preventDefault();
-      return;
-    }
-
-    setOpen(false);
+  const handleClose = () => {
+    setAnchorEl(null);
   };
 
   return (
-    <DropdownMenu.Root onOpenChange={setOpen} open={open}>
-      {open && withBackdrop ? (
-        <div
-          className="fixed inset-0 z-40 bg-black/30"
-          onClick={() => setOpen(false)}
-          role="presentation"
-        />
-      ) : null}
+    <>
+      <Backdrop
+        onClick={handleClose}
+        open={open && withBackdrop}
+        sx={{ zIndex: (theme) => theme.zIndex.modal - 1, bgcolor: "rgba(0,0,0,0.3)" }}
+      />
+      <Button
+        className={triggerClassName}
+        disabled={disabled || !hasItems}
+        endIcon={
+          <Box sx={{ transition: "transform 160ms ease", transform: open ? "rotate(180deg)" : "rotate(0deg)" }}>
+            <svg aria-hidden fill="none" height="20" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" width="20">
+              <path d="M6 9l6 6l6-6" />
+            </svg>
+          </Box>
+        }
+        onClick={handleOpen}
+        startIcon={triggerIcon}
+        sx={{
+          height: 38,
+          borderRadius: 1.25,
+          border: "1px solid",
+          borderColor: "divider",
+          bgcolor: "background.paper",
+          color: "text.primary",
+          px: 1.5,
+          "&:hover": { bgcolor: "action.hover", borderColor: "divider" },
+        }}
+        variant="outlined"
+      >
+        {triggerLabel}
+      </Button>
 
-      <DropdownMenu.Trigger asChild>
-        <button
-          className={cn(
-            "relative z-50 inline-flex h-11 items-center gap-2 rounded-xl px-4 text-sm font-medium transition-colors",
-            "bg-primary/30 text-primary hover:bg-primary/35",
-            "disabled:cursor-not-allowed disabled:opacity-60",
-            triggerClassName,
-          )}
-          disabled={disabled || !hasItems}
-          type="button"
-        >
-          {triggerIcon ? <span className="inline-flex h-5 w-5 items-center justify-center">{triggerIcon}</span> : null}
-          <span>{triggerLabel}</span>
-          <ChevronDownIcon open={open} />
-        </button>
-      </DropdownMenu.Trigger>
-
-      <DropdownMenu.Portal>
-        <DropdownMenu.Content
-          align={alignMode}
-          className={cn(
-            "z-50 w-[min(360px,calc(100vw-2rem))] overflow-hidden rounded-xl border border-border bg-card p-1 shadow-lg",
-            menuClassName,
-          )}
-          sideOffset={8}
-        >
-          {groups.map((group, groupIndex) => (
-            <div className={cn(groupIndex > 0 && "border-t border-border")} key={group.id}>
-              {group.items.map((item) => {
-                const itemClassName = cn(
-                  "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm transition-colors outline-none",
-                  item.destructive
-                    ? "text-danger focus:bg-danger/10 data-[highlighted]:bg-danger/10"
-                    : "text-foreground focus:bg-muted data-[highlighted]:bg-muted",
-                  item.disabled && "opacity-50",
-                );
-
-                if (item.href) {
-                  return (
-                    <DropdownMenu.Item
-                      asChild
-                      key={item.id}
-                      onSelect={handleItemSelect(item)}
-                      {...(item.disabled ? { disabled: true } : {})}
-                    >
-                      <Link className={itemClassName} href={item.href}>
-                        {item.icon ? <span className="inline-flex h-5 w-5 items-center justify-center">{item.icon}</span> : null}
-                        <span>{item.label}</span>
-                      </Link>
-                    </DropdownMenu.Item>
-                  );
+      <Menu
+        anchorEl={anchorEl}
+        anchorOrigin={{ horizontal: align === "right" ? "right" : "left", vertical: "bottom" }}
+        onClose={handleClose}
+        open={open}
+        slotProps={{ paper: { className: menuClassName, sx: { minWidth: 260, p: 0.75 } } }}
+        transformOrigin={{ horizontal: align === "right" ? "right" : "left", vertical: "top" }}
+      >
+        {groups.map((group, groupIndex) => (
+          <Box key={group.id}>
+            {groupIndex > 0 ? <Divider sx={{ my: 0.75 }} /> : null}
+            {group.items.map((item) => {
+              const handleClick = () => {
+                item.onClick?.();
+                onSelectItem?.(item);
+                if (!item.keepOpen) {
+                  handleClose();
                 }
+              };
 
+              const sx = item.destructive
+                ? { color: "error.main", "&:hover": { bgcolor: "error.light" } }
+                : undefined;
+
+              if (item.href) {
                 return (
-                  <DropdownMenu.Item
-                    className={itemClassName}
+                  <MenuItem
+                    component={Link}
+                    disabled={item.disabled}
+                    href={item.href}
                     key={item.id}
-                    onSelect={handleItemSelect(item)}
-                    {...(item.disabled ? { disabled: true } : {})}
+                    onClick={handleClick}
+                    sx={{ borderRadius: 1.25, py: 1.1, ...sx }}
                   >
-                    {item.icon ? <span className="inline-flex h-5 w-5 items-center justify-center">{item.icon}</span> : null}
-                    <span>{item.label}</span>
-                  </DropdownMenu.Item>
+                    {item.icon ? <ListItemIcon sx={{ minWidth: 28 }}>{item.icon}</ListItemIcon> : null}
+                    <ListItemText>{item.label}</ListItemText>
+                  </MenuItem>
                 );
-              })}
-            </div>
-          ))}
-        </DropdownMenu.Content>
-      </DropdownMenu.Portal>
-    </DropdownMenu.Root>
+              }
+
+              return (
+                <MenuItem
+                  disabled={item.disabled}
+                  key={item.id}
+                  onClick={handleClick}
+                  sx={{ borderRadius: 1.25, py: 1.1, ...sx }}
+                >
+                  {item.icon ? <ListItemIcon sx={{ minWidth: 28 }}>{item.icon}</ListItemIcon> : null}
+                  <ListItemText>{item.label}</ListItemText>
+                </MenuItem>
+              );
+            })}
+          </Box>
+        ))}
+      </Menu>
+    </>
   );
 }

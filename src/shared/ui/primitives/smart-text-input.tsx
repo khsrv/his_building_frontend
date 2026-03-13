@@ -443,7 +443,7 @@ export function AppSmartTextInput({
   return (
     <div className={cn("grid gap-1.5", className)}>
       {label ? (
-        <label className="text-sm font-medium text-primary" htmlFor={inputId}>
+        <label className="text-xs font-medium text-muted-foreground" htmlFor={inputId}>
           {label}
           {required ? <span className="pl-1">*</span> : null}
         </label>
@@ -456,10 +456,10 @@ export function AppSmartTextInput({
       >
         <div
           className={cn(
-            "flex min-h-11 items-center gap-2 rounded-xl border border-primary/60 bg-card px-3 text-foreground",
-            "focus-within:ring-2 focus-within:ring-primary/30",
+            "flex min-h-11 items-center gap-2 rounded-xl border border-border bg-background px-3 text-foreground",
+            "focus-within:border-primary/60 focus-within:ring-2 focus-within:ring-primary/20",
             errorText && "border-danger/80 focus-within:ring-danger/30",
-            disabled && "opacity-60",
+            disabled && "bg-muted/40 opacity-60",
           )}
         >
           {prefix ? <span className="text-muted-foreground">{prefix}</span> : null}
@@ -470,12 +470,12 @@ export function AppSmartTextInput({
                 const itemLabel = getOptionLabel(allOptions, valueItem);
                 return (
                   <span
-                    className="inline-flex items-center gap-2 rounded-xl bg-muted px-2.5 py-1 text-sm text-foreground"
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-muted px-2.5 py-1 text-sm text-foreground"
                     key={valueItem}
                   >
                     <span>{itemLabel}</span>
                     <button
-                      className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-muted-foreground/30 text-xs text-card hover:bg-muted-foreground/50"
+                      className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-muted-foreground/25 text-xs text-card hover:bg-muted-foreground/40"
                       onClick={() => {
                         updateMulti(selectedMulti.filter((item) => item !== valueItem));
                       }}
@@ -488,7 +488,7 @@ export function AppSmartTextInput({
               })}
 
               <input
-                className="h-9 min-w-[120px] flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+                className="h-9 min-w-[110px] flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
                 disabled={disabled}
                 id={inputId}
                 onChange={(event) => handleInputChange(event.target.value)}
@@ -543,11 +543,11 @@ export function AppSmartTextInput({
         </div>
 
         {supportsDropdown && isOpen ? (
-          <div className="absolute left-0 right-0 top-[calc(100%+8px)] z-40 overflow-hidden rounded-2xl border border-border bg-card shadow-lg">
+          <div className="absolute left-0 right-0 top-[calc(100%+8px)] z-40 overflow-hidden rounded-xl border border-border bg-card shadow-lg">
             {canCreateOption ? (
-              <div className="border-b border-border p-3">
+              <div className="border-b border-border p-2.5">
                 <button
-                  className="inline-flex w-full items-center justify-center gap-3 rounded-xl bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-3 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
                   onClick={createOption}
                   type="button"
                 >
@@ -567,7 +567,7 @@ export function AppSmartTextInput({
                   return (
                     <button
                       className={cn(
-                        "w-full rounded-lg px-3 py-2 text-left text-sm transition-colors",
+                        "w-full min-h-10 rounded-lg px-3 py-2 text-left text-sm transition-colors",
                         isHighlighted ? "bg-primary/20 text-primary" : "text-foreground hover:bg-muted",
                       )}
                       key={option.value}

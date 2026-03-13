@@ -1,35 +1,109 @@
 "use client";
 
-import * as Dialog from "@radix-ui/react-dialog";
-import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
-import {
-  getCoreRowModel,
-  getPaginationRowModel,
-  getSortedRowModel,
-  type ColumnDef,
-  type ColumnPinningState,
-  type ColumnSort,
-  type PaginationState,
-  type Row,
-  type RowSelectionState,
-  type SortingFn,
-  type SortingState,
-  type VisibilityState,
-  useReactTable,
-} from "@tanstack/react-table";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { cn } from "@/shared/lib/ui/cn";
+import {
+  Box,
+  Chip,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  Divider,
+  FormControlLabel,
+  IconButton,
+  Menu,
+  MenuItem,
+  Paper,
+  Stack,
+  Switch,
+  Tooltip,
+  Typography,
+} from "@mui/material";
+import {
+  DataGrid,
+  type GridColDef,
+  type GridPaginationModel,
+  type GridRowSelectionModel,
+} from "@mui/x-data-grid";
 import { useI18n } from "@/shared/providers/locale-provider";
+import { AppActionMenu, type AppActionMenuGroup } from "@/shared/ui/primitives/action-menu";
 import { AppButton } from "@/shared/ui/primitives/button";
 import { AppInput } from "@/shared/ui/primitives/input";
+import { AppSelect } from "@/shared/ui/primitives/select";
 
-type SortDirection = "asc" | "desc";
 type ColumnAlign = "left" | "center" | "right";
 type ExportPrimitive = string | number | boolean | Date | null | undefined;
+type FilterPrimitive = string | number | boolean | Date | null | undefined;
+type FilterInputType = "text" | "number" | "date" | "select" | "boolean";
+type NonEmptyOperators = readonly [AppDataTableFilterOperator, ...AppDataTableFilterOperator[]];
+
+export type AppDataTableFilterOperator =
+  | "contains"
+  | "equals"
+  | "notEquals"
+  | "startsWith"
+  | "endsWith"
+  | "gt"
+  | "gte"
+  | "lt"
+  | "lte"
+  | "between"
+  | "on"
+  | "before"
+  | "after"
+  | "isTrue"
+  | "isFalse";
+
+export interface AppDataTableFilterOption {
+  label: string;
+  value: string;
+}
+
+export interface AppDataTableFilterField<TData> {
+  id: string;
+  label: string;
+  type: FilterInputType;
+  getValue: (row: TData) => FilterPrimitive;
+  options?: readonly AppDataTableFilterOption[] | undefined;
+  quick?: boolean;
+  operators?: readonly AppDataTableFilterOperator[] | undefined;
+}
+
+interface AppDataTableFilterRule {
+  id: string;
+  fieldId: string;
+  operator: AppDataTableFilterOperator;
+  value: string;
+  valueTo?: string | undefined;
+}
+
+interface NormalizedAppDataTableFilterField<TData> {
+  id: string;
+  label: string;
+  type: FilterInputType;
+  getValue: (row: TData) => FilterPrimitive;
+  options: readonly AppDataTableFilterOption[];
+  quick: boolean;
+  operators: NonEmptyOperators;
+}
+
+interface ActiveFilterChip {
+  id: string;
+  label: string;
+  fieldId: string;
+  isRule: boolean;
+  ruleId?: string;
+}
 
 interface ColumnRuntimeState {
   visible: boolean;
   pinned: boolean;
+}
+
+interface PersistedTableState {
+  pageSize: number;
+  columnState: Record<string, ColumnRuntimeState>;
+  columnOrder: string[];
 }
 
 export interface AppDataTableColumn<TData> {
@@ -41,6 +115,7 @@ export interface AppDataTableColumn<TData> {
   exportAccessor?: (row: TData) => ExportPrimitive;
   align?: ColumnAlign;
   widthClassName?: string;
+  widthPx?: number;
   defaultVisible?: boolean;
   canHide?: boolean;
   defaultPinned?: boolean;
@@ -56,6 +131,13 @@ interface AppDataTableProps<TData> {
   data: readonly TData[];
   columns: readonly AppDataTableColumn<TData>[];
   rowKey: (row: TData) => string;
+  filterFields?: readonly AppDataTableFilterField<TData>[];
+  syncFiltersToUrl?: boolean;
+  onRowClick?: (row: TData) => void;
+  rowActions?: (row: TData) => readonly AppActionMenuGroup[];
+  rowActionsTriggerLabel?: string;
+  rowActionsColumnHeader?: string;
+  rowActionsColumnWidth?: number;
   title?: string;
   searchPlaceholder?: string;
   addAction?: AddAction;
@@ -65,151 +147,236 @@ interface AppDataTableProps<TData> {
   enableSelection?: boolean;
   enableSettings?: boolean;
   enableExport?: boolean;
+  showTotals?: boolean;
   fileNameBase?: string;
+  storageKey?: string;
 }
 
-function SearchIcon() {
-  return (
-    <svg aria-hidden className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-      <circle cx="11" cy="11" r="7" />
-      <path d="M20 20l-3.5-3.5" />
-    </svg>
-  );
+const DEFAULT_PAGE_SIZE_OPTIONS = [5, 20, 50, 100] as const;
+const FILTER_RULES_PARAM_SUFFIX = "rules";
+const FILTER_QUICK_PARAM_SUFFIX = "quick";
+
+function getDefaultOperators(type: FilterInputType): NonEmptyOperators {
+  if (type === "text") {
+    return ["contains", "equals", "notEquals", "startsWith", "endsWith"];
+  }
+  if (type === "number") {
+    return ["equals", "notEquals", "gt", "gte", "lt", "lte", "between"];
+  }
+  if (type === "date") {
+    return ["on", "before", "after", "between"];
+  }
+  if (type === "boolean") {
+    return ["isTrue", "isFalse"];
+  }
+  return ["equals", "notEquals"];
 }
 
-function SortIcon({ direction }: { direction: SortDirection | null }) {
-  if (direction === "asc") {
-    return (
-      <svg aria-hidden className="h-4 w-4 text-primary" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-        <path d="M12 5l-6 6h12z" fill="currentColor" stroke="none" />
-      </svg>
-    );
+function normalizeOperators(type: FilterInputType, operators: readonly AppDataTableFilterOperator[] | undefined): NonEmptyOperators {
+  if (!operators || operators.length === 0) {
+    return getDefaultOperators(type);
   }
 
-  if (direction === "desc") {
-    return (
-      <svg aria-hidden className="h-4 w-4 text-primary" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-        <path d="M12 19l6-6H6z" fill="currentColor" stroke="none" />
-      </svg>
-    );
+  const unique = Array.from(new Set(operators));
+  if (unique.length === 0) {
+    return getDefaultOperators(type);
   }
 
-  return (
-    <svg aria-hidden className="h-4 w-4 text-muted-foreground" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-      <path d="M12 5l-4 4h8zM12 19l4-4H8z" fill="currentColor" stroke="none" />
-    </svg>
-  );
+  const [first, ...rest] = unique;
+  if (!first) {
+    return getDefaultOperators(type);
+  }
+
+  return [first, ...rest];
 }
 
-function SettingsIcon() {
-  return (
-    <svg aria-hidden className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-      <path d="M12 8.5A3.5 3.5 0 1 0 12 15.5A3.5 3.5 0 1 0 12 8.5Z" />
-      <path d="M19.4 15a1 1 0 0 0 .2 1.1l.1.1a2 2 0 0 1-2.8 2.8l-.1-.1a1 1 0 0 0-1.1-.2a1 1 0 0 0-.6.9V20a2 2 0 1 1-4 0v-.2a1 1 0 0 0-.6-.9a1 1 0 0 0-1.1.2l-.1.1a2 2 0 0 1-2.8-2.8l.1-.1a1 1 0 0 0 .2-1.1a1 1 0 0 0-.9-.6H4a2 2 0 1 1 0-4h.2a1 1 0 0 0 .9-.6a1 1 0 0 0-.2-1.1l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1 1 0 0 0 1.1.2H9a1 1 0 0 0 .6-.9V4a2 2 0 1 1 4 0v.2a1 1 0 0 0 .6.9a1 1 0 0 0 1.1-.2l.1-.1a2 2 0 0 1 2.8 2.8l-.1.1a1 1 0 0 0-.2 1.1V9c0 .4.3.7.7.7H20a2 2 0 1 1 0 4h-.2a1 1 0 0 0-.9.6Z" />
-    </svg>
-  );
+function normalizeFilterFields<TData>(
+  fields: readonly AppDataTableFilterField<TData>[] | undefined,
+): NormalizedAppDataTableFilterField<TData>[] {
+  return (fields ?? []).map((field) => {
+    const options = field.type === "boolean"
+      ? [{ label: "True", value: "true" }, { label: "False", value: "false" }]
+      : (field.options ?? []);
+
+    return {
+      id: field.id,
+      label: field.label,
+      type: field.type,
+      getValue: field.getValue,
+      quick: Boolean(field.quick),
+      options,
+      operators: normalizeOperators(field.type, field.operators),
+    };
+  });
 }
 
-function ExportIcon() {
-  return (
-    <svg aria-hidden className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-      <path d="M12 3v12" />
-      <path d="M7 10l5 5l5-5" />
-      <path d="M5 21h14" />
-    </svg>
-  );
+function normalizeQuickFilterValues<TData>(
+  fields: readonly NormalizedAppDataTableFilterField<TData>[],
+  input: Record<string, string> | undefined,
+) {
+  const allowedIds = new Set(fields.map((field) => field.id));
+  const normalized: Record<string, string> = {};
+
+  for (const [key, value] of Object.entries(input ?? {})) {
+    if (!allowedIds.has(key) || typeof value !== "string") {
+      continue;
+    }
+    if (!value.trim()) {
+      continue;
+    }
+    normalized[key] = value;
+  }
+
+  return normalized;
 }
 
-function PlusIcon() {
-  return (
-    <svg aria-hidden className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-      <path d="M12 5v14M5 12h14" />
-    </svg>
-  );
+function normalizeAdvancedRules<TData>(
+  fields: readonly NormalizedAppDataTableFilterField<TData>[],
+  input: readonly AppDataTableFilterRule[] | undefined,
+) {
+  const fieldById = new Map(fields.map((field) => [field.id, field]));
+  const normalized: AppDataTableFilterRule[] = [];
+
+  for (const item of input ?? []) {
+    const field = fieldById.get(item.fieldId);
+    if (!field) {
+      continue;
+    }
+    const operator = field.operators.includes(item.operator)
+      ? item.operator
+      : field.operators[0];
+    normalized.push({
+      id: item.id,
+      fieldId: item.fieldId,
+      operator,
+      value: item.value ?? "",
+      valueTo: item.valueTo,
+    });
+  }
+
+  return normalized;
 }
 
-function ChevronLeftIcon() {
-  return (
-    <svg aria-hidden className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-      <path d="M15 18l-6-6l6-6" />
-    </svg>
-  );
+function toFilterTextValue(value: FilterPrimitive) {
+  if (value === null || value === undefined) {
+    return "";
+  }
+  if (value instanceof Date) {
+    const year = value.getFullYear();
+    const month = String(value.getMonth() + 1).padStart(2, "0");
+    const day = String(value.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  }
+  if (typeof value === "boolean") {
+    return value ? "true" : "false";
+  }
+  return String(value);
 }
 
-function ChevronRightIcon() {
-  return (
-    <svg aria-hidden className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-      <path d="M9 18l6-6l-6-6" />
-    </svg>
-  );
+function parseNumber(value: string) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
 }
 
-function DotsDragIcon() {
-  return (
-    <svg aria-hidden className="h-5 w-5 text-muted-foreground" fill="currentColor" viewBox="0 0 24 24">
-      <circle cx="6" cy="6" r="1.5" />
-      <circle cx="6" cy="12" r="1.5" />
-      <circle cx="6" cy="18" r="1.5" />
-      <circle cx="12" cy="6" r="1.5" />
-      <circle cx="12" cy="12" r="1.5" />
-      <circle cx="12" cy="18" r="1.5" />
-    </svg>
-  );
+function compareAsDate(left: string, right: string) {
+  const leftTime = Date.parse(left);
+  const rightTime = Date.parse(right);
+  if (!Number.isFinite(leftTime) || !Number.isFinite(rightTime)) {
+    return null;
+  }
+  return leftTime - rightTime;
 }
 
-function Toggle({ checked, onChange, disabled = false }: { checked: boolean; onChange: (next: boolean) => void; disabled?: boolean }) {
-  return (
-    <button
-      aria-checked={checked}
-      className={cn(
-        "relative inline-flex h-8 w-14 items-center rounded-full border transition-colors",
-        checked ? "border-primary bg-primary" : "border-border bg-muted",
-        disabled && "cursor-not-allowed opacity-60",
-      )}
-      disabled={disabled}
-      onClick={() => onChange(!checked)}
-      role="switch"
-      type="button"
-    >
-      <span
-        className={cn(
-          "inline-block h-6 w-6 rounded-full bg-white shadow-sm transition-transform",
-          checked ? "translate-x-7" : "translate-x-1",
-        )}
-      />
-    </button>
-  );
+function parseDateTime(value: string) {
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : null;
 }
 
-function Checkbox({
-  checked,
-  onChange,
-  disabled = false,
-  indeterminate = false,
-}: {
-  checked: boolean;
-  onChange: (next: boolean) => void;
-  disabled?: boolean;
-  indeterminate?: boolean;
-}) {
-  return (
-    <button
-      aria-checked={indeterminate ? "mixed" : checked}
-      className={cn(
-        "inline-flex h-7 w-7 items-center justify-center rounded-md border text-sm transition-colors",
-        checked || indeterminate
-          ? "border-primary bg-primary text-primary-foreground"
-          : "border-border bg-card text-transparent",
-        disabled && "cursor-not-allowed opacity-60",
-      )}
-      disabled={disabled}
-      onClick={() => onChange(!checked)}
-      role="checkbox"
-      type="button"
-    >
-      {indeterminate ? "−" : "✓"}
-    </button>
-  );
+function evaluateOperator(operator: AppDataTableFilterOperator, rawValue: FilterPrimitive, value: string, valueTo?: string) {
+  const left = toFilterTextValue(rawValue).trim();
+  const right = value.trim();
+  const rightTo = (valueTo ?? "").trim();
+
+  if (operator === "isTrue") {
+    return left === "true";
+  }
+  if (operator === "isFalse") {
+    return left === "false";
+  }
+  if (!right && operator !== "notEquals") {
+    return true;
+  }
+  if (operator === "contains") {
+    return left.toLowerCase().includes(right.toLowerCase());
+  }
+  if (operator === "startsWith") {
+    return left.toLowerCase().startsWith(right.toLowerCase());
+  }
+  if (operator === "endsWith") {
+    return left.toLowerCase().endsWith(right.toLowerCase());
+  }
+  if (operator === "equals") {
+    return left.toLowerCase() === right.toLowerCase();
+  }
+  if (operator === "notEquals") {
+    return left.toLowerCase() !== right.toLowerCase();
+  }
+  if (operator === "on") {
+    const compared = compareAsDate(left, right);
+    return compared === 0;
+  }
+  if (operator === "before") {
+    const compared = compareAsDate(left, right);
+    return compared !== null && compared < 0;
+  }
+  if (operator === "after") {
+    const compared = compareAsDate(left, right);
+    return compared !== null && compared > 0;
+  }
+  if (operator === "between") {
+    if (!rightTo) {
+      return true;
+    }
+
+    const leftDate = parseDateTime(left);
+    const rightDate = parseDateTime(right);
+    const rightDateTo = parseDateTime(rightTo);
+    if (leftDate !== null && rightDate !== null && rightDateTo !== null) {
+      const from = Math.min(rightDate, rightDateTo);
+      const to = Math.max(rightDate, rightDateTo);
+      return leftDate >= from && leftDate <= to;
+    }
+
+    const leftNumberBetween = parseNumber(left);
+    const rightNumberBetween = parseNumber(right);
+    const rightNumberToBetween = parseNumber(rightTo);
+    if (leftNumberBetween === null || rightNumberBetween === null || rightNumberToBetween === null) {
+      return false;
+    }
+    const from = Math.min(rightNumberBetween, rightNumberToBetween);
+    const to = Math.max(rightNumberBetween, rightNumberToBetween);
+    return leftNumberBetween >= from && leftNumberBetween <= to;
+  }
+
+  const leftNumber = parseNumber(left);
+  const rightNumber = parseNumber(right);
+  if (leftNumber === null || rightNumber === null) {
+    return false;
+  }
+
+  if (operator === "gt") {
+    return leftNumber > rightNumber;
+  }
+  if (operator === "gte") {
+    return leftNumber >= rightNumber;
+  }
+  if (operator === "lt") {
+    return leftNumber < rightNumber;
+  }
+  if (operator === "lte") {
+    return leftNumber <= rightNumber;
+  }
+  return true;
 }
 
 function normalizeColumnState<TData>(
@@ -217,24 +384,133 @@ function normalizeColumnState<TData>(
   current?: Record<string, ColumnRuntimeState>,
 ) {
   return columns.reduce<Record<string, ColumnRuntimeState>>((accumulator, column) => {
-    const fallback: ColumnRuntimeState = {
+    accumulator[column.id] = current?.[column.id] ?? {
       visible: column.defaultVisible ?? true,
       pinned: column.defaultPinned ?? false,
     };
-
-    accumulator[column.id] = current?.[column.id] ?? fallback;
     return accumulator;
   }, {});
 }
 
-function resetColumnState<TData>(columns: readonly AppDataTableColumn<TData>[]) {
-  return columns.reduce<Record<string, ColumnRuntimeState>>((accumulator, column) => {
-    accumulator[column.id] = {
-      visible: column.defaultVisible ?? true,
-      pinned: column.defaultPinned ?? false,
-    };
-    return accumulator;
-  }, {});
+function normalizeColumnOrder<TData>(
+  columns: readonly AppDataTableColumn<TData>[],
+  current?: readonly string[],
+) {
+  const availableIds = columns.map((column) => column.id);
+  const availableSet = new Set(availableIds);
+  const seen = new Set<string>();
+  const normalized: string[] = [];
+
+  for (const id of current ?? []) {
+    if (!availableSet.has(id) || seen.has(id)) {
+      continue;
+    }
+    seen.add(id);
+    normalized.push(id);
+  }
+
+  for (const id of availableIds) {
+    if (seen.has(id)) {
+      continue;
+    }
+    seen.add(id);
+    normalized.push(id);
+  }
+
+  return normalized;
+}
+
+function areStringArraysEqual(left: readonly string[], right: readonly string[]) {
+  if (left.length !== right.length) {
+    return false;
+  }
+
+  for (let index = 0; index < left.length; index += 1) {
+    if (left[index] !== right[index]) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+function areFilterValueMapsEqual(left: Record<string, string>, right: Record<string, string>) {
+  const leftKeys = Object.keys(left);
+  const rightKeys = Object.keys(right);
+  if (leftKeys.length !== rightKeys.length) {
+    return false;
+  }
+
+  for (const key of leftKeys) {
+    if (left[key] !== right[key]) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+function areFilterRulesEqual(left: readonly AppDataTableFilterRule[], right: readonly AppDataTableFilterRule[]) {
+  if (left.length !== right.length) {
+    return false;
+  }
+
+  for (let index = 0; index < left.length; index += 1) {
+    const leftRule = left[index];
+    const rightRule = right[index];
+    if (!leftRule || !rightRule) {
+      return false;
+    }
+    if (
+      leftRule.id !== rightRule.id
+      || leftRule.fieldId !== rightRule.fieldId
+      || leftRule.operator !== rightRule.operator
+      || leftRule.value !== rightRule.value
+      || (leftRule.valueTo ?? "") !== (rightRule.valueTo ?? "")
+    ) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+function shouldIgnoreRowClick(target: EventTarget | null) {
+  if (!(target instanceof HTMLElement)) {
+    return false;
+  }
+
+  return Boolean(
+    target.closest(
+      "button, a, input, textarea, select, label, [role='button'], [data-no-row-click='true']",
+    ),
+  );
+}
+
+function applyPinnedOrder<TData>(
+  order: readonly string[],
+  state: Record<string, ColumnRuntimeState>,
+  columnsById: Map<string, AppDataTableColumn<TData>>,
+) {
+  const pinned: string[] = [];
+  const regular: string[] = [];
+
+  for (const id of order) {
+    const column = columnsById.get(id);
+    if (!column) {
+      continue;
+    }
+
+    const canPin = column.canPin !== false;
+    const isPinned = canPin && (state[id]?.pinned ?? false);
+    if (isPinned) {
+      pinned.push(id);
+      continue;
+    }
+    regular.push(id);
+  }
+
+  return [...pinned, ...regular];
 }
 
 function toComparableValue(value: string | number | Date | null | undefined) {
@@ -261,270 +537,960 @@ function formatExportValue(value: ExportPrimitive) {
   return String(value);
 }
 
-function getColumnAlignmentClass(align: ColumnAlign | undefined) {
+function parseSummaryNumber(value: unknown): number | null {
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : null;
+  }
+
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const normalized = value.replace(/\s+/g, "").replace(",", ".");
+  if (!/^-?\d+(\.\d+)?$/.test(normalized)) {
+    return null;
+  }
+
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function getSummaryValue<TData>(column: AppDataTableColumn<TData>, row: TData) {
+  const rawValue =
+    column.sortAccessor?.(row)
+    ?? column.exportAccessor?.(row)
+    ?? column.searchAccessor?.(row)
+    ?? null;
+
+  return parseSummaryNumber(rawValue);
+}
+
+function sanitizeSpreadsheetCellValue(value: string) {
+  if (!value) {
+    return value;
+  }
+
+  // Prevent formula execution when opening the exported sheet in Excel.
+  return /^[=+\-@]/.test(value) ? `'${value}` : value;
+}
+
+function alignToGrid(align: ColumnAlign | undefined): "left" | "center" | "right" {
   if (align === "center") {
-    return "text-center";
+    return "center";
   }
 
   if (align === "right") {
-    return "text-right";
+    return "right";
   }
 
-  return "text-left";
+  return "left";
 }
 
-function getPageButtons(currentPage: number, totalPages: number) {
-  if (totalPages <= 5) {
-    return Array.from({ length: totalPages }, (_, index) => index + 1);
+function parseTailwindWidthClassName(value: string | undefined) {
+  if (!value) {
+    return null;
   }
 
-  if (currentPage <= 3) {
-    return [1, 2, 3, 4, 5];
+  const match = value.match(/(?:^|\s)w-(\d+)(?:\s|$)/);
+  if (!match) {
+    return null;
   }
 
-  if (currentPage >= totalPages - 2) {
-    return [totalPages - 4, totalPages - 3, totalPages - 2, totalPages - 1, totalPages];
+  const scale = Number(match[1]);
+  if (!Number.isFinite(scale) || scale <= 0) {
+    return null;
   }
 
-  return [currentPage - 2, currentPage - 1, currentPage, currentPage + 1, currentPage + 2];
+  return scale * 4;
 }
 
-function toColumnVisibilityState(columnState: Record<string, ColumnRuntimeState>): VisibilityState {
-  return Object.entries(columnState).reduce<VisibilityState>((accumulator, [columnId, state]) => {
-    accumulator[columnId] = state.visible;
-    return accumulator;
-  }, {});
+function getColumnConfiguredWidth<TData>(column: AppDataTableColumn<TData>, isPinned: boolean) {
+  if (typeof column.widthPx === "number" && Number.isFinite(column.widthPx) && column.widthPx > 0) {
+    return Math.trunc(column.widthPx);
+  }
+
+  const fromClass = parseTailwindWidthClassName(column.widthClassName);
+  if (fromClass) {
+    return fromClass;
+  }
+
+  if (column.id === "index" || column.header.trim() === "#" || column.header.trim() === "№") {
+    return 72;
+  }
+
+  return isPinned ? 180 : null;
 }
 
-function toColumnPinningState(columnState: Record<string, ColumnRuntimeState>): ColumnPinningState {
-  const left = Object.entries(columnState)
-    .filter(([, state]) => state.pinned)
-    .map(([columnId]) => columnId);
-
-  return { left };
+function SearchIcon() {
+  return (
+    <svg aria-hidden fill="none" height="18" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" width="18">
+      <circle cx="11" cy="11" r="7" />
+      <path d="M20 20l-3.5-3.5" />
+    </svg>
+  );
 }
 
-function getActiveColumns<TData>(
+function SettingsIcon() {
+  return (
+    <svg aria-hidden fill="none" height="20" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" width="20">
+      <path d="M12 8.5A3.5 3.5 0 1 0 12 15.5A3.5 3.5 0 1 0 12 8.5Z" />
+      <path d="M19.4 15a1 1 0 0 0 .2 1.1l.1.1a2 2 0 0 1-2.8 2.8l-.1-.1a1 1 0 0 0-1.1-.2a1 1 0 0 0-.6.9V20a2 2 0 1 1-4 0v-.2a1 1 0 0 0-.6-.9a1 1 0 0 0-1.1.2l-.1.1a2 2 0 0 1-2.8-2.8l.1-.1a1 1 0 0 0 .2-1.1a1 1 0 0 0-.9-.6H4a2 2 0 1 1 0-4h.2a1 1 0 0 0 .9-.6a1 1 0 0 0-.2-1.1l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1 1 0 0 0 1.1.2H9a1 1 0 0 0 .6-.9V4a2 2 0 1 1 4 0v.2a1 1 0 0 0 .6.9a1 1 0 0 0 1.1-.2l.1-.1a2 2 0 0 1 2.8 2.8l-.1.1a1 1 0 0 0-.2 1.1V9c0 .4.3.7.7.7H20a2 2 0 1 1 0 4h-.2a1 1 0 0 0-.9.6Z" />
+    </svg>
+  );
+}
+
+function ExportIcon() {
+  return (
+    <svg aria-hidden fill="none" height="20" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" width="20">
+      <path d="M12 3v12" />
+      <path d="M7 10l5 5l5-5" />
+      <path d="M5 21h14" />
+    </svg>
+  );
+}
+
+function ExpandIcon({ expanded }: { expanded: boolean }) {
+  if (expanded) {
+    return (
+      <svg aria-hidden fill="none" height="20" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" width="20">
+        <path d="M9 9H4V4M15 9h5V4M9 15H4v5M15 15h5v5" />
+      </svg>
+    );
+  }
+
+  return (
+    <svg aria-hidden fill="none" height="20" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" width="20">
+      <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />
+    </svg>
+  );
+}
+
+function ArrowUpIcon() {
+  return (
+    <svg aria-hidden fill="none" height="16" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" width="16">
+      <path d="M12 5l-6 6h12z" />
+    </svg>
+  );
+}
+
+function ArrowDownIcon() {
+  return (
+    <svg aria-hidden fill="none" height="16" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" width="16">
+      <path d="M12 19l6-6H6z" />
+    </svg>
+  );
+}
+
+function PinnedIcon() {
+  return (
+    <svg aria-hidden fill="none" height="14" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" width="14">
+      <path d="M8 4h8l-1.5 5l2.5 2.5h-4V20l-2-2l-2 2v-8.5H5L7.5 9z" />
+    </svg>
+  );
+}
+
+function readPersistedState<TData>(
   columns: readonly AppDataTableColumn<TData>[],
-  columnState: Record<string, ColumnRuntimeState>,
-) {
-  const visibleColumns = columns.filter((column) => columnState[column.id]?.visible ?? true);
+  storageNamespace: string,
+): PersistedTableState | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
 
-  return [...visibleColumns].sort((left, right) => {
-    const leftPinned = columnState[left.id]?.pinned ?? false;
-    const rightPinned = columnState[right.id]?.pinned ?? false;
-
-    if (leftPinned === rightPinned) {
-      return 0;
+  try {
+    const raw = window.localStorage.getItem(`app-data-table:${storageNamespace}`);
+    if (!raw) {
+      return null;
     }
 
-    return leftPinned ? -1 : 1;
-  });
+    const parsed = JSON.parse(raw) as Partial<PersistedTableState>;
+    const pageSize = typeof parsed.pageSize === "number" ? parsed.pageSize : 25;
+    const columnState = normalizeColumnState(columns, parsed.columnState);
+    const columnOrder = normalizeColumnOrder(
+      columns,
+      Array.isArray(parsed.columnOrder)
+        ? parsed.columnOrder.filter((id): id is string => typeof id === "string")
+        : undefined,
+    );
+
+    return {
+      pageSize,
+      columnState,
+      columnOrder,
+    };
+  } catch {
+    return null;
+  }
 }
 
-function triStateSortToggle(columnId: string, sorting: SortingState): SortingState {
-  const current = sorting.find((entry) => entry.id === columnId);
-
-  if (!current) {
-    return [{ id: columnId, desc: false }];
+function savePersistedState(storageNamespace: string, state: PersistedTableState) {
+  if (typeof window === "undefined") {
+    return;
   }
 
-  if (!current.desc) {
-    return [{ id: columnId, desc: true }];
+  try {
+    window.localStorage.setItem(`app-data-table:${storageNamespace}`, JSON.stringify(state));
+  } catch {
+    // Ignore storage failures.
   }
-
-  return [];
 }
 
 export function AppDataTable<TData>({
   data,
   columns,
   rowKey,
+  filterFields,
+  syncFiltersToUrl = false,
+  onRowClick,
+  rowActions,
+  rowActionsTriggerLabel,
+  rowActionsColumnHeader,
+  rowActionsColumnWidth = 170,
   title,
   searchPlaceholder,
   addAction,
   className,
-  initialPageSize = 25,
-  pageSizeOptions = [10, 25, 50, 100],
+  initialPageSize = 20,
+  pageSizeOptions = DEFAULT_PAGE_SIZE_OPTIONS,
   enableSelection = true,
   enableSettings = true,
   enableExport = true,
+  showTotals = true,
   fileNameBase = "table-data",
+  storageKey,
 }: AppDataTableProps<TData>) {
-  const { t } = useI18n();
+  const { locale, t } = useI18n();
+  const storageNamespace = storageKey ?? fileNameBase;
+  const normalizedFilterFields = useMemo(() => normalizeFilterFields(filterFields), [filterFields]);
+  const filterFieldIdsKey = normalizedFilterFields.map((field) => field.id).join(",");
+  const filterFieldById = useMemo(
+    () => new Map(normalizedFilterFields.map((field) => [field.id, field])),
+    [normalizedFilterFields],
+  );
+  const quickFilterFields = useMemo(
+    () => normalizedFilterFields.filter((field) => field.quick),
+    [normalizedFilterFields],
+  );
+  const normalizedPageSizeOptions = useMemo(() => {
+    const normalized = pageSizeOptions
+      .map((value) => Number(value))
+      .filter((value) => Number.isFinite(value) && value > 0)
+      .map((value) => Math.trunc(value));
 
+    const deduplicated = Array.from(new Set(normalized));
+    return deduplicated.length > 0 ? deduplicated : [5, 20, 50, 100];
+  }, [pageSizeOptions]);
+  const normalizedPageSizeOptionsKey = normalizedPageSizeOptions.join(",");
+  const fallbackPageSize = normalizedPageSizeOptions[0] ?? 20;
+  const resolvedInitialPageSize = normalizedPageSizeOptions.includes(initialPageSize)
+    ? initialPageSize
+    : fallbackPageSize;
   const [search, setSearch] = useState("");
-  const [sorting, setSorting] = useState<SortingState>([]);
-  const [pagination, setPagination] = useState<PaginationState>({
-    pageIndex: 0,
-    pageSize: initialPageSize,
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({
+    page: 0,
+    pageSize: resolvedInitialPageSize,
   });
-  const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
-  const [columnState, setColumnState] = useState<Record<string, ColumnRuntimeState>>(() =>
-    normalizeColumnState(columns),
-  );
+  const [selectionModel, setSelectionModel] = useState<GridRowSelectionModel>({
+    type: "include",
+    ids: new Set(),
+  });
+  const [columnState, setColumnState] = useState<Record<string, ColumnRuntimeState>>(() => normalizeColumnState(columns));
+  const [columnOrder, setColumnOrder] = useState<string[]>(() => normalizeColumnOrder(columns));
+  const [settingsDraft, setSettingsDraft] = useState<Record<string, ColumnRuntimeState>>(() => normalizeColumnState(columns));
+  const [settingsDraftOrder, setSettingsDraftOrder] = useState<string[]>(() => normalizeColumnOrder(columns));
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [settingsDraft, setSettingsDraft] = useState<Record<string, ColumnRuntimeState>>(() =>
-    normalizeColumnState(columns),
-  );
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [quickFiltersDraft, setQuickFiltersDraft] = useState<Record<string, string>>({});
+  const [quickFiltersApplied, setQuickFiltersApplied] = useState<Record<string, string>>({});
+  const [advancedRulesDraft, setAdvancedRulesDraft] = useState<AppDataTableFilterRule[]>([]);
+  const [advancedRulesApplied, setAdvancedRulesApplied] = useState<AppDataTableFilterRule[]>([]);
+  const [exportAnchorEl, setExportAnchorEl] = useState<HTMLElement | null>(null);
 
   useEffect(() => {
-    setColumnState((current) => normalizeColumnState(columns, current));
-    setSettingsDraft((current) => normalizeColumnState(columns, current));
-  }, [columns]);
+    const persisted = readPersistedState(columns, storageNamespace);
+    if (!persisted) {
+      return;
+    }
+
+    const persistedPageSize = normalizedPageSizeOptions.includes(persisted.pageSize)
+      ? persisted.pageSize
+      : resolvedInitialPageSize;
+    setPaginationModel((current) => {
+      if (current.page === 0 && current.pageSize === persistedPageSize) {
+        return current;
+      }
+      return { ...current, page: 0, pageSize: persistedPageSize };
+    });
+    setColumnState((current) => {
+      const currentRaw = JSON.stringify(current);
+      const nextRaw = JSON.stringify(persisted.columnState);
+      if (currentRaw === nextRaw) {
+        return current;
+      }
+      return persisted.columnState;
+    });
+    setColumnOrder((current) => {
+      if (areStringArraysEqual(current, persisted.columnOrder)) {
+        return current;
+      }
+      return persisted.columnOrder;
+    });
+  }, [columns, normalizedPageSizeOptions, normalizedPageSizeOptionsKey, resolvedInitialPageSize, storageNamespace]);
+
+  useEffect(() => {
+    if (normalizedPageSizeOptions.includes(paginationModel.pageSize)) {
+      return;
+    }
+    setPaginationModel((current) => ({
+      ...current,
+      page: 0,
+      pageSize: fallbackPageSize,
+    }));
+  }, [fallbackPageSize, normalizedPageSizeOptions, normalizedPageSizeOptionsKey, paginationModel.pageSize]);
+
+  useEffect(() => {
+    savePersistedState(storageNamespace, {
+      pageSize: paginationModel.pageSize,
+      columnState,
+      columnOrder,
+    });
+  }, [columnOrder, columnState, paginationModel.pageSize, storageNamespace]);
+
+  useEffect(() => {
+    const normalizedOrder = normalizeColumnOrder(columns, columnOrder);
+    if (areStringArraysEqual(normalizedOrder, columnOrder)) {
+      return;
+    }
+    setColumnOrder(normalizedOrder);
+  }, [columnOrder, columns]);
+
+  useEffect(() => {
+    setQuickFiltersDraft((current) => {
+      const normalized = normalizeQuickFilterValues(normalizedFilterFields, current);
+      return areFilterValueMapsEqual(normalized, current) ? current : normalized;
+    });
+    setQuickFiltersApplied((current) => {
+      const normalized = normalizeQuickFilterValues(normalizedFilterFields, current);
+      return areFilterValueMapsEqual(normalized, current) ? current : normalized;
+    });
+    setAdvancedRulesDraft((current) => {
+      const normalized = normalizeAdvancedRules(normalizedFilterFields, current);
+      return areFilterRulesEqual(normalized, current) ? current : normalized;
+    });
+    setAdvancedRulesApplied((current) => {
+      const normalized = normalizeAdvancedRules(normalizedFilterFields, current);
+      return areFilterRulesEqual(normalized, current) ? current : normalized;
+    });
+  }, [filterFieldIdsKey, normalizedFilterFields]);
+
+  useEffect(() => {
+    if (!syncFiltersToUrl || typeof window === "undefined") {
+      return;
+    }
+    if (normalizedFilterFields.length === 0) {
+      return;
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    const quickRaw = params.get(`dt_${storageNamespace}_${FILTER_QUICK_PARAM_SUFFIX}`);
+    const rulesRaw = params.get(`dt_${storageNamespace}_${FILTER_RULES_PARAM_SUFFIX}`);
+
+    if (quickRaw) {
+      try {
+        const decoded = JSON.parse(quickRaw) as Record<string, string>;
+        const normalized = normalizeQuickFilterValues(normalizedFilterFields, decoded);
+        setQuickFiltersApplied((current) => (areFilterValueMapsEqual(current, normalized) ? current : normalized));
+        setQuickFiltersDraft((current) => (areFilterValueMapsEqual(current, normalized) ? current : normalized));
+      } catch {
+        // Ignore malformed url filters.
+      }
+    }
+
+    if (rulesRaw) {
+      try {
+        const decoded = JSON.parse(rulesRaw) as AppDataTableFilterRule[];
+        const normalized = normalizeAdvancedRules(normalizedFilterFields, decoded);
+        setAdvancedRulesApplied((current) => (areFilterRulesEqual(current, normalized) ? current : normalized));
+        setAdvancedRulesDraft((current) => (areFilterRulesEqual(current, normalized) ? current : normalized));
+      } catch {
+        // Ignore malformed url filters.
+      }
+    }
+  }, [normalizedFilterFields, storageNamespace, syncFiltersToUrl]);
+
+  useEffect(() => {
+    if (!syncFiltersToUrl || typeof window === "undefined") {
+      return;
+    }
+    if (normalizedFilterFields.length === 0) {
+      return;
+    }
+
+    const url = new URL(window.location.href);
+    const quickKey = `dt_${storageNamespace}_${FILTER_QUICK_PARAM_SUFFIX}`;
+    const rulesKey = `dt_${storageNamespace}_${FILTER_RULES_PARAM_SUFFIX}`;
+
+    if (Object.keys(quickFiltersApplied).length > 0) {
+      url.searchParams.set(quickKey, JSON.stringify(quickFiltersApplied));
+    } else {
+      url.searchParams.delete(quickKey);
+    }
+
+    if (advancedRulesApplied.length > 0) {
+      url.searchParams.set(rulesKey, JSON.stringify(advancedRulesApplied));
+    } else {
+      url.searchParams.delete(rulesKey);
+    }
+
+    const searchText = url.searchParams.toString();
+    const nextUrl = `${url.pathname}${searchText ? `?${searchText}` : ""}${url.hash}`;
+    const currentUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+    if (nextUrl !== currentUrl) {
+      window.history.replaceState(null, "", nextUrl);
+    }
+  }, [advancedRulesApplied, normalizedFilterFields.length, quickFiltersApplied, storageNamespace, syncFiltersToUrl]);
+
+  const orderedColumns = useMemo(() => {
+    const columnById = new Map(columns.map((column) => [column.id, column]));
+    const baseOrder = normalizeColumnOrder(columns, columnOrder)
+      .map((id) => columnById.get(id))
+      .filter((column): column is AppDataTableColumn<TData> => Boolean(column));
+
+    const pinnedColumns = baseOrder.filter((column) => {
+      if (column.canPin === false) {
+        return false;
+      }
+      return columnState[column.id]?.pinned ?? false;
+    });
+
+    const regularColumns = baseOrder.filter((column) => {
+      if (column.canPin === false) {
+        return true;
+      }
+      return !(columnState[column.id]?.pinned ?? false);
+    });
+
+    return [...pinnedColumns, ...regularColumns];
+  }, [columnOrder, columnState, columns]);
 
   const activeColumns = useMemo(() => {
-    return getActiveColumns(columns, columnState);
-  }, [columnState, columns]);
+    return orderedColumns.filter((column) => columnState[column.id]?.visible ?? true);
+  }, [columnState, orderedColumns]);
 
   const filteredRows = useMemo(() => {
     const normalizedSearch = search.trim().toLowerCase();
-
-    if (!normalizedSearch) {
-      return data;
-    }
-
     return data.filter((row) => {
-      return activeColumns.some((column) => {
-        const explicitSearch = column.searchAccessor?.(row);
-        const sortText = column.sortAccessor?.(row);
-        const fallbackValue =
-          explicitSearch ??
-          (typeof sortText === "string" || typeof sortText === "number" ? String(sortText) : "");
+      const matchesSearch = normalizedSearch.length === 0 || activeColumns.some((column) => {
+        const text =
+          column.searchAccessor?.(row)
+          ?? (typeof column.sortAccessor?.(row) === "number" || typeof column.sortAccessor?.(row) === "string"
+            ? String(column.sortAccessor?.(row))
+            : "");
+        return text.toLowerCase().includes(normalizedSearch);
+      });
 
-        return fallbackValue.toLowerCase().includes(normalizedSearch);
+      if (!matchesSearch) {
+        return false;
+      }
+
+      const matchesQuickFilters = Object.entries(quickFiltersApplied).every(([fieldId, filterValue]) => {
+        const field = filterFieldById.get(fieldId);
+        if (!field) {
+          return true;
+        }
+        if (!filterValue.trim()) {
+          return true;
+        }
+        if (field.type === "boolean") {
+          const expected = filterValue === "true";
+          return Boolean(field.getValue(row)) === expected;
+        }
+        if (field.type === "number") {
+          return evaluateOperator("equals", field.getValue(row), filterValue);
+        }
+        if (field.type === "date") {
+          return evaluateOperator("on", field.getValue(row), filterValue);
+        }
+        return evaluateOperator("contains", field.getValue(row), filterValue);
+      });
+
+      if (!matchesQuickFilters) {
+        return false;
+      }
+
+      return advancedRulesApplied.every((rule) => {
+        const field = filterFieldById.get(rule.fieldId);
+        if (!field) {
+          return true;
+        }
+        return evaluateOperator(rule.operator, field.getValue(row), rule.value, rule.valueTo);
       });
     });
-  }, [activeColumns, data, search]);
+  }, [activeColumns, advancedRulesApplied, data, filterFieldById, quickFiltersApplied, search]);
 
   const collator = useMemo(() => new Intl.Collator(undefined, { numeric: true, sensitivity: "base" }), []);
+  const totalsFormatter = useMemo(() => new Intl.NumberFormat(locale), [locale]);
 
-  const appSort = useMemo<SortingFn<TData>>(
-    () =>
-      (rowA: Row<TData>, rowB: Row<TData>, columnId: string) => {
-        const leftValue = toComparableValue(rowA.getValue(columnId) as string | number | Date | null | undefined);
-        const rightValue = toComparableValue(rowB.getValue(columnId) as string | number | Date | null | undefined);
-
-        if (leftValue === null || leftValue === undefined) {
-          return 1;
-        }
-
-        if (rightValue === null || rightValue === undefined) {
-          return -1;
-        }
-
-        if (typeof leftValue === "number" && typeof rightValue === "number") {
-          return leftValue - rightValue;
-        }
-
-        return collator.compare(String(leftValue), String(rightValue));
+  const rowNumberColumn = useMemo<GridColDef>(() => {
+    return {
+      field: "__rowNumber",
+      headerName: "#",
+      sortable: false,
+      filterable: false,
+      disableColumnMenu: true,
+      align: "right",
+      headerAlign: "right",
+      width: 64,
+      resizable: false,
+      renderCell: (params) => {
+        const gridApi = params.api as unknown as {
+          getRowIndexRelativeToVisibleRows?: (id: string | number) => number;
+        };
+        const visibleIndex = gridApi.getRowIndexRelativeToVisibleRows?.(params.id);
+        return (typeof visibleIndex === "number" ? visibleIndex : 0) + 1;
       },
-    [collator],
-  );
+    };
+  }, []);
 
-  const tableColumns = useMemo<ColumnDef<TData>[]>(() => {
-    return columns.map((column) => ({
-      id: column.id,
-      accessorFn: (row) => {
-        return column.sortAccessor?.(row)
-          ?? column.searchAccessor?.(row)
-          ?? column.exportAccessor?.(row)
-          ?? "";
-      },
-      enableSorting: Boolean(column.sortAccessor),
-      sortingFn: appSort,
-    }));
-  }, [appSort, columns]);
+  const pinnedColumnOffsets = useMemo(() => {
+    let leftOffset = enableSelection ? 48 : 0;
+    const pinnedOffsets: Array<{ id: string; left: number }> = [];
 
-  const columnVisibility = useMemo(() => {
-    return toColumnVisibilityState(columnState);
-  }, [columnState]);
+    for (const column of orderedColumns) {
+      const isVisible = columnState[column.id]?.visible ?? true;
+      const isPinned = column.canPin !== false && (columnState[column.id]?.pinned ?? false);
+      if (!isVisible || !isPinned) {
+        continue;
+      }
 
-  const columnPinning = useMemo(() => {
-    return toColumnPinningState(columnState);
-  }, [columnState]);
-
-  const table = useReactTable<TData>({
-    data: filteredRows as TData[],
-    columns: tableColumns,
-    state: {
-      sorting,
-      pagination,
-      rowSelection,
-      columnVisibility,
-      columnPinning,
-    },
-    getRowId: rowKey,
-    onSortingChange: setSorting,
-    onPaginationChange: setPagination,
-    onRowSelectionChange: setRowSelection,
-    enableRowSelection: enableSelection,
-    getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
-  });
-
-  const sortedRows = table.getSortedRowModel().rows;
-  const pageRows = table.getPaginationRowModel().rows;
-  const totalRows = sortedRows.length;
-  const totalPages = Math.max(1, table.getPageCount());
-  const safePage = table.getState().pagination.pageIndex + 1;
-  const pageSize = table.getState().pagination.pageSize;
-  const showingFrom = totalRows === 0 ? 0 : (safePage - 1) * pageSize + 1;
-  const showingTo = totalRows === 0 ? 0 : Math.min(totalRows, safePage * pageSize);
-  const pageButtons = getPageButtons(safePage, totalPages);
-
-  useEffect(() => {
-    const pageIndex = table.getState().pagination.pageIndex;
-    const maxPageIndex = Math.max(0, totalPages - 1);
-
-    if (pageIndex > maxPageIndex) {
-      table.setPageIndex(maxPageIndex);
+      const width = getColumnConfiguredWidth(column, true) ?? 180;
+      pinnedOffsets.push({ id: column.id, left: leftOffset });
+      leftOffset += width;
     }
-  }, [table, totalPages]);
 
-  const allPageSelected = enableSelection && table.getIsAllPageRowsSelected();
-  const somePageSelected = enableSelection && table.getIsSomePageRowsSelected();
+    return pinnedOffsets;
+  }, [columnState, enableSelection, orderedColumns]);
 
-  const openSettings = () => {
+  const gridColumns = useMemo<GridColDef[]>(() => {
+    const mappedColumns = orderedColumns.map((column) => {
+      const isPinned = column.canPin !== false && (columnState[column.id]?.pinned ?? false);
+      const configuredWidth = getColumnConfiguredWidth(column, isPinned);
+      const columnDef: GridColDef = {
+        field: column.id,
+        headerName: column.header,
+        sortable: Boolean(column.sortAccessor),
+        filterable: false,
+        disableColumnMenu: true,
+        align: alignToGrid(column.align),
+        headerAlign: alignToGrid(column.align),
+        ...(typeof configuredWidth === "number"
+          ? {
+              width: configuredWidth,
+              minWidth: configuredWidth,
+              maxWidth: configuredWidth,
+            }
+          : {
+              flex: 1,
+              minWidth: 140,
+            }),
+        renderHeader: () => (
+          <Stack alignItems="center" direction="row" gap={0.5}>
+            {isPinned ? <PinnedIcon /> : null}
+            <span>{column.header}</span>
+          </Stack>
+        ),
+        valueGetter: (_value: unknown, row: unknown) => {
+          const casted = row as TData;
+          return column.sortAccessor?.(casted)
+            ?? column.searchAccessor?.(casted)
+            ?? column.exportAccessor?.(casted)
+            ?? "";
+        },
+        sortComparator: (left: unknown, right: unknown) => {
+          const leftValue = toComparableValue(left as string | number | Date | null | undefined);
+          const rightValue = toComparableValue(right as string | number | Date | null | undefined);
+
+          if (leftValue === null || leftValue === undefined) {
+            return 1;
+          }
+          if (rightValue === null || rightValue === undefined) {
+            return -1;
+          }
+          if (typeof leftValue === "number" && typeof rightValue === "number") {
+            return leftValue - rightValue;
+          }
+          return collator.compare(String(leftValue), String(rightValue));
+        },
+        renderCell: (params: { row: unknown }) => column.cell(params.row as TData),
+        ...(isPinned
+          ? { headerClassName: "app-pinned-col-header", cellClassName: "app-pinned-col-cell" }
+          : {}),
+      };
+
+      return columnDef;
+    });
+
+    const hasExplicitIndexColumn = orderedColumns.some((column) => {
+      const normalizedHeader = column.header.trim();
+      return column.id === "index" || normalizedHeader === "#" || normalizedHeader === "№";
+    });
+
+    const withNumberColumn = hasExplicitIndexColumn ? mappedColumns : [rowNumberColumn, ...mappedColumns];
+
+    if (!rowActions) {
+      return withNumberColumn;
+    }
+
+    return [
+      ...withNumberColumn,
+      {
+        field: "__rowActions",
+        headerName: rowActionsColumnHeader ?? t("actionMenu.trigger"),
+        sortable: false,
+        filterable: false,
+        disableColumnMenu: true,
+        align: "center",
+        headerAlign: "center",
+        width: rowActionsColumnWidth,
+        resizable: false,
+        renderCell: (params: { row: unknown }) => {
+          const groups = rowActions(params.row as TData);
+          return (
+            <Box sx={{ width: "100%", display: "flex", justifyContent: "center" }}>
+              <AppActionMenu
+                align="left"
+                groups={groups}
+                triggerLabel={rowActionsTriggerLabel ?? t("actionMenu.trigger")}
+              />
+            </Box>
+          );
+        },
+      } satisfies GridColDef,
+    ];
+  }, [
+    columnState,
+    collator,
+    orderedColumns,
+    rowNumberColumn,
+    rowActions,
+    rowActionsColumnHeader,
+    rowActionsColumnWidth,
+    rowActionsTriggerLabel,
+    t,
+  ]);
+
+  const pinnedStickyStyles = useMemo<Record<string, Record<string, string | number>>>(() => {
+    const styles: Record<string, Record<string, string | number>> = {};
+
+    if (enableSelection) {
+      styles["& .MuiDataGrid-columnHeaderCheckbox"] = {
+        position: "sticky",
+        left: 0,
+        zIndex: 6,
+        backgroundColor: "var(--mui-palette-action-selected)",
+      };
+      styles["& .MuiDataGrid-cellCheckbox"] = {
+        position: "sticky",
+        left: 0,
+        zIndex: 5,
+        backgroundColor: "var(--mui-palette-background-paper)",
+      };
+      styles["& .app-row-odd .MuiDataGrid-cellCheckbox"] = {
+        backgroundColor: "rgba(127,127,127,0.04)",
+      };
+      styles["& .MuiDataGrid-row:hover .MuiDataGrid-cellCheckbox"] = {
+        backgroundColor: "var(--mui-palette-action-hover)",
+      };
+    }
+
+    for (const pinned of pinnedColumnOffsets) {
+      styles[`& .MuiDataGrid-columnHeader[data-field="${pinned.id}"]`] = {
+        position: "sticky",
+        left: pinned.left,
+        zIndex: 6,
+      };
+      styles[`& .MuiDataGrid-cell[data-field="${pinned.id}"]`] = {
+        position: "sticky",
+        left: pinned.left,
+        zIndex: 5,
+      };
+    }
+
+    return styles;
+  }, [enableSelection, pinnedColumnOffsets]);
+
+  const columnVisibilityModel = useMemo(() => {
+    const base = orderedColumns.reduce<Record<string, boolean>>((accumulator, column) => {
+      accumulator[column.id] = columnState[column.id]?.visible ?? true;
+      return accumulator;
+    }, {});
+    base.__rowNumber = true;
+    return base;
+  }, [columnState, orderedColumns]);
+
+  const selectedCount = useMemo(() => {
+    if (selectionModel.type === "include") {
+      return selectionModel.ids.size;
+    }
+    return Math.max(0, filteredRows.length - selectionModel.ids.size);
+  }, [filteredRows.length, selectionModel]);
+
+  const columnsById = useMemo(() => {
+    return new Map(columns.map((column) => [column.id, column]));
+  }, [columns]);
+
+  const totalsByNumericColumns = useMemo(() => {
+    if (!showTotals) {
+      return [] as Array<{ id: string; header: string; total: number }>;
+    }
+
+    return activeColumns.reduce<Array<{ id: string; header: string; total: number }>>((accumulator, column) => {
+      const normalizedHeader = column.header.trim();
+      if (column.id === "index" || normalizedHeader === "#" || normalizedHeader === "№") {
+        return accumulator;
+      }
+
+      let total = 0;
+      let hasNumericValue = false;
+      for (const row of filteredRows) {
+        const numericValue = getSummaryValue(column, row);
+        if (numericValue === null) {
+          continue;
+        }
+        hasNumericValue = true;
+        total += numericValue;
+      }
+
+      if (!hasNumericValue) {
+        return accumulator;
+      }
+
+      accumulator.push({
+        id: column.id,
+        header: column.header,
+        total,
+      });
+      return accumulator;
+    }, []);
+  }, [activeColumns, filteredRows, showTotals]);
+
+  const hasFilters = normalizedFilterFields.length > 0;
+  const canApplyFilters = hasFilters
+    && (
+      JSON.stringify(normalizeQuickFilterValues(normalizedFilterFields, quickFiltersDraft))
+        !== JSON.stringify(normalizeQuickFilterValues(normalizedFilterFields, quickFiltersApplied))
+      || JSON.stringify(normalizeAdvancedRules(normalizedFilterFields, advancedRulesDraft))
+        !== JSON.stringify(normalizeAdvancedRules(normalizedFilterFields, advancedRulesApplied))
+    );
+
+  const operatorLabels = useMemo<Record<AppDataTableFilterOperator, string>>(() => ({
+    contains: t("table.filter.operator.contains"),
+    equals: t("table.filter.operator.equals"),
+    notEquals: t("table.filter.operator.notEquals"),
+    startsWith: t("table.filter.operator.startsWith"),
+    endsWith: t("table.filter.operator.endsWith"),
+    gt: t("table.filter.operator.gt"),
+    gte: t("table.filter.operator.gte"),
+    lt: t("table.filter.operator.lt"),
+    lte: t("table.filter.operator.lte"),
+    between: t("table.filter.operator.between"),
+    on: t("table.filter.operator.on"),
+    before: t("table.filter.operator.before"),
+    after: t("table.filter.operator.after"),
+    isTrue: t("table.filter.operator.isTrue"),
+    isFalse: t("table.filter.operator.isFalse"),
+  }), [t]);
+
+  const createDefaultRule = () => {
+    const field = normalizedFilterFields[0];
+    if (!field) {
+      return null;
+    }
+    return {
+      id: `rule-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      fieldId: field.id,
+      operator: field.operators[0],
+      value: "",
+    };
+  };
+
+  const activeFilterChips = useMemo<ActiveFilterChip[]>(() => {
+    const quickChips: ActiveFilterChip[] = Object.entries(quickFiltersApplied).map(([fieldId, value]) => {
+      const field = filterFieldById.get(fieldId);
+      return {
+        id: `quick:${fieldId}`,
+        label: field ? `${field.label}: ${value}` : value,
+        fieldId,
+        isRule: false,
+      };
+    });
+
+    const advancedChips: ActiveFilterChip[] = advancedRulesApplied.map((rule) => {
+      const field = filterFieldById.get(rule.fieldId);
+      const operatorLabel = operatorLabels[rule.operator] ?? rule.operator;
+      const valueLabel = rule.operator === "isTrue" || rule.operator === "isFalse"
+        ? ""
+        : rule.operator === "between"
+          ? `${rule.value} - ${rule.valueTo ?? ""}`
+          : rule.value;
+      return {
+        id: `rule:${rule.id}`,
+        label: field ? `${field.label} ${operatorLabel}${valueLabel ? ` ${valueLabel}` : ""}` : operatorLabel,
+        fieldId: rule.fieldId,
+        ruleId: rule.id,
+        isRule: true,
+      };
+    });
+
+    return [...quickChips, ...advancedChips];
+  }, [advancedRulesApplied, filterFieldById, operatorLabels, quickFiltersApplied]);
+
+  const handleOpenSettings = () => {
     setSettingsDraft(normalizeColumnState(columns, columnState));
+    setSettingsDraftOrder(normalizeColumnOrder(columns, columnOrder));
     setSettingsOpen(true);
   };
 
-  const applySettings = () => {
+  const handleOpenFilters = () => {
+    setQuickFiltersDraft(normalizeQuickFilterValues(normalizedFilterFields, quickFiltersApplied));
+    setAdvancedRulesDraft(normalizeAdvancedRules(normalizedFilterFields, advancedRulesApplied));
+    setFiltersOpen(true);
+  };
+
+  const handleApplyFilters = () => {
+    setQuickFiltersApplied(normalizeQuickFilterValues(normalizedFilterFields, quickFiltersDraft));
+    setAdvancedRulesApplied(normalizeAdvancedRules(normalizedFilterFields, advancedRulesDraft));
+    setPaginationModel((current) => ({ ...current, page: 0 }));
+    setFiltersOpen(false);
+  };
+
+  const handleResetFilters = () => {
+    setQuickFiltersDraft({});
+    setQuickFiltersApplied({});
+    setAdvancedRulesDraft([]);
+    setAdvancedRulesApplied([]);
+    setPaginationModel((current) => ({ ...current, page: 0 }));
+    setFiltersOpen(false);
+  };
+
+  const handleApplySettings = () => {
+    const orderedWithPinned = applyPinnedOrder(settingsDraftOrder, settingsDraft, columnsById);
     setColumnState(settingsDraft);
+    setColumnOrder(orderedWithPinned);
     setSettingsOpen(false);
-    table.setPageIndex(0);
   };
 
-  const resetSettings = () => {
-    setSettingsDraft(resetColumnState(columns));
+  const moveDraftColumn = (columnId: string, direction: "up" | "down") => {
+    setSettingsDraftOrder((current) => {
+      const index = current.indexOf(columnId);
+      if (index < 0) {
+        return current;
+      }
+
+      const targetIndex = direction === "up" ? index - 1 : index + 1;
+      if (targetIndex < 0 || targetIndex >= current.length) {
+        return current;
+      }
+
+      const next = [...current];
+      const sourceValue = next[index];
+      const targetValue = next[targetIndex];
+      if (!sourceValue || !targetValue) {
+        return current;
+      }
+      next[index] = targetValue;
+      next[targetIndex] = sourceValue;
+      return next;
+    });
   };
 
-  const exportColumns = activeColumns;
+  const handleAddAdvancedRule = () => {
+    const nextRule = createDefaultRule();
+    if (!nextRule) {
+      return;
+    }
+    setAdvancedRulesDraft((current) => [...current, nextRule]);
+  };
 
-  const exportRows = sortedRows.map((row) => {
-    return exportColumns.reduce<Record<string, string>>((record, column) => {
-      const exportValue =
-        column.exportAccessor?.(row.original) ??
-        column.searchAccessor?.(row.original) ??
-        column.sortAccessor?.(row.original) ??
-        "";
+  const handleUpdateAdvancedRule = (
+    ruleId: string,
+    update: Partial<Pick<AppDataTableFilterRule, "fieldId" | "operator" | "value" | "valueTo">>,
+  ) => {
+    setAdvancedRulesDraft((current) => {
+      return current.map((rule) => {
+        if (rule.id !== ruleId) {
+          return rule;
+        }
 
-      record[column.header] = formatExportValue(exportValue);
-      return record;
-    }, {});
-  });
+        const nextFieldId = update.fieldId ?? rule.fieldId;
+        const nextField = filterFieldById.get(nextFieldId);
+        const nextOperators = nextField?.operators ?? getDefaultOperators("text");
+        const nextOperator = update.operator
+          ?? (nextFieldId !== rule.fieldId ? nextOperators[0] : rule.operator);
+        const expectsValue = nextOperator !== "isTrue" && nextOperator !== "isFalse";
+        const nextValue = expectsValue ? (update.value ?? rule.value) : "";
+
+        const nextValueTo = nextOperator === "between"
+          ? (update.valueTo ?? rule.valueTo ?? "")
+          : undefined;
+
+        const nextRule: AppDataTableFilterRule = {
+          id: rule.id,
+          fieldId: nextFieldId,
+          operator: nextOperator,
+          value: nextValue,
+          ...(nextValueTo ? { valueTo: nextValueTo } : {}),
+        };
+
+        return nextRule;
+      });
+    });
+  };
+
+  const handleRemoveAdvancedRule = (ruleId: string) => {
+    setAdvancedRulesDraft((current) => current.filter((rule) => rule.id !== ruleId));
+  };
+
+  const exportRows = useMemo(() => {
+    const selectedIdSet = new Set(Array.from(selectionModel.ids).map((id) => String(id)));
+    const sourceRows = selectedCount > 0
+      ? filteredRows.filter((row) => {
+          const id = rowKey(row);
+          if (selectionModel.type === "include") {
+            return selectedIdSet.has(id);
+          }
+          return !selectedIdSet.has(id);
+        })
+      : filteredRows;
+
+    return sourceRows.map((row) => {
+      return activeColumns.reduce<Record<string, string>>((record, column) => {
+        const exportValue =
+          column.exportAccessor?.(row)
+          ?? column.searchAccessor?.(row)
+          ?? column.sortAccessor?.(row)
+          ?? "";
+        record[column.header] = formatExportValue(exportValue);
+        return record;
+      }, {});
+    });
+  }, [activeColumns, filteredRows, rowKey, selectedCount, selectionModel]);
 
   const handleExportExcel = async () => {
     if (exportRows.length === 0) {
       return;
     }
 
+    const safeExportRows = exportRows.map((row) => {
+      return Object.fromEntries(
+        Object.entries(row).map(([key, rawValue]) => [key, sanitizeSpreadsheetCellValue(rawValue)]),
+      );
+    });
+
     const xlsx = await import("xlsx");
     const workbook = xlsx.utils.book_new();
-    const worksheet = xlsx.utils.json_to_sheet(exportRows);
-
+    const worksheet = xlsx.utils.json_to_sheet(safeExportRows);
     xlsx.utils.book_append_sheet(workbook, worksheet, "Data");
     xlsx.writeFileXLSX(workbook, `${fileNameBase}.xlsx`);
   };
@@ -537,17 +1503,12 @@ export function AppDataTable<TData>({
     const [{ jsPDF }, autoTableModule] = await Promise.all([import("jspdf"), import("jspdf-autotable")]);
     const autoTable = (autoTableModule.default ?? autoTableModule) as (
       doc: InstanceType<typeof jsPDF>,
-      options: {
-        head: string[][];
-        body: string[][];
-        styles?: Record<string, unknown>;
-        headStyles?: Record<string, unknown>;
-      },
+      options: { head: string[][]; body: string[][]; styles?: Record<string, unknown>; headStyles?: Record<string, unknown> },
     ) => void;
 
     const pdf = new jsPDF({ orientation: "landscape" });
-    const head = [exportColumns.map((column) => column.header)];
-    const body = exportRows.map((row) => exportColumns.map((column) => row[column.header] ?? ""));
+    const head = [activeColumns.map((column) => column.header)];
+    const body = exportRows.map((row) => activeColumns.map((column) => row[column.header] ?? ""));
 
     autoTable(pdf, {
       head,
@@ -559,334 +1520,494 @@ export function AppDataTable<TData>({
     pdf.save(`${fileNameBase}.pdf`);
   };
 
+  const rowHeight = 40;
+  const columnHeaderHeight = 40;
+  const tableHeight = Math.min(560, Math.max(220, filteredRows.length * rowHeight + columnHeaderHeight + 72));
+
   return (
-    <div className={cn("space-y-4", className)}>
-      {title ? <h3 className="text-xl font-semibold text-foreground">{title}</h3> : null}
+    <Box
+      className={className}
+      sx={{
+        display: "grid",
+        gap: 1,
+        ...(isFullscreen
+          ? {
+              position: "fixed",
+              zIndex: (theme) => theme.zIndex.modal + 1,
+              inset: 12,
+              p: 1.5,
+              bgcolor: "background.default",
+              borderRadius: 2,
+              boxShadow: "0 18px 60px rgba(0,0,0,0.28)",
+            }
+          : null),
+        width: "100%",
+        minWidth: 0,
+      }}
+    >
+      {title ? <Typography variant="h4">{title}</Typography> : null}
 
-      <div className="flex flex-wrap items-center gap-3">
-        <select
-          className="h-11 min-w-20 rounded-xl border border-border bg-card px-3 text-sm text-foreground outline-none focus:ring-2 focus:ring-primary/30"
-          onChange={(event) => {
-            const nextPageSize = Number(event.target.value);
-            table.setPageSize(nextPageSize);
-            table.setPageIndex(0);
-          }}
-          value={String(pageSize)}
-        >
-          {pageSizeOptions.map((option) => (
-            <option key={option} value={String(option)}>
-              {option}
-            </option>
-          ))}
-        </select>
-
-        <div className="w-full max-w-[340px]">
+      <Stack alignItems={{ md: "center" }} direction={{ xs: "column", md: "row" }} flexWrap="wrap" gap={0.75}>
+        <Box sx={{ width: { xs: "100%", md: 300 } }}>
           <AppInput
             onChangeValue={(value) => {
               setSearch(value);
-              table.setPageIndex(0);
+              setPaginationModel((current) => ({ ...current, page: 0 }));
             }}
             placeholder={searchPlaceholder ?? t("table.searchPlaceholder")}
             prefix={<SearchIcon />}
             value={search}
           />
-        </div>
+        </Box>
 
-        <div className="ml-auto flex items-center gap-2">
+        {quickFilterFields.slice(0, 3).map((field) => {
+          if (field.type === "select" || field.type === "boolean") {
+            return (
+              <Box key={field.id} sx={{ width: { xs: "100%", md: 180 } }}>
+                <AppSelect
+                  onChange={(event) => {
+                    const nextValue = event.target.value;
+                    setQuickFiltersDraft((current) => ({
+                      ...current,
+                      [field.id]: nextValue,
+                    }));
+                  }}
+                  options={[
+                    { label: t("table.filter.any"), value: "" },
+                    ...((field.options ?? []).map((option) => ({ label: option.label, value: option.value }))),
+                  ]}
+                  value={quickFiltersDraft[field.id] ?? ""}
+                />
+              </Box>
+            );
+          }
+
+          return (
+            <Box key={field.id} sx={{ width: { xs: "100%", md: 190 } }}>
+              <AppInput
+                onChangeValue={(nextValue) => {
+                  setQuickFiltersDraft((current) => ({
+                    ...current,
+                    [field.id]: nextValue,
+                  }));
+                }}
+                placeholder={field.label}
+                type={field.type === "date" || field.type === "number" ? field.type : "text"}
+                value={quickFiltersDraft[field.id] ?? ""}
+              />
+            </Box>
+          );
+        })}
+
+        <Stack direction="row" flexWrap="wrap" gap={0.5} ml={{ md: "auto" }}>
+          {hasFilters ? (
+            <>
+              <AppButton
+                disabled={!canApplyFilters}
+                label={t("datePicker.apply")}
+                onClick={() => {
+                  setQuickFiltersApplied(normalizeQuickFilterValues(normalizedFilterFields, quickFiltersDraft));
+                  setAdvancedRulesApplied(normalizeAdvancedRules(normalizedFilterFields, advancedRulesDraft));
+                  setPaginationModel((current) => ({ ...current, page: 0 }));
+                }}
+                size="sm"
+                variant="outline"
+              />
+              <AppButton
+                label={t("table.filter.advanced")}
+                onClick={handleOpenFilters}
+                size="sm"
+                variant="secondary"
+              />
+            </>
+          ) : null}
+
           {enableExport ? (
-            <DropdownMenu.Root>
-              <DropdownMenu.Trigger asChild>
-                <button
-                  className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-border bg-card text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                  title={t("table.export")}
-                  type="button"
+            <>
+              <Tooltip title={t("table.export")}>
+                <IconButton
+                  onClick={(event) => setExportAnchorEl(event.currentTarget)}
+                  sx={{ border: 1, borderColor: "divider" }}
                 >
                   <ExportIcon />
-                </button>
-              </DropdownMenu.Trigger>
-              <DropdownMenu.Portal>
-                <DropdownMenu.Content
-                  align="end"
-                  className="z-30 w-44 rounded-xl border border-border bg-card p-2 shadow-md"
-                  sideOffset={8}
-                >
-                  <DropdownMenu.Item
-                    className="w-full rounded-lg px-3 py-2 text-left text-sm text-foreground outline-none transition-colors focus:bg-muted data-[highlighted]:bg-muted"
-                    onSelect={handleExportPdf}
-                  >
-                    {t("table.exportPdf")}
-                  </DropdownMenu.Item>
-                  <DropdownMenu.Item
-                    className="w-full rounded-lg px-3 py-2 text-left text-sm text-foreground outline-none transition-colors focus:bg-muted data-[highlighted]:bg-muted"
-                    onSelect={handleExportExcel}
-                  >
-                    {t("table.exportExcel")}
-                  </DropdownMenu.Item>
-                </DropdownMenu.Content>
-              </DropdownMenu.Portal>
-            </DropdownMenu.Root>
+                </IconButton>
+              </Tooltip>
+              <Menu anchorEl={exportAnchorEl} onClose={() => setExportAnchorEl(null)} open={Boolean(exportAnchorEl)}>
+                <MenuItem onClick={() => {
+                  setExportAnchorEl(null);
+                  void handleExportPdf();
+                }}>
+                  {t("table.exportPdf")}
+                </MenuItem>
+                <MenuItem onClick={() => {
+                  setExportAnchorEl(null);
+                  void handleExportExcel();
+                }}>
+                  {t("table.exportExcel")}
+                </MenuItem>
+              </Menu>
+            </>
           ) : null}
 
           {enableSettings ? (
-            <button
-              className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-border bg-card text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-              onClick={openSettings}
-              title={t("table.settings")}
-              type="button"
-            >
-              <SettingsIcon />
-            </button>
+            <Tooltip title={t("table.settings")}>
+              <IconButton onClick={handleOpenSettings} sx={{ border: 1, borderColor: "divider" }}>
+                <SettingsIcon />
+              </IconButton>
+            </Tooltip>
           ) : null}
 
-          {addAction ? (
-            <AppButton label={addAction.label} leading={<PlusIcon />} onClick={addAction.onClick} variant="primary" />
-          ) : null}
-        </div>
-      </div>
+          <Tooltip title={isFullscreen ? t("table.exitFullscreen") : t("table.fullscreen")}>
+            <IconButton onClick={() => setIsFullscreen((current) => !current)} sx={{ border: 1, borderColor: "divider" }}>
+              <ExpandIcon expanded={isFullscreen} />
+            </IconButton>
+          </Tooltip>
 
-      <div className="overflow-hidden rounded-2xl border border-border bg-card">
-        <div className="overflow-x-auto">
-          <table className="min-w-full border-collapse">
-            <thead className="bg-muted/50">
-              <tr className="border-b border-border">
-                {enableSelection ? (
-                  <th className="w-14 px-3 py-3 text-left align-middle">
-                    <Checkbox
-                      checked={allPageSelected}
-                      indeterminate={!allPageSelected && somePageSelected}
-                      onChange={(next) => table.toggleAllPageRowsSelected(next)}
-                    />
-                  </th>
-                ) : null}
+          {addAction ? <AppButton label={addAction.label} onClick={addAction.onClick} variant="primary" /> : null}
+        </Stack>
+      </Stack>
 
-                {activeColumns.map((column) => {
-                  const isSortable = Boolean(column.sortAccessor);
-                  const currentSort = sorting.find((sort) => sort.id === column.id) as ColumnSort | undefined;
-                  const isActiveSort: SortDirection | null = currentSort
-                    ? (currentSort.desc ? "desc" : "asc")
-                    : null;
+      {activeFilterChips.length > 0 ? (
+        <Stack direction="row" flexWrap="wrap" gap={0.5}>
+          {activeFilterChips.map((chip) => (
+            <Chip
+              key={chip.id}
+              label={chip.label}
+              onDelete={() => {
+                if (chip.isRule) {
+                  setAdvancedRulesApplied((current) => current.filter((rule) => rule.id !== chip.ruleId));
+                  setAdvancedRulesDraft((current) => current.filter((rule) => rule.id !== chip.ruleId));
+                } else {
+                  setQuickFiltersApplied((current) => {
+                    const next = { ...current };
+                    delete next[chip.fieldId];
+                    return next;
+                  });
+                  setQuickFiltersDraft((current) => {
+                    const next = { ...current };
+                    delete next[chip.fieldId];
+                    return next;
+                  });
+                }
+                setPaginationModel((current) => ({ ...current, page: 0 }));
+              }}
+              size="small"
+              variant="outlined"
+            />
+          ))}
+          <AppButton label={t("datePicker.clear")} onClick={handleResetFilters} size="sm" variant="text" />
+        </Stack>
+      ) : null}
 
-                  return (
-                    <th
-                      className={cn(
-                        "px-4 py-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground",
-                        getColumnAlignmentClass(column.align),
-                        column.widthClassName,
-                      )}
-                      key={column.id}
-                    >
-                      {isSortable ? (
-                        <button
-                          className={cn(
-                            "inline-flex items-center gap-1.5",
-                            column.align === "right" && "ml-auto",
-                            column.align === "center" && "mx-auto",
-                          )}
-                          onClick={() => setSorting((current) => triStateSortToggle(column.id, current))}
-                          type="button"
-                        >
-                          <span>{column.header}</span>
-                          <SortIcon direction={isActiveSort} />
-                        </button>
-                      ) : (
-                        column.header
-                      )}
-                    </th>
-                  );
-                })}
-              </tr>
-            </thead>
+      <Paper sx={{ p: 0.5, width: "100%", minWidth: 0, overflow: "hidden" }}>
+        <Box sx={{ height: isFullscreen ? "calc(100vh - 230px)" : tableHeight }}>
+          <DataGrid
+            checkboxSelection={enableSelection}
+            columnHeaderHeight={columnHeaderHeight}
+            columnVisibilityModel={columnVisibilityModel}
+            disableColumnFilter
+            disableColumnResize
+            disableColumnSelector
+            disableDensitySelector
+            disableRowSelectionOnClick
+            getRowId={(row) => rowKey(row as TData)}
+            getRowClassName={(params) => (params.indexRelativeToCurrentPage % 2 === 0 ? "app-row-even" : "app-row-odd")}
+            onPaginationModelChange={setPaginationModel}
+            onRowClick={(params, event) => {
+              if (!onRowClick || shouldIgnoreRowClick(event.target)) {
+                return;
+              }
+              onRowClick(params.row as TData);
+            }}
+            onRowSelectionModelChange={setSelectionModel}
+            pageSizeOptions={[...normalizedPageSizeOptions]}
+            pagination
+            paginationModel={paginationModel}
+            rowHeight={rowHeight}
+            rowSelectionModel={selectionModel}
+            rows={filteredRows as readonly Record<string, unknown>[]}
+            slotProps={{
+              pagination: {
+                labelRowsPerPage: t("table.rowsPerPage"),
+                SelectProps: { size: "small" },
+              },
+            }}
+            sx={{
+              border: 0,
+              "& .MuiDataGrid-columnHeaders": {
+                position: "sticky",
+                top: 0,
+                zIndex: 3,
+                bgcolor: "action.hover",
+                borderBottom: "1px solid",
+                borderColor: "divider",
+              },
+              "& .MuiDataGrid-cell": {
+                borderColor: "divider",
+                py: 0.25,
+              },
+              "& .app-pinned-col-header": {
+                bgcolor: "action.selected",
+                color: "text.primary",
+              },
+              "& .app-pinned-col-cell": {
+                bgcolor: "action.selected",
+              },
+              "& .app-row-odd": {
+                bgcolor: "rgba(127,127,127,0.04)",
+              },
+              "& .MuiDataGrid-row:hover": {
+                bgcolor: "action.hover",
+              },
+              ...(onRowClick
+                ? {
+                    "& .MuiDataGrid-row": {
+                      cursor: "pointer",
+                    },
+                  }
+                : null),
+              "& .MuiTablePagination-selectLabel": {
+                display: "block !important",
+                mb: 0,
+                fontSize: 13,
+              },
+              "& .MuiTablePagination-input": {
+                display: "inline-flex !important",
+              },
+              "& .MuiTablePagination-toolbar": {
+                minHeight: 38,
+                pl: 0.5,
+                pr: 0.5,
+              },
+              "& .MuiTablePagination-displayedRows": { fontSize: 13, mb: 0 },
+              ...pinnedStickyStyles,
+            }}
+            columns={gridColumns}
+          />
+        </Box>
+      </Paper>
 
-            <tbody>
-              {pageRows.length === 0 ? (
-                <tr>
-                  <td
-                    className="px-4 py-12 text-center text-sm text-muted-foreground"
-                    colSpan={activeColumns.length + (enableSelection ? 1 : 0)}
+      {totalsByNumericColumns.length > 0 ? (
+        <Paper sx={{ p: 1, width: "100%", minWidth: 0 }}>
+          <Stack alignItems={{ md: "center" }} direction={{ xs: "column", md: "row" }} gap={0.75}>
+            <Typography sx={{ fontWeight: 700 }} variant="body2">
+              {t("table.totals")}
+            </Typography>
+            <Stack direction="row" flexWrap="wrap" gap={0.5}>
+              {totalsByNumericColumns.map((item) => (
+                <Chip
+                  key={item.id}
+                  label={`${item.header}: ${totalsFormatter.format(item.total)}`}
+                  size="small"
+                  variant="outlined"
+                />
+              ))}
+            </Stack>
+          </Stack>
+        </Paper>
+      ) : null}
+
+      <Dialog fullWidth maxWidth="lg" onClose={() => setFiltersOpen(false)} open={filtersOpen}>
+        <DialogTitle>{t("table.filter.title")}</DialogTitle>
+        <DialogContent>
+          {normalizedFilterFields.length === 0 ? (
+            <Typography color="text.secondary" variant="body2">
+              {t("table.filter.noFields")}
+            </Typography>
+          ) : (
+            <Stack spacing={1.25}>
+              {advancedRulesDraft.length === 0 ? (
+                <Typography color="text.secondary" variant="body2">
+                  {t("table.filter.noRules")}
+                </Typography>
+              ) : null}
+
+              {advancedRulesDraft.map((rule) => {
+                const field = filterFieldById.get(rule.fieldId) ?? normalizedFilterFields[0];
+                if (!field) {
+                  return null;
+                }
+                const isBetween = rule.operator === "between";
+                const isBooleanOperator = rule.operator === "isTrue" || rule.operator === "isFalse";
+                const valueInputType = field.type === "number" || field.type === "date" ? field.type : "text";
+                const operatorOptions = (field.operators ?? []).map((operator) => ({
+                  value: operator,
+                  label: operatorLabels[operator] ?? operator,
+                }));
+                const useSelectValueInput = !isBooleanOperator && (field.type === "select" || field.type === "boolean");
+                const valueOptions = field.options.map((option) => ({
+                  value: option.value,
+                  label: option.label,
+                }));
+
+                return (
+                  <Stack
+                    alignItems={{ md: "center" }}
+                    direction={{ xs: "column", md: "row" }}
+                    key={rule.id}
+                    spacing={0.75}
                   >
-                    {t("table.empty")}
-                  </td>
-                </tr>
-              ) : (
-                pageRows.map((row) => {
-                  const key = row.id;
+                    <Box sx={{ width: { xs: "100%", md: 220 } }}>
+                      <AppSelect
+                        onChange={(event) => handleUpdateAdvancedRule(rule.id, { fieldId: event.target.value })}
+                        options={normalizedFilterFields.map((item) => ({
+                          value: item.id,
+                          label: item.label,
+                        }))}
+                        value={field.id}
+                      />
+                    </Box>
+                    <Box sx={{ width: { xs: "100%", md: 180 } }}>
+                      <AppSelect
+                        onChange={(event) => handleUpdateAdvancedRule(rule.id, { operator: event.target.value as AppDataTableFilterOperator })}
+                        options={operatorOptions}
+                        value={rule.operator}
+                      />
+                    </Box>
+                    <Box sx={{ width: { xs: "100%", md: 220 } }}>
+                      {isBooleanOperator ? null : useSelectValueInput ? (
+                        <AppSelect
+                          onChange={(event) => handleUpdateAdvancedRule(rule.id, { value: event.target.value })}
+                          options={valueOptions}
+                          value={rule.value}
+                        />
+                      ) : (
+                        <AppInput
+                          onChangeValue={(nextValue) => handleUpdateAdvancedRule(rule.id, { value: nextValue })}
+                          placeholder={t("table.filter.value")}
+                          type={valueInputType}
+                          value={rule.value}
+                        />
+                      )}
+                    </Box>
+                    {isBetween && !isBooleanOperator ? (
+                      <Box sx={{ width: { xs: "100%", md: 220 } }}>
+                        <AppInput
+                          onChangeValue={(nextValue) => handleUpdateAdvancedRule(rule.id, { valueTo: nextValue })}
+                          placeholder={t("table.filter.valueTo")}
+                          type={valueInputType}
+                          value={rule.valueTo ?? ""}
+                        />
+                      </Box>
+                    ) : null}
+                    <IconButton
+                      aria-label={t("table.filter.removeRule")}
+                      onClick={() => handleRemoveAdvancedRule(rule.id)}
+                      sx={{ border: 1, borderColor: "divider" }}
+                    >
+                      ×
+                    </IconButton>
+                  </Stack>
+                );
+              })}
 
-                  return (
-                    <tr className="border-b border-border/80 transition-colors hover:bg-muted/40" key={key}>
-                      {enableSelection ? (
-                        <td className="px-3 py-3 align-middle">
-                          <Checkbox checked={row.getIsSelected()} onChange={(next) => row.toggleSelected(next)} />
-                        </td>
-                      ) : null}
+              <Box>
+                <AppButton label={t("table.filter.addRule")} onClick={handleAddAdvancedRule} size="sm" variant="outline" />
+              </Box>
+            </Stack>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <AppButton label={t("table.reset")} onClick={handleResetFilters} variant="secondary" />
+          <AppButton label={t("widget.filter.close")} onClick={() => setFiltersOpen(false)} variant="text" />
+          <AppButton
+            disabled={!canApplyFilters}
+            label={t("datePicker.apply")}
+            onClick={handleApplyFilters}
+            variant="primary"
+          />
+        </DialogActions>
+      </Dialog>
 
-                      {activeColumns.map((column) => (
-                        <td
-                          className={cn(
-                            "px-4 py-3 text-sm text-foreground",
-                            getColumnAlignmentClass(column.align),
-                            column.widthClassName,
-                          )}
-                          key={`${key}-${column.id}`}
-                        >
-                          {column.cell(row.original)}
-                        </td>
-                      ))}
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      <Dialog fullWidth maxWidth="md" onClose={() => setSettingsOpen(false)} open={settingsOpen}>
+        <DialogTitle>{t("table.settingsTitle")}</DialogTitle>
+        <DialogContent>
+          <Stack divider={<Divider flexItem />} spacing={1}>
+            {settingsDraftOrder.map((columnId, index) => {
+              const column = columnsById.get(columnId);
+              if (!column) {
+                return null;
+              }
 
-      <div className="flex flex-col gap-3 text-sm text-muted-foreground md:flex-row md:items-center md:justify-between">
-        <p>{t("table.showing", { from: showingFrom, to: showingTo, total: totalRows })}</p>
-
-        <div className="flex items-center gap-2">
-          <button
-            className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-border bg-card transition-colors hover:bg-muted disabled:opacity-50"
-            disabled={!table.getCanPreviousPage()}
-            onClick={() => table.setPageIndex(0)}
-            type="button"
-          >
-            <ChevronLeftIcon />
-            <ChevronLeftIcon />
-          </button>
-
-          <button
-            className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-border bg-card transition-colors hover:bg-muted disabled:opacity-50"
-            disabled={!table.getCanPreviousPage()}
-            onClick={() => table.previousPage()}
-            type="button"
-          >
-            <ChevronLeftIcon />
-          </button>
-
-          {pageButtons.map((pageNumber) => {
-            const isActive = pageNumber === safePage;
-
-            return (
-              <button
-                className={cn(
-                  "inline-flex h-10 min-w-10 items-center justify-center rounded-lg border px-2 transition-colors",
-                  isActive
-                    ? "border-primary/40 bg-primary/15 text-primary"
-                    : "border-border bg-card text-foreground hover:bg-muted",
-                )}
-                key={pageNumber}
-                onClick={() => table.setPageIndex(pageNumber - 1)}
-                type="button"
-              >
-                {pageNumber}
-              </button>
-            );
-          })}
-
-          <button
-            className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-border bg-card transition-colors hover:bg-muted disabled:opacity-50"
-            disabled={!table.getCanNextPage()}
-            onClick={() => table.nextPage()}
-            type="button"
-          >
-            <ChevronRightIcon />
-          </button>
-
-          <button
-            className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-border bg-card transition-colors hover:bg-muted disabled:opacity-50"
-            disabled={!table.getCanNextPage()}
-            onClick={() => table.setPageIndex(totalPages - 1)}
-            type="button"
-          >
-            <ChevronRightIcon />
-            <ChevronRightIcon />
-          </button>
-        </div>
-      </div>
-
-      <Dialog.Root onOpenChange={setSettingsOpen} open={settingsOpen}>
-        <Dialog.Portal>
-          <Dialog.Overlay className="fixed inset-0 z-50 bg-black/45" />
-          <Dialog.Content className="fixed left-1/2 top-1/2 z-50 max-h-[86vh] w-[calc(100%-2rem)] max-w-4xl -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-2xl border border-border bg-card shadow-lg focus:outline-none">
-            <div className="flex items-center justify-between border-b border-border px-6 py-4">
-              <Dialog.Title className="text-lg font-semibold text-foreground">{t("table.settingsTitle")}</Dialog.Title>
-              <Dialog.Close asChild>
-                <button
-                  className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-border text-muted-foreground hover:bg-muted hover:text-foreground"
-                  type="button"
-                >
-                  ×
-                </button>
-              </Dialog.Close>
-            </div>
-
-            <div className="max-h-[58vh] overflow-auto px-4 py-2 md:px-6">
-              <table className="w-full border-collapse">
-                <thead>
-                  <tr className="border-b border-border">
-                    <th className="px-3 py-3 text-left text-sm font-medium text-muted-foreground">{t("table.columnName")}</th>
-                    <th className="px-3 py-3 text-center text-sm font-medium text-muted-foreground">{t("table.columnVisible")}</th>
-                    <th className="px-3 py-3 text-center text-sm font-medium text-muted-foreground">{t("table.columnPinned")}</th>
-                    <th className="w-14 px-3 py-3" />
-                  </tr>
-                </thead>
-                <tbody>
-                  {columns.map((column) => {
-                    const state = settingsDraft[column.id] ?? {
-                      visible: column.defaultVisible ?? true,
-                      pinned: column.defaultPinned ?? false,
-                    };
-
-                    return (
-                      <tr className="border-b border-border/80" key={column.id}>
-                        <td className="px-3 py-4 text-sm text-foreground">{column.header}</td>
-                        <td className="px-3 py-4 text-center">
-                          <Toggle
-                            checked={state.visible}
-                            disabled={column.canHide === false}
-                            onChange={(next) => {
-                              setSettingsDraft((current) => ({
-                                ...current,
-                                [column.id]: {
-                                  ...state,
-                                  visible: next,
-                                },
-                              }));
-                            }}
-                          />
-                        </td>
-                        <td className="px-3 py-4 text-center">
-                          <Toggle
-                            checked={state.pinned}
-                            disabled={column.canPin === false}
-                            onChange={(next) => {
-                              setSettingsDraft((current) => ({
-                                ...current,
-                                [column.id]: {
-                                  ...state,
-                                  pinned: next,
-                                },
-                              }));
-                            }}
-                          />
-                        </td>
-                        <td className="px-3 py-4 text-center">
-                          <DotsDragIcon />
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-
-            <div className="flex justify-center gap-3 border-t border-border px-6 py-4">
-              <AppButton label={t("table.reset")} onClick={resetSettings} variant="secondary" />
-              <AppButton label={t("table.save")} onClick={applySettings} variant="primary" />
-            </div>
-          </Dialog.Content>
-        </Dialog.Portal>
-      </Dialog.Root>
-    </div>
+              const state = settingsDraft[column.id] ?? { visible: true, pinned: false };
+              return (
+                <Stack alignItems="center" direction="row" justifyContent="space-between" key={column.id} py={0.5}>
+                  <Typography variant="body2">{column.header}</Typography>
+                  <Stack alignItems="center" direction="row" gap={1.5}>
+                    <Stack direction="row" gap={0.25}>
+                      <IconButton
+                        aria-label={`Move ${column.header} up`}
+                        disabled={index === 0}
+                        onClick={() => moveDraftColumn(column.id, "up")}
+                        size="small"
+                        sx={{ border: 1, borderColor: "divider" }}
+                      >
+                        <ArrowUpIcon />
+                      </IconButton>
+                      <IconButton
+                        aria-label={`Move ${column.header} down`}
+                        disabled={index === settingsDraftOrder.length - 1}
+                        onClick={() => moveDraftColumn(column.id, "down")}
+                        size="small"
+                        sx={{ border: 1, borderColor: "divider" }}
+                      >
+                        <ArrowDownIcon />
+                      </IconButton>
+                    </Stack>
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={state.visible}
+                          disabled={column.canHide === false}
+                          onChange={(_event, next) => {
+                            setSettingsDraft((current) => ({
+                              ...current,
+                              [column.id]: {
+                                ...(current[column.id] ?? state),
+                                visible: next,
+                              },
+                            }));
+                          }}
+                        />
+                      }
+                      label={t("table.columnVisible")}
+                    />
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={state.pinned}
+                          disabled={column.canPin === false}
+                          onChange={(_event, next) => {
+                            setSettingsDraft((current) => ({
+                              ...current,
+                              [column.id]: {
+                                ...(current[column.id] ?? state),
+                                pinned: next,
+                              },
+                            }));
+                          }}
+                        />
+                      }
+                      label={t("table.columnPinned")}
+                    />
+                  </Stack>
+                </Stack>
+              );
+            })}
+          </Stack>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <AppButton
+            label={t("table.reset")}
+            onClick={() => {
+              setSettingsDraft(normalizeColumnState(columns));
+              setSettingsDraftOrder(normalizeColumnOrder(columns));
+            }}
+            variant="secondary"
+          />
+          <AppButton label={t("table.save")} onClick={handleApplySettings} variant="primary" />
+        </DialogActions>
+      </Dialog>
+    </Box>
   );
 }
