@@ -1,0 +1,42 @@
+# Starter Reuse-First Rule
+
+## Goal
+Prevent duplicate UI primitives and keep all projects consistent with the starter kit.
+
+## Mandatory Flow Before UI Implementation
+1. Inspect existing building blocks in:
+- `src/shared/ui/primitives`
+- `src/shared/ui/layout`
+- `src/modules/_template/presentation/components/starter-showcase.tsx`
+
+2. Build a quick mapping:
+- requested UI behavior -> existing component/API -> extension plan
+
+3. Only create new component if mapping has a true gap.
+
+## Reuse Priority Order
+1. Use existing component as-is.
+2. Extend through props/composition.
+3. Extract reusable wrapper around existing primitive.
+4. Create new primitive (last resort).
+
+## Required Existing Components to Check First
+- `AppButton`
+- `AppInput` / `AppSelect` / `AppSmartTextInput`
+- `AppDateRangePicker`
+- `AppDataTable`
+- `AppActionMenu`
+- `AppWidgetMenu` / `AppWidgetFilterModal`
+- `AppEntityEditor`
+- `AppSidebar` / `AppTopBar` / `AppShell`
+- `AppStatePanel` / `AppStatusBadge`
+
+## Forbidden
+- Rebuilding button/input/table/menu components from scratch when starter equivalents exist.
+- Creating one-off variants that break typography/spacing/radius token system.
+- Adding parallel components with overlapping responsibilities in feature folders.
+
+## Quality Gate
+- If new primitive is introduced, include a short "gap reason" note.
+- Add at least one usage sample in the starter showcase or feature demo page.
+- Confirm compact sizing parity with existing starter components.
