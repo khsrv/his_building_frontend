@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useMemo, useSyncExternalStore, type ReactNode } from "react";
 import { prefsKeys } from "@/shared/constants/prefs-keys";
 import { themeModes, type ThemeMode } from "@/shared/constants/theme";
 
@@ -12,6 +12,7 @@ interface ThemeContextValue {
 }
 
 const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);
+const THEME_MODE_EVENT = "app-theme-mode-changed";
 
 function getSystemMode(): Exclude<ThemeMode, "system"> {
   if (typeof window === "undefined") {
@@ -30,11 +31,63 @@ function normalizeThemeMode(value: string | null): ThemeMode {
 }
 
 function getInitialMode(): ThemeMode {
+  return "system";
+}
+
+function subscribeThemeMode(onStoreChange: () => void) {
   if (typeof window === "undefined") {
-    return "system";
+    return () => {};
+  }
+
+  const handleStorage = (event: StorageEvent) => {
+    if (event.key && event.key !== prefsKeys.themeMode) {
+      return;
+    }
+    onStoreChange();
+  };
+  const handleCustom = () => onStoreChange();
+
+  window.addEventListener("storage", handleStorage);
+  window.addEventListener(THEME_MODE_EVENT, handleCustom);
+
+  return () => {
+    window.removeEventListener("storage", handleStorage);
+    window.removeEventListener(THEME_MODE_EVENT, handleCustom);
+  };
+}
+
+function getThemeModeSnapshot(): ThemeMode {
+  if (typeof window === "undefined") {
+    return getInitialMode();
   }
 
   return normalizeThemeMode(window.localStorage.getItem(prefsKeys.themeMode));
+}
+
+function getThemeModeServerSnapshot(): ThemeMode {
+  return getInitialMode();
+}
+
+function subscribeSystemMode(onStoreChange: () => void) {
+  if (typeof window === "undefined") {
+    return () => {};
+  }
+
+  const media = window.matchMedia("(prefers-color-scheme: dark)");
+  const handleMediaChange = () => onStoreChange();
+  media.addEventListener("change", handleMediaChange);
+
+  return () => {
+    media.removeEventListener("change", handleMediaChange);
+  };
+}
+
+function getSystemModeSnapshot(): Exclude<ThemeMode, "system"> {
+  return getSystemMode();
+}
+
+function getSystemModeServerSnapshot(): Exclude<ThemeMode, "system"> {
+  return "light";
 }
 
 interface ThemeProviderProps {
@@ -42,24 +95,10 @@ interface ThemeProviderProps {
 }
 
 export function ThemeProvider({ children }: ThemeProviderProps) {
-  const [mode, setModeState] = useState<ThemeMode>(() => getInitialMode());
-  const [systemMode, setSystemMode] = useState<Exclude<ThemeMode, "system">>(() => getSystemMode());
+  const mode = useSyncExternalStore(subscribeThemeMode, getThemeModeSnapshot, getThemeModeServerSnapshot);
+  const systemMode = useSyncExternalStore(subscribeSystemMode, getSystemModeSnapshot, getSystemModeServerSnapshot);
 
   const resolvedMode = mode === "system" ? systemMode : mode;
-
-  useEffect(() => {
-    const media = window.matchMedia("(prefers-color-scheme: dark)");
-
-    const handleMediaChange = (event: MediaQueryListEvent) => {
-      setSystemMode(event.matches ? "dark" : "light");
-    };
-
-    media.addEventListener("change", handleMediaChange);
-
-    return () => {
-      media.removeEventListener("change", handleMediaChange);
-    };
-  }, []);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -69,11 +108,13 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
   }, [resolvedMode]);
 
   const setMode = (nextMode: ThemeMode) => {
-    setModeState(nextMode);
-
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem(prefsKeys.themeMode, nextMode);
+    if (typeof window === "undefined") {
+      return;
     }
+
+    const normalizedMode = normalizeThemeMode(nextMode);
+    window.localStorage.setItem(prefsKeys.themeMode, normalizedMode);
+    window.dispatchEvent(new Event(THEME_MODE_EVENT));
   };
 
   const value = useMemo<ThemeContextValue>(() => {

@@ -24,6 +24,7 @@ import {
   type GridColDef,
   type GridPaginationModel,
   type GridRowSelectionModel,
+  type GridSortModel,
 } from "@mui/x-data-grid";
 import { useI18n } from "@/shared/providers/locale-provider";
 import { AppActionMenu, type AppActionMenuGroup } from "@/shared/ui/primitives/action-menu";
@@ -95,6 +96,13 @@ interface ActiveFilterChip {
   ruleId?: string;
 }
 
+interface SummaryRowModel {
+  id: string;
+  __summary: true;
+  __totals: Record<string, number>;
+  __labelField: string | null;
+}
+
 interface ColumnRuntimeState {
   visible: boolean;
   pinned: boolean;
@@ -145,6 +153,7 @@ interface AppDataTableProps<TData> {
   initialPageSize?: number;
   pageSizeOptions?: readonly number[];
   enableSelection?: boolean;
+  pinSelectionColumn?: boolean;
   enableSettings?: boolean;
   enableExport?: boolean;
   showTotals?: boolean;
@@ -155,6 +164,7 @@ interface AppDataTableProps<TData> {
 const DEFAULT_PAGE_SIZE_OPTIONS = [5, 20, 50, 100] as const;
 const FILTER_RULES_PARAM_SUFFIX = "rules";
 const FILTER_QUICK_PARAM_SUFFIX = "quick";
+const SUMMARY_ROW_ID = "__app_table_summary__";
 
 function getDefaultOperators(type: FilterInputType): NonEmptyOperators {
   if (type === "text") {
@@ -386,7 +396,7 @@ function normalizeColumnState<TData>(
   return columns.reduce<Record<string, ColumnRuntimeState>>((accumulator, column) => {
     accumulator[column.id] = current?.[column.id] ?? {
       visible: column.defaultVisible ?? true,
-      pinned: column.defaultPinned ?? false,
+      pinned: false,
     };
     return accumulator;
   }, {});
@@ -511,6 +521,14 @@ function applyPinnedOrder<TData>(
   }
 
   return [...pinned, ...regular];
+}
+
+function isSummaryRowModel(row: unknown): row is SummaryRowModel {
+  if (!row || typeof row !== "object") {
+    return false;
+  }
+
+  return (row as { __summary?: boolean }).__summary === true;
 }
 
 function toComparableValue(value: string | number | Date | null | undefined) {
@@ -704,7 +722,7 @@ function readPersistedState<TData>(
     }
 
     const parsed = JSON.parse(raw) as Partial<PersistedTableState>;
-    const pageSize = typeof parsed.pageSize === "number" ? parsed.pageSize : 25;
+    const pageSize = typeof parsed.pageSize === "number" ? parsed.pageSize : 20;
     const columnState = normalizeColumnState(columns, parsed.columnState);
     const columnOrder = normalizeColumnOrder(
       columns,
@@ -753,6 +771,7 @@ export function AppDataTable<TData>({
   initialPageSize = 20,
   pageSizeOptions = DEFAULT_PAGE_SIZE_OPTIONS,
   enableSelection = true,
+  pinSelectionColumn = false,
   enableSettings = true,
   enableExport = true,
   showTotals = true,
@@ -791,6 +810,7 @@ export function AppDataTable<TData>({
     page: 0,
     pageSize: resolvedInitialPageSize,
   });
+  const [sortModel, setSortModel] = useState<GridSortModel>([]);
   const [selectionModel, setSelectionModel] = useState<GridRowSelectionModel>({
     type: "include",
     ids: new Set(),
@@ -978,6 +998,10 @@ export function AppDataTable<TData>({
     return orderedColumns.filter((column) => columnState[column.id]?.visible ?? true);
   }, [columnState, orderedColumns]);
 
+  const columnsById = useMemo(() => {
+    return new Map(columns.map((column) => [column.id, column]));
+  }, [columns]);
+
   const filteredRows = useMemo(() => {
     const normalizedSearch = search.trim().toLowerCase();
     return data.filter((row) => {
@@ -1031,6 +1055,82 @@ export function AppDataTable<TData>({
 
   const collator = useMemo(() => new Intl.Collator(undefined, { numeric: true, sensitivity: "base" }), []);
   const totalsFormatter = useMemo(() => new Intl.NumberFormat(locale), [locale]);
+  const sortedFilteredRows = useMemo(() => {
+    if (sortModel.length === 0) {
+      return filteredRows;
+    }
+
+    const sortingEntries = sortModel
+      .map((item) => {
+        if (!item.sort) {
+          return null;
+        }
+        const column = columnsById.get(item.field);
+        if (!column || !column.sortAccessor) {
+          return null;
+        }
+        return {
+          column,
+          direction: item.sort === "desc" ? -1 : 1,
+        };
+      })
+      .filter((item): item is { column: AppDataTableColumn<TData>; direction: 1 | -1 } => Boolean(item));
+
+    if (sortingEntries.length === 0) {
+      return filteredRows;
+    }
+
+    const sorted = [...filteredRows];
+    sorted.sort((leftRow, rightRow) => {
+      for (const entry of sortingEntries) {
+        const leftValue = toComparableValue(entry.column.sortAccessor?.(leftRow) ?? null);
+        const rightValue = toComparableValue(entry.column.sortAccessor?.(rightRow) ?? null);
+
+        let comparison = 0;
+        if (leftValue === null || leftValue === undefined) {
+          comparison = rightValue === null || rightValue === undefined ? 0 : 1;
+        } else if (rightValue === null || rightValue === undefined) {
+          comparison = -1;
+        } else if (typeof leftValue === "number" && typeof rightValue === "number") {
+          comparison = leftValue - rightValue;
+        } else {
+          comparison = collator.compare(String(leftValue), String(rightValue));
+        }
+
+        if (comparison !== 0) {
+          return comparison * entry.direction;
+        }
+      }
+      return 0;
+    });
+
+    return sorted;
+  }, [collator, columnsById, filteredRows, sortModel]);
+
+  const currentPageRows = useMemo(() => {
+    const startIndex = paginationModel.page * paginationModel.pageSize;
+    const endIndex = startIndex + paginationModel.pageSize;
+    return sortedFilteredRows.slice(startIndex, endIndex);
+  }, [paginationModel.page, paginationModel.pageSize, sortedFilteredRows]);
+
+  useEffect(() => {
+    const maxPage = Math.max(0, Math.ceil(sortedFilteredRows.length / paginationModel.pageSize) - 1);
+    if (paginationModel.page <= maxPage) {
+      return;
+    }
+
+    setPaginationModel((current) => ({
+      ...current,
+      page: maxPage,
+    }));
+  }, [paginationModel.page, paginationModel.pageSize, sortedFilteredRows.length]);
+
+  const rowOrderNumberById = useMemo(() => {
+    return sortedFilteredRows.reduce<Map<string, number>>((accumulator, row, index) => {
+      accumulator.set(rowKey(row), index + 1);
+      return accumulator;
+    }, new Map<string, number>());
+  }, [rowKey, sortedFilteredRows]);
 
   const rowNumberColumn = useMemo<GridColDef>(() => {
     return {
@@ -1044,17 +1144,18 @@ export function AppDataTable<TData>({
       width: 64,
       resizable: false,
       renderCell: (params) => {
-        const gridApi = params.api as unknown as {
-          getRowIndexRelativeToVisibleRows?: (id: string | number) => number;
-        };
-        const visibleIndex = gridApi.getRowIndexRelativeToVisibleRows?.(params.id);
-        return (typeof visibleIndex === "number" ? visibleIndex : 0) + 1;
+        if (isSummaryRowModel(params.row)) {
+          return "Σ";
+        }
+        const rowId = String(params.id);
+        const absoluteIndex = rowOrderNumberById.get(rowId);
+        return absoluteIndex ?? "";
       },
     };
-  }, []);
+  }, [rowOrderNumberById]);
 
   const pinnedColumnOffsets = useMemo(() => {
-    let leftOffset = enableSelection ? 48 : 0;
+    let leftOffset = enableSelection && pinSelectionColumn ? 48 : 0;
     const pinnedOffsets: Array<{ id: string; left: number }> = [];
 
     for (const column of orderedColumns) {
@@ -1070,7 +1171,7 @@ export function AppDataTable<TData>({
     }
 
     return pinnedOffsets;
-  }, [columnState, enableSelection, orderedColumns]);
+  }, [columnState, enableSelection, orderedColumns, pinSelectionColumn]);
 
   const gridColumns = useMemo<GridColDef[]>(() => {
     const mappedColumns = orderedColumns.map((column) => {
@@ -1101,6 +1202,15 @@ export function AppDataTable<TData>({
           </Stack>
         ),
         valueGetter: (_value: unknown, row: unknown) => {
+          if (isSummaryRowModel(row)) {
+            if (typeof row.__totals[column.id] === "number") {
+              return row.__totals[column.id];
+            }
+            if (row.__labelField === column.id) {
+              return t("table.totals");
+            }
+            return "";
+          }
           const casted = row as TData;
           return column.sortAccessor?.(casted)
             ?? column.searchAccessor?.(casted)
@@ -1122,7 +1232,20 @@ export function AppDataTable<TData>({
           }
           return collator.compare(String(leftValue), String(rightValue));
         },
-        renderCell: (params: { row: unknown }) => column.cell(params.row as TData),
+        renderCell: (params: { row: unknown }) => {
+          if (isSummaryRowModel(params.row)) {
+            const total = params.row.__totals[column.id];
+            if (typeof total === "number") {
+              return <strong>{totalsFormatter.format(total)}</strong>;
+            }
+            if (params.row.__labelField === column.id) {
+              return <strong>{t("table.totals")}</strong>;
+            }
+            return "";
+          }
+
+          return column.cell(params.row as TData);
+        },
         ...(isPinned
           ? { headerClassName: "app-pinned-col-header", cellClassName: "app-pinned-col-cell" }
           : {}),
@@ -1155,6 +1278,9 @@ export function AppDataTable<TData>({
         width: rowActionsColumnWidth,
         resizable: false,
         renderCell: (params: { row: unknown }) => {
+          if (isSummaryRowModel(params.row)) {
+            return null;
+          }
           const groups = rowActions(params.row as TData);
           return (
             <Box sx={{ width: "100%", display: "flex", justifyContent: "center" }}>
@@ -1177,30 +1303,33 @@ export function AppDataTable<TData>({
     rowActionsColumnHeader,
     rowActionsColumnWidth,
     rowActionsTriggerLabel,
+    totalsFormatter,
     t,
   ]);
 
   const pinnedStickyStyles = useMemo<Record<string, Record<string, string | number>>>(() => {
     const styles: Record<string, Record<string, string | number>> = {};
 
-    if (enableSelection) {
+    if (enableSelection && pinSelectionColumn) {
       styles["& .MuiDataGrid-columnHeaderCheckbox"] = {
         position: "sticky",
         left: 0,
-        zIndex: 6,
-        backgroundColor: "var(--mui-palette-action-selected)",
+        zIndex: 90,
+        backgroundColor: "rgb(var(--card))",
+        backgroundImage: "none",
+        backdropFilter: "none",
+        opacity: 1,
+        boxShadow: "1px 0 0 rgb(var(--border))",
       };
       styles["& .MuiDataGrid-cellCheckbox"] = {
         position: "sticky",
         left: 0,
-        zIndex: 5,
-        backgroundColor: "var(--mui-palette-background-paper)",
-      };
-      styles["& .app-row-odd .MuiDataGrid-cellCheckbox"] = {
-        backgroundColor: "rgba(127,127,127,0.04)",
-      };
-      styles["& .MuiDataGrid-row:hover .MuiDataGrid-cellCheckbox"] = {
-        backgroundColor: "var(--mui-palette-action-hover)",
+        zIndex: 80,
+        backgroundColor: "rgb(var(--card))",
+        backgroundImage: "none",
+        backdropFilter: "none",
+        opacity: 1,
+        boxShadow: "1px 0 0 rgb(var(--border))",
       };
     }
 
@@ -1208,17 +1337,29 @@ export function AppDataTable<TData>({
       styles[`& .MuiDataGrid-columnHeader[data-field="${pinned.id}"]`] = {
         position: "sticky",
         left: pinned.left,
-        zIndex: 6,
+        zIndex: 90,
+        backgroundColor: "rgb(var(--card)) !important",
+        backgroundImage: "none !important",
+        backdropFilter: "none",
+        opacity: 1,
+        boxShadow: "1px 0 0 rgb(var(--border))",
+        overflow: "hidden",
       };
       styles[`& .MuiDataGrid-cell[data-field="${pinned.id}"]`] = {
         position: "sticky",
         left: pinned.left,
-        zIndex: 5,
+        zIndex: 80,
+        backgroundColor: "rgb(var(--card)) !important",
+        backgroundImage: "none !important",
+        backdropFilter: "none",
+        opacity: 1,
+        boxShadow: "1px 0 0 rgb(var(--border))",
+        overflow: "hidden",
       };
     }
 
     return styles;
-  }, [enableSelection, pinnedColumnOffsets]);
+  }, [enableSelection, pinnedColumnOffsets, pinSelectionColumn]);
 
   const columnVisibilityModel = useMemo(() => {
     const base = orderedColumns.reduce<Record<string, boolean>>((accumulator, column) => {
@@ -1235,10 +1376,6 @@ export function AppDataTable<TData>({
     }
     return Math.max(0, filteredRows.length - selectionModel.ids.size);
   }, [filteredRows.length, selectionModel]);
-
-  const columnsById = useMemo(() => {
-    return new Map(columns.map((column) => [column.id, column]));
-  }, [columns]);
 
   const totalsByNumericColumns = useMemo(() => {
     if (!showTotals) {
@@ -1274,6 +1411,43 @@ export function AppDataTable<TData>({
       return accumulator;
     }, []);
   }, [activeColumns, filteredRows, showTotals]);
+
+  const totalsByColumnId = useMemo(() => {
+    return totalsByNumericColumns.reduce<Record<string, number>>((accumulator, item) => {
+      accumulator[item.id] = item.total;
+      return accumulator;
+    }, {});
+  }, [totalsByNumericColumns]);
+
+  const totalsLabelColumnId = useMemo(() => {
+    if (totalsByNumericColumns.length === 0) {
+      return null;
+    }
+
+    const numericIds = new Set(totalsByNumericColumns.map((item) => item.id));
+    const labelColumn = activeColumns.find((column) => !numericIds.has(column.id));
+    return labelColumn?.id ?? activeColumns[0]?.id ?? null;
+  }, [activeColumns, totalsByNumericColumns]);
+
+  const summaryRowModel = useMemo<SummaryRowModel | null>(() => {
+    if (!showTotals || totalsByNumericColumns.length === 0) {
+      return null;
+    }
+
+    return {
+      id: SUMMARY_ROW_ID,
+      __summary: true,
+      __totals: totalsByColumnId,
+      __labelField: totalsLabelColumnId,
+    };
+  }, [showTotals, totalsByColumnId, totalsByNumericColumns.length, totalsLabelColumnId]);
+
+  const gridRows = useMemo(() => {
+    if (!summaryRowModel) {
+      return currentPageRows;
+    }
+    return [...currentPageRows, summaryRowModel];
+  }, [currentPageRows, summaryRowModel]);
 
   const hasFilters = normalizedFilterFields.length > 0;
   const canApplyFilters = hasFilters
@@ -1710,11 +1884,18 @@ export function AppDataTable<TData>({
             disableColumnSelector
             disableDensitySelector
             disableRowSelectionOnClick
-            getRowId={(row) => rowKey(row as TData)}
-            getRowClassName={(params) => (params.indexRelativeToCurrentPage % 2 === 0 ? "app-row-even" : "app-row-odd")}
+            getRowId={(row) => (isSummaryRowModel(row) ? SUMMARY_ROW_ID : rowKey(row as TData))}
+            getRowClassName={(params) => {
+              if (isSummaryRowModel(params.row)) {
+                return "app-row-summary";
+              }
+              return params.indexRelativeToCurrentPage % 2 === 0 ? "app-row-even" : "app-row-odd";
+            }}
+            isRowSelectable={(params) => !isSummaryRowModel(params.row)}
             onPaginationModelChange={setPaginationModel}
+            onSortModelChange={setSortModel}
             onRowClick={(params, event) => {
-              if (!onRowClick || shouldIgnoreRowClick(event.target)) {
+              if (!onRowClick || shouldIgnoreRowClick(event.target) || isSummaryRowModel(params.row)) {
                 return;
               }
               onRowClick(params.row as TData);
@@ -1722,10 +1903,14 @@ export function AppDataTable<TData>({
             onRowSelectionModelChange={setSelectionModel}
             pageSizeOptions={[...normalizedPageSizeOptions]}
             pagination
+            paginationMode="server"
             paginationModel={paginationModel}
+            rowCount={sortedFilteredRows.length}
             rowHeight={rowHeight}
             rowSelectionModel={selectionModel}
-            rows={filteredRows as readonly Record<string, unknown>[]}
+            rows={gridRows as readonly Record<string, unknown>[]}
+            sortingMode="server"
+            sortModel={sortModel}
             slotProps={{
               pagination: {
                 labelRowsPerPage: t("table.rowsPerPage"),
@@ -1747,17 +1932,48 @@ export function AppDataTable<TData>({
                 py: 0.25,
               },
               "& .app-pinned-col-header": {
-                bgcolor: "action.selected",
+                bgcolor: "background.paper",
                 color: "text.primary",
+                backgroundColor: "rgb(var(--card)) !important",
+                backgroundImage: "none !important",
+                backdropFilter: "none",
+                isolation: "isolate",
+                opacity: 1,
+                boxShadow: "1px 0 0 rgb(var(--border))",
+                overflow: "hidden",
               },
               "& .app-pinned-col-cell": {
-                bgcolor: "action.selected",
+                bgcolor: "background.paper",
+                backgroundColor: "rgb(var(--card)) !important",
+                backgroundImage: "none !important",
+                backdropFilter: "none",
+                isolation: "isolate",
+                opacity: 1,
+                boxShadow: "1px 0 0 rgb(var(--border))",
+                overflow: "hidden",
               },
               "& .app-row-odd": {
                 bgcolor: "rgba(127,127,127,0.04)",
               },
               "& .MuiDataGrid-row:hover": {
                 bgcolor: "action.hover",
+              },
+              "& .app-row-odd .app-pinned-col-cell": {
+                backgroundColor: "rgb(var(--card)) !important",
+              },
+              "& .MuiDataGrid-row:hover .app-pinned-col-cell": {
+                backgroundColor: "rgb(var(--card)) !important",
+              },
+              "& .app-row-summary .app-pinned-col-cell": {
+                backgroundColor: "rgb(var(--card)) !important",
+              },
+              "& .app-row-summary": {
+                bgcolor: "action.selected",
+                fontWeight: 700,
+                cursor: "default",
+              },
+              "& .app-row-summary:hover": {
+                bgcolor: "action.selected",
               },
               ...(onRowClick
                 ? {
@@ -1786,26 +2002,6 @@ export function AppDataTable<TData>({
           />
         </Box>
       </Paper>
-
-      {totalsByNumericColumns.length > 0 ? (
-        <Paper sx={{ p: 1, width: "100%", minWidth: 0 }}>
-          <Stack alignItems={{ md: "center" }} direction={{ xs: "column", md: "row" }} gap={0.75}>
-            <Typography sx={{ fontWeight: 700 }} variant="body2">
-              {t("table.totals")}
-            </Typography>
-            <Stack direction="row" flexWrap="wrap" gap={0.5}>
-              {totalsByNumericColumns.map((item) => (
-                <Chip
-                  key={item.id}
-                  label={`${item.header}: ${totalsFormatter.format(item.total)}`}
-                  size="small"
-                  variant="outlined"
-                />
-              ))}
-            </Stack>
-          </Stack>
-        </Paper>
-      ) : null}
 
       <Dialog fullWidth maxWidth="lg" onClose={() => setFiltersOpen(false)} open={filtersOpen}>
         <DialogTitle>{t("table.filter.title")}</DialogTitle>

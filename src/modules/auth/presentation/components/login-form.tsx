@@ -3,18 +3,13 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useMemo, useState } from "react";
+import { Box, Paper, Stack, Typography } from "@mui/material";
 import { createSignInWithPasswordUseCase } from "@/modules/auth/application/use-cases/sign-in-with-password.use-case";
 import { HttpPasswordAuthClient } from "@/modules/auth/infrastructure/password-auth-client";
 import { routes } from "@/shared/constants/routes";
 import { useI18n } from "@/shared/providers/locale-provider";
 import { useNotifier } from "@/shared/providers/notifier-provider";
-import {
-  AppButton,
-  AppCard,
-  AppInput,
-  LocaleSwitcher,
-  ThemeModeSwitcher,
-} from "@/shared/ui";
+import { AppButton, AppInput, LocaleSwitcher, ThemeModeSwitcher } from "@/shared/ui";
 
 interface FormErrors {
   login?: string;
@@ -30,8 +25,8 @@ export function LoginForm() {
     return createSignInWithPasswordUseCase(new HttpPasswordAuthClient());
   }, []);
 
-  const [login, setLogin] = useState("demo");
-  const [password, setPassword] = useState("demo123");
+  const [login, setLogin] = useState("");
+  const [password, setPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<FormErrors>({});
   const loginInputError = errors.login;
@@ -89,66 +84,106 @@ export function LoginForm() {
   };
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-5xl items-center justify-center p-4 md:p-6">
-      <div className="grid w-full gap-4 md:grid-cols-[1fr_360px]">
-        <AppCard className="order-2 md:order-1" variant="outlined">
-          <div className="space-y-5">
-            <div className="space-y-1">
-              <h1 className="text-xl font-semibold text-foreground md:text-2xl">{t("auth.login.title")}</h1>
-              <p className="text-sm text-muted-foreground">{t("auth.login.subtitle")}</p>
-            </div>
+    <main className="relative flex min-h-screen items-center justify-center overflow-hidden p-4">
+      <Box
+        aria-hidden
+        sx={{
+          position: "absolute",
+          inset: 0,
+          background:
+            "radial-gradient(520px 240px at 50% -8%, rgba(245, 179, 1, 0.14), transparent 72%), linear-gradient(180deg, rgba(2, 8, 23, 0.04), transparent 34%)",
+          pointerEvents: "none",
+        }}
+      />
 
-            <form className="space-y-3" onSubmit={onSubmit}>
-              <AppInput
-                autoComplete="username"
-                label={t("auth.login.loginLabel")}
-                onChangeValue={setLogin}
-                placeholder={t("auth.login.loginPlaceholder")}
-                value={login}
-                {...(loginInputError ? { errorText: loginInputError } : {})}
-              />
+      <Paper
+        sx={{
+          position: "relative",
+          zIndex: 1,
+          width: "100%",
+          maxWidth: 460,
+          borderRadius: 4,
+          p: { xs: 2.25, md: 2.75 },
+        }}
+      >
+        <Stack spacing={2}>
+          <Box sx={{ textAlign: "center" }}>
+            <Box
+              sx={{
+                mx: "auto",
+                mb: 1.1,
+                width: 52,
+                height: 52,
+                borderRadius: 2.5,
+                border: "1px solid",
+                borderColor: "primary.dark",
+                color: "primary.dark",
+                bgcolor: "primary.main",
+                display: "grid",
+                placeItems: "center",
+                fontSize: 22,
+                fontWeight: 800,
+              }}
+            >
+              P
+            </Box>
+            <Typography variant="h5" sx={{ fontWeight: 700 }}>
+              POS.TJ
+            </Typography>
+            <Typography color="text.secondary" sx={{ mt: 0.5 }}>
+              {t("auth.login.title")}
+            </Typography>
+          </Box>
 
-              <AppInput
-                autoComplete="current-password"
-                label={t("auth.login.passwordLabel")}
-                onChangeValue={setPassword}
-                placeholder={t("auth.login.passwordPlaceholder")}
-                type="password"
-                value={password}
-                {...(passwordInputError ? { errorText: passwordInputError } : {})}
-              />
+          <form className="space-y-3" onSubmit={onSubmit}>
+            <AppInput
+              autoComplete="username"
+              label={t("auth.login.loginLabel")}
+              onChangeValue={setLogin}
+              placeholder={t("auth.login.loginPlaceholder")}
+              value={login}
+              {...(loginInputError ? { errorText: loginInputError } : {})}
+            />
 
-              {errors.form ? <p className="text-sm text-danger">{errors.form}</p> : null}
+            <AppInput
+              autoComplete="current-password"
+              label={t("auth.login.passwordLabel")}
+              onChangeValue={setPassword}
+              placeholder={t("auth.login.passwordPlaceholder")}
+              type="password"
+              value={password}
+              {...(passwordInputError ? { errorText: passwordInputError } : {})}
+            />
 
-              <AppButton
-                fullWidth
-                isLoading={isSubmitting}
-                label={t("auth.login.submit")}
-                loadingLabel={t("common.loading")}
-                type="submit"
-                variant="primary"
-              />
-            </form>
+            {errors.form ? (
+              <Typography color="error.main" sx={{ fontSize: 13 }}>
+                {errors.form}
+              </Typography>
+            ) : null}
 
-            <div className="rounded-lg border border-border bg-muted/40 p-3 text-sm text-muted-foreground">
-              <p className="font-medium text-foreground">{t("auth.login.demoTitle")}</p>
-              <p>{t("auth.login.demoAdmin")}</p>
-              <p>{t("auth.login.demoManager")}</p>
-            </div>
+            <AppButton
+              fullWidth
+              isLoading={isSubmitting}
+              label={t("auth.login.submit")}
+              loadingLabel={t("common.loading")}
+              size="lg"
+              type="submit"
+              variant="primary"
+            />
+          </form>
 
-            <Link className="inline-flex text-sm font-medium text-primary hover:underline" href={routes.home}>
-              {t("auth.login.backHome")}
-            </Link>
-          </div>
-        </AppCard>
-
-        <AppCard className="order-1 md:order-2" variant="outlined">
-          <div className="grid gap-3">
+          <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
             <ThemeModeSwitcher />
             <LocaleSwitcher />
-          </div>
-        </AppCard>
-      </div>
+          </Stack>
+
+          <Box sx={{ textAlign: "center" }}>
+            <Link className="inline-flex text-sm font-semibold text-primary hover:underline" href={routes.home}>
+              {t("auth.login.backHome")}
+            </Link>
+          </Box>
+        </Stack>
+      </Paper>
     </main>
   );
 }

@@ -463,7 +463,6 @@ export function StarterShowcase() {
         searchAccessor: (row) => row.id,
         exportAccessor: (row) => row.id,
         cell: (row) => row.id,
-        defaultPinned: true,
       },
       {
         id: "role",
@@ -898,7 +897,7 @@ export function StarterShowcase() {
                 data={demoUsers}
                 fileNameBase="users-review"
                 filterFields={userTableFilterFields}
-                initialPageSize={5}
+                initialPageSize={20}
                 onRowClick={(row) => notifier.info(`Open profile: ${row.username}`)}
                 rowKey={(row) => row.id}
                 rowActions={buildUserRowActions}

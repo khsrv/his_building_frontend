@@ -5,7 +5,7 @@ import {
   useContext,
   useEffect,
   useMemo,
-  useState,
+  useSyncExternalStore,
   type ReactNode,
 } from "react";
 import { defaultLocale, supportedLocales, type SupportedLocale } from "@/shared/constants/locales";
@@ -22,6 +22,7 @@ interface LocaleContextValue {
 }
 
 const LocaleContext = createContext<LocaleContextValue | undefined>(undefined);
+const LOCALE_EVENT = "app-locale-changed";
 
 function normalizeLocale(value: string | null): SupportedLocale {
   if (!value) {
@@ -40,14 +41,42 @@ interface LocaleProviderProps {
   children: ReactNode;
 }
 
-export function LocaleProvider({ children }: LocaleProviderProps) {
-  const [locale, setLocaleState] = useState<SupportedLocale>(() => {
-    if (typeof window === "undefined") {
-      return defaultLocale;
-    }
+function subscribeLocale(onStoreChange: () => void) {
+  if (typeof window === "undefined") {
+    return () => {};
+  }
 
-    return normalizeLocale(window.localStorage.getItem(prefsKeys.localeCode));
-  });
+  const handleStorage = (event: StorageEvent) => {
+    if (event.key && event.key !== prefsKeys.localeCode) {
+      return;
+    }
+    onStoreChange();
+  };
+  const handleCustom = () => onStoreChange();
+
+  window.addEventListener("storage", handleStorage);
+  window.addEventListener(LOCALE_EVENT, handleCustom);
+
+  return () => {
+    window.removeEventListener("storage", handleStorage);
+    window.removeEventListener(LOCALE_EVENT, handleCustom);
+  };
+}
+
+function getLocaleSnapshot(): SupportedLocale {
+  if (typeof window === "undefined") {
+    return defaultLocale;
+  }
+
+  return normalizeLocale(window.localStorage.getItem(prefsKeys.localeCode));
+}
+
+function getLocaleServerSnapshot(): SupportedLocale {
+  return defaultLocale;
+}
+
+export function LocaleProvider({ children }: LocaleProviderProps) {
+  const locale = useSyncExternalStore(subscribeLocale, getLocaleSnapshot, getLocaleServerSnapshot);
 
   useEffect(() => {
     document.documentElement.lang = locale;
@@ -58,11 +87,13 @@ export function LocaleProvider({ children }: LocaleProviderProps) {
 
   const value = useMemo<LocaleContextValue>(() => {
     const setLocale = (nextLocale: SupportedLocale) => {
-      setLocaleState(nextLocale);
-
-      if (typeof window !== "undefined") {
-        window.localStorage.setItem(prefsKeys.localeCode, nextLocale);
+      if (typeof window === "undefined") {
+        return;
       }
+
+      const normalizedLocale = normalizeLocale(nextLocale);
+      window.localStorage.setItem(prefsKeys.localeCode, normalizedLocale);
+      window.dispatchEvent(new Event(LOCALE_EVENT));
     };
 
     const t = (key: TranslationKey, params?: Record<string, string | number>) => {
