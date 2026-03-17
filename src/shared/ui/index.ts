@@ -42,6 +42,67 @@ export {
   type AppWidgetMenuOption,
 } from "@/shared/ui/primitives/widget-kit";
 export { ShimmerBox } from "@/shared/ui/primitives/shimmer";
+export {
+  AppChartWidget,
+  type AppChartType,
+  type AppChartSeries,
+  type AppChartDataPoint,
+} from "@/shared/ui/primitives/chart-widget";
+export {
+  AppCommentThread,
+  type AppComment,
+} from "@/shared/ui/primitives/comment-thread";
+export {
+  AppCountdownBadge,
+  type AppCountdownVariant,
+} from "@/shared/ui/primitives/countdown-badge";
+export {
+  AppCurrencyDisplay,
+} from "@/shared/ui/primitives/currency-display";
+export {
+  AppColorGrid,
+  type AppColorGridCell,
+  type AppColorGridCellStatus,
+  type AppColorGridRow,
+} from "@/shared/ui/primitives/color-grid";
+export {
+  AppKanbanBoard,
+  type AppKanbanCard,
+  type AppKanbanColumn,
+} from "@/shared/ui/primitives/kanban-board";
+export {
+  AppMoneyInput,
+} from "@/shared/ui/primitives/money-input";
+export {
+  AppNotificationCenter,
+  type AppNotification,
+  type AppNotificationType,
+} from "@/shared/ui/primitives/notification-center";
+export {
+  AppPaymentTimeline,
+  type AppPaymentInstallment,
+  type AppPaymentStatus,
+} from "@/shared/ui/primitives/payment-timeline";
+export {
+  AppProgressBar,
+  type AppProgressSegment,
+} from "@/shared/ui/primitives/progress-bar";
+export {
+  AppSearchableSelect,
+  type AppSearchableSelectOption,
+} from "@/shared/ui/primitives/searchable-select";
+export {
+  AppStepWizard,
+  type AppStepWizardStep,
+} from "@/shared/ui/primitives/step-wizard";
+export {
+  AppTagInput,
+  type AppTagOption,
+} from "@/shared/ui/primitives/tag-input";
+export {
+  AppTreeList,
+  type AppTreeNode,
+} from "@/shared/ui/primitives/tree-list";
 export { ConfirmDialog } from "@/shared/ui/overlays/confirm-dialog";
 export { AppSidebar, type AppSidebarItem } from "@/shared/ui/layout/app-sidebar";
 export { AppTopBar, type AppTopBarAction, type AppTopBarProfile } from "@/shared/ui/layout/app-top-bar";
