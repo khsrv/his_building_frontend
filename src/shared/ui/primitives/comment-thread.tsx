@@ -9,12 +9,12 @@ import {
   IconButton,
   Paper,
   Stack,
+  TextField,
   Tooltip,
   Typography,
 } from "@mui/material";
 import { formatDistanceToNow, parseISO, isValid } from "date-fns";
 import { ru } from "date-fns/locale";
-import { AppInput } from "@/shared/ui/primitives/input";
 import { AppButton } from "@/shared/ui/primitives/button";
 import { useI18n } from "@/shared/providers/locale-provider";
 
@@ -292,11 +292,13 @@ export function AppCommentThread({
       ) : null}
       <Stack direction="row" gap={1}>
         <Box sx={{ flex: 1 }}>
-          <AppInput
+          <TextField
+            fullWidth
+            minRows={2}
             multiline
-            onChangeValue={setText}
+            onChange={(e) => setText(e.target.value)}
             placeholder={placeholder ?? t("comments.placeholder")}
-            rows={2}
+            size="small"
             value={text}
           />
         </Box>

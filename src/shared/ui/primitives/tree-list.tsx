@@ -6,11 +6,8 @@ import {
   Chip,
   Collapse,
   IconButton,
-  Stack,
-  Tooltip,
   Typography,
 } from "@mui/material";
-import { cn } from "@/shared/lib/ui/cn";
 
 export interface AppTreeNode {
   id: string;

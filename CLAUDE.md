@@ -97,13 +97,64 @@ tests/
 4. Create new primitive (last resort — requires gap reason + usage example)
 
 ### Key Existing Components
-`AppButton`, `AppInput`, `AppSelect`, `AppSmartTextInput`, `AppDateRangePicker`, `AppDataTable`, `AppActionMenu`, `AppEntityEditor`, `AppDrawerForm`, `AppFileUpload`, `AppSidebar`, `AppTopBar`, `AppShell`, `AppStatePanel`, `AppStatusBadge`, `AppBulkActionBar`, `AppCrudPageScaffold`, `AppWidgetKit`, `AppStatCard`, `AppPermissionGate`, `AppAuditTimeline`
+
+All components are exported from `src/shared/ui/index.ts`. Always import from there, never from the primitive file directly.
+
+**Forms & Input**
+`AppButton`, `AppInput`, `AppSelect`, `AppSmartTextInput`, `AppDateRangePicker`, `AppMoneyInput`, `AppTagInput`, `AppSearchableSelect`
+
+**Data Display**
+`AppDataTable`, `AppStatCard`, `AppKpiGrid`, `AppStatusBadge`, `AppCurrencyDisplay`, `AppProgressBar`, `AppChartWidget`
+
+**Layout & Navigation**
+`AppSidebar`, `AppTopBar`, `AppShell`, `AppTabs`, `AppPageHeader`, `AppTreeList`
+
+**Entity Management**
+`AppEntityEditor`, `AppDrawerForm`, `AppCrudPageScaffold`, `AppBulkActionBar`, `AppActionMenu`
+
+**Domain-Specific (BuildCRM)**
+`AppColorGrid` — apartment grid visualization (шахматка: free/booked/sold/reserved)
+`AppKanbanBoard` — drag-and-drop deal/task board (native HTML5 DnD)
+`AppPaymentTimeline` — installment payment schedule with overdue/today/upcoming states
+`AppCommentThread` — threaded notes/comments with replies and pinning
+`AppCountdownBadge` — live countdown timer for booking expiry (chip/inline/block variants)
+`AppNotificationCenter` — bell icon + notification dropdown with unread count
+
+**Feedback & UX**
+`AppStatePanel`, `AppAuditTimeline`, `AppStepWizard`, `AppFileUpload`, `AppWidgetKit`, `AppPermissionGate`, `ShimmerBox`, `ConfirmDialog`
+
+### Component Lookup — Before Writing ANY UI Code
+
+| Need | Use |
+|------|-----|
+| Money / price field | `AppMoneyInput` |
+| Formatted price display | `AppCurrencyDisplay` |
+| Multi-tag / label picker | `AppTagInput` |
+| Search-and-select entity (e.g. client) | `AppSearchableSelect` |
+| Apartment / unit grid (шахматка) | `AppColorGrid` |
+| Deals / tasks board | `AppKanbanBoard` |
+| Payment schedule | `AppPaymentTimeline` |
+| Client notes / history | `AppCommentThread` |
+| Booking expiry timer | `AppCountdownBadge` |
+| Notifications bell | `AppNotificationCenter` |
+| Construction progress bar | `AppProgressBar` |
+| Bar / line / pie chart | `AppChartWidget` |
+| ЖК → Block → Floor tree | `AppTreeList` |
+| Multi-step form flow | `AppStepWizard` |
+| Filterable data table | `AppDataTable` |
+| CRUD page shell | `AppCrudPageScaffold` |
+| Bulk row actions | `AppBulkActionBar` |
+| Row context menu | `AppActionMenu` |
+| Entity detail editor | `AppEntityEditor` |
+| Slide-in form | `AppDrawerForm` |
 
 ### Forbidden
-- Rebuilding button/input/table/menu from scratch when starter equivalents exist
+- Rebuilding button/input/table/menu/chart from scratch when starter equivalents exist
+- Creating one-off color grids, kanban boards, countdown timers, or payment timelines
 - Creating one-off variants that break the design token system
 - Mixing MUI with Ant Design in one module
-- Implementing low-level behavior (focus trap, keyboard nav, sorting engine) from scratch
+- Implementing low-level behavior (focus trap, keyboard nav, sorting engine, DnD) from scratch
+- Using `recharts` directly in feature components — always use `AppChartWidget`
 
 ---
 
@@ -274,3 +325,14 @@ Use `npm run generate:feature <name>` to scaffold new modules with correct struc
 - Global `invalidateQueries()` without scope
 - Mixing MUI + Ant Design in one module
 - Rebuilding existing starter components from scratch
+- Creating custom money input / currency display when `AppMoneyInput` / `AppCurrencyDisplay` exist
+- Creating custom apartment grid when `AppColorGrid` exists
+- Creating custom kanban when `AppKanbanBoard` exists
+- Creating custom payment schedule when `AppPaymentTimeline` exists
+- Creating custom countdown timer when `AppCountdownBadge` exists
+- Creating custom notification dropdown when `AppNotificationCenter` exists
+- Creating custom bar/line/pie chart wrapper — use `AppChartWidget`
+- Creating custom tag/label picker — use `AppTagInput`
+- Creating custom entity search dialog — use `AppSearchableSelect`
+- Creating custom hierarchy tree — use `AppTreeList`
+- Creating custom multi-step form — use `AppStepWizard`

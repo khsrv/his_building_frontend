@@ -2,7 +2,6 @@
 
 import { useMemo } from "react";
 import { Box, Stack, Tooltip, Typography } from "@mui/material";
-import { cn } from "@/shared/lib/ui/cn";
 
 export interface AppProgressSegment {
   id: string;

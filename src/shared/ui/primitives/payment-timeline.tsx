@@ -10,7 +10,7 @@ import {
   Tooltip,
   Typography,
 } from "@mui/material";
-import { format, isPast, isToday, isFuture, parseISO, isValid } from "date-fns";
+import { format, isPast, isToday, parseISO, isValid } from "date-fns";
 import { cn } from "@/shared/lib/ui/cn";
 
 export type AppPaymentStatus = "paid" | "overdue" | "upcoming" | "today";
