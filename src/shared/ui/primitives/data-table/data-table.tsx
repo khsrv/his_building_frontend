@@ -1205,19 +1205,22 @@ export function AppDataTable<TData>({
         options: {
           head: string[][];
           body: string[][];
+          foot?: string[][];
           startY?: number;
           styles?: Record<string, unknown>;
           headStyles?: Record<string, unknown>;
+          footStyles?: Record<string, unknown>;
         },
       ) => void;
 
       const pdf = new jsPDF({ orientation: "landscape" });
 
-      // Register Cyrillic-compatible font
+      // Register Cyrillic-compatible font (same file for normal + bold so autotable headers work)
       const { TIKTOK_SANS_BASE64 } = await import("@/shared/lib/pdf-font");
       pdf.addFileToVFS("TikTokSans.ttf", TIKTOK_SANS_BASE64);
       pdf.addFont("TikTokSans.ttf", "TikTokSans", "normal");
-      pdf.setFont("TikTokSans");
+      pdf.addFont("TikTokSans.ttf", "TikTokSans", "bold");
+      pdf.setFont("TikTokSans", "normal");
 
       // Title and date header
       const pdfTitle = title ?? fileNameBase;
@@ -1238,13 +1241,34 @@ export function AppDataTable<TData>({
         activeColumns.map((column) => row[column.header] ?? ""),
       );
 
-      autoTable(pdf, {
+      // Build totals footer row if available
+      const foot: string[][] = [];
+      if (showTotals && totalsByNumericColumns.length > 0) {
+        const footRow = activeColumns.map((column) => {
+          const total = totalsByColumnId[column.id];
+          if (typeof total === "number") {
+            return new Intl.NumberFormat(locale).format(total);
+          }
+          if (column.id === totalsLabelColumnId) {
+            return t("table.totals");
+          }
+          return "";
+        });
+        foot.push(footRow);
+      }
+
+      const tableOptions: Parameters<typeof autoTable>[1] = {
         head,
         body,
         startY: 28,
         styles: { fontSize: 9, cellPadding: 2, font: "TikTokSans" },
         headStyles: { fillColor: [245, 179, 1], textColor: [17, 24, 39], font: "TikTokSans" },
-      });
+      };
+      if (foot.length > 0) {
+        tableOptions.foot = foot;
+        tableOptions.footStyles = { fillColor: [245, 245, 245], textColor: [17, 24, 39], font: "TikTokSans", fontStyle: "bold" };
+      }
+      autoTable(pdf, tableOptions);
 
       pdf.save(`${pdfTitle}.pdf`);
     } finally {
