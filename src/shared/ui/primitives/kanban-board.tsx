@@ -90,6 +90,7 @@ export function AppKanbanBoard<T extends AppKanbanCard>({
         "flex min-h-[400px] items-start gap-3 overflow-x-auto pb-2",
         className,
       )}
+      style={{ touchAction: "manipulation" }}
     >
       {columns.map((column) => {
         const columnCards = getColumnCards(column.id);

@@ -122,6 +122,14 @@ function SettingsIcon() {
   );
 }
 
+function AdminIcon() {
+  return (
+    <svg aria-hidden className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+      <path d="M12 2l3 7h7l-6 4.5 2.5 7L12 17l-6.5 3.5L8 13 2 8.5h7z" />
+    </svg>
+  );
+}
+
 // ─── Navigation item type ─────────────────────────────────────────────────────
 
 export interface NavItem {
@@ -176,9 +184,12 @@ export const NAVIGATION_ITEMS: readonly NavItem[] = [
   {
     id: "payments",
     labelKey: "nav.payments",
-    href: routes.payments,
     icon: <PaymentsIcon />,
     permission: "payments.read",
+    children: [
+      { id: "payments-upcoming", labelKey: "nav.payments_upcoming", href: routes.payments, icon: <PaymentsIcon />, permission: "payments.read" },
+      { id: "payments-overdue", labelKey: "nav.payments_overdue", href: routes.paymentsOverdue, icon: <PaymentsIcon />, permission: "payments.read" },
+    ],
   },
   {
     id: "calculator",
@@ -196,6 +207,9 @@ export const NAVIGATION_ITEMS: readonly NavItem[] = [
       { id: "finance-accounts", labelKey: "nav.finance_accounts", href: routes.financeAccounts, icon: <FinanceIcon />, permission: "finance.accounts.read" },
       { id: "finance-rates", labelKey: "nav.finance_rates", href: routes.financeExchangeRates, icon: <FinanceIcon />, permission: "finance.exchange_rates.manage" },
       { id: "finance-reports", labelKey: "nav.finance_reports", href: routes.financeReports, icon: <FinanceIcon />, permission: "finance.reports.view" },
+      { id: "finance-payable-reminders", labelKey: "nav.finance_payable_reminders", href: routes.financePayableReminders, icon: <FinanceIcon /> },
+      { id: "finance-currencies", labelKey: "nav.finance_currencies", href: routes.financeCurrencies, icon: <FinanceIcon />, permission: "finance.exchange_rates.manage" },
+      { id: "finance-categories", labelKey: "nav.finance_categories", href: routes.financeCategories, icon: <FinanceIcon />, permission: "finance.ledger.create" },
     ],
   },
   {
@@ -247,6 +261,20 @@ export const NAVIGATION_ITEMS: readonly NavItem[] = [
       { id: "settings-users", labelKey: "nav.settings_users", href: routes.settingsUsers, icon: <SettingsIcon />, permission: "settings.users" },
       { id: "settings-roles", labelKey: "nav.settings_roles", href: routes.settingsRoles, icon: <SettingsIcon />, permission: "settings.roles" },
       { id: "settings-templates", labelKey: "nav.settings_templates", href: routes.settingsTemplates, icon: <SettingsIcon />, permission: "settings.templates" },
+      { id: "settings-sms-templates", labelKey: "nav.settings_sms_templates", href: routes.settingsSmsTemplates, icon: <SettingsIcon /> },
+      { id: "settings-pipeline", labelKey: "nav.settings_pipeline", href: routes.settingsPipeline, icon: <SettingsIcon />, permission: "settings.company" },
+      { id: "settings-pricing", labelKey: "nav.settings_pricing", href: routes.settingsPricingRules, icon: <SettingsIcon />, permission: "settings.company" },
+      { id: "settings-brokers", labelKey: "nav.settings_brokers", href: routes.settingsBrokers, icon: <SettingsIcon />, permission: "settings.company" },
+      { id: "settings-invoices", labelKey: "nav.settings_invoices", href: routes.settingsInvoices, icon: <SettingsIcon />, permission: "settings.company" },
+    ],
+  },
+  {
+    id: "admin",
+    labelKey: "nav.admin",
+    icon: <AdminIcon />,
+    permission: "settings.users",
+    children: [
+      { id: "admin-tenants", labelKey: "nav.admin_tenants", href: routes.adminTenants, icon: <SettingsIcon />, permission: "settings.users" },
     ],
   },
 ];

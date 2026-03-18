@@ -17,7 +17,7 @@ async function resolveTenant(): Promise<TenantInfo | null> {
   return {
     id: user.tenantId,
     name: user.tenantName,
-    slug: user.tenantSlug,
+    slug: user.tenantSlug ?? "",
     baseCurrency: "TJS",
     plan: "business",
     logoUrl: null,

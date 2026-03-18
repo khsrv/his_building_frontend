@@ -1,18 +1,16 @@
 // ─── Roles ────────────────────────────────────────────────────────────────────
-// Matches the 11 roles from Hisob Building TZ
+// Matches the backend role names exactly
 
 export type UserRole =
-  | "super_admin"      // Platform level — manages tenants, billing, global settings
-  | "admin_company"    // Tenant level — full access within a tenant
-  | "sales_director"   // Sales pipeline, managers KPI, analytics
-  | "sales_manager"    // Clients, deals, bookings, documents
-  | "accountant"       // Finance, payments, reports
-  | "cashier"          // Cash receipts/payments, transactions
-  | "warehouse_manager"// Materials, inventory, logistics
-  | "foreman"          // Construction: work orders, brigades
-  | "broker"           // External: limited to view units + bookings
-  | "customer"         // App: own deals, payments, documents
-  | "viewer";          // Read-only access
+  | "super_admin"       // Platform level — manages tenants, billing, global settings
+  | "company_admin"     // Tenant level — full access within a tenant
+  | "sales_head"        // Sales pipeline, managers KPI, analytics
+  | "manager"           // Clients, deals, bookings, documents
+  | "accountant"        // Finance, payments, reports
+  | "cashier"           // Cash receipts/payments, transactions
+  | "warehouse_manager" // Materials, inventory, logistics
+  | "foreman"           // Construction: work orders, brigades
+  | "broker";           // External: limited to view units + bookings
 
 // ─── Permission codes ─────────────────────────────────────────────────────────
 // Pattern: module.action
@@ -83,7 +81,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, readonly PermissionCode[]> = {
     "documents.read", "documents.upload", "documents.delete",
   ],
 
-  admin_company: [
+  company_admin: [
     "buildings.read", "buildings.create", "buildings.update", "buildings.delete",
     "buildings.units.read", "buildings.units.create", "buildings.units.update", "buildings.units.delete",
     "buildings.chess_grid.view",
@@ -102,7 +100,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, readonly PermissionCode[]> = {
     "documents.read", "documents.upload", "documents.delete",
   ],
 
-  sales_director: [
+  sales_head: [
     "buildings.read", "buildings.units.read", "buildings.chess_grid.view",
     "clients.read", "clients.create", "clients.update", "clients.assign_manager",
     "deals.read", "deals.create", "deals.update", "deals.approve", "deals.change_status",
@@ -113,7 +111,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, readonly PermissionCode[]> = {
     "documents.read",
   ],
 
-  sales_manager: [
+  manager: [
     "buildings.read", "buildings.units.read", "buildings.chess_grid.view",
     "clients.read", "clients.create", "clients.update",
     "deals.read", "deals.create", "deals.update", "deals.change_status",
@@ -164,21 +162,6 @@ export const ROLE_PERMISSIONS: Record<UserRole, readonly PermissionCode[]> = {
     "clients.create",
     "deals.read", "deals.create",
     "analytics.dashboard",
-  ],
-
-  customer: [
-    "deals.read", "deals.contracts.view",
-    "payments.read", "payments.schedule.view", "payments.receipts.view",
-    "documents.read",
-  ],
-
-  viewer: [
-    "buildings.read", "buildings.units.read", "buildings.chess_grid.view",
-    "clients.read",
-    "deals.read",
-    "payments.read", "payments.schedule.view",
-    "analytics.dashboard",
-    "documents.read",
   ],
 };
 

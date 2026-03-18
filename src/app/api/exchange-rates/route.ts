@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { createGetCurrentUserUseCase } from "@/modules/auth/application/use-cases/get-current-user.use-case";
+import { NextAuthRepository } from "@/modules/auth/infrastructure/auth-repository";
 
 export interface NbtRate {
   code: string;
@@ -17,6 +19,12 @@ export interface NbtRatesResponse {
  * Caches the result for 1 hour via Next.js revalidation.
  */
 export async function GET() {
+  const getCurrentUser = createGetCurrentUserUseCase(new NextAuthRepository());
+  const user = await getCurrentUser();
+  if (!user) {
+    return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     // nbt.tj has an expired SSL cert — use Node's native fetch with TLS override
     const res = await fetch("https://www.nbt.tj/ru/kurs/kurs.php", {

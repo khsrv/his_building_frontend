@@ -1,221 +1,306 @@
 "use client";
 
+import { useState } from "react";
+import Link from "next/link";
+import Box from "@mui/material/Box";
 import {
   AppButton,
-  AppCrudPageScaffold,
   AppDataTable,
   type AppDataTableColumn,
-  AppKpiGrid,
   AppPageHeader,
+  AppSelect,
+  AppStatePanel,
   AppStatusBadge,
   type AppStatusTone,
+  ShimmerBox,
 } from "@/shared/ui";
 import { routes } from "@/shared/constants/routes";
-import type { Payment } from "@/shared/types/entities";
-import type { PaymentStatus } from "@/shared/types/enums";
-import { CURRENCY_CONFIG } from "@/shared/types/enums";
+import type { UpcomingPayment, SchedulePaymentStatus } from "@/modules/payments/domain/entities";
+import { useUpcomingPaymentsQuery } from "@/modules/payments/presentation/hooks/use-upcoming-payments.query";
+import { usePropertiesFilterQuery } from "@/modules/payments/presentation/hooks/use-properties-filter.query";
 
 // ─── Status helpers ──────────────────────────────────────────────────────────
 
-const PAYMENT_STATUS_LABEL: Record<PaymentStatus, string> = {
-  planned: "Запланирован",
+const STATUS_LABEL: Record<SchedulePaymentStatus, string> = {
+  pending: "Ожидается",
+  upcoming: "Скоро",
   paid: "Оплачен",
+  partially_paid: "Частично",
   overdue: "Просрочен",
-  partially_paid: "Частично оплачен",
-  cancelled: "Отменён",
 };
 
-const PAYMENT_STATUS_TONE: Record<PaymentStatus, AppStatusTone> = {
-  planned: "info",
+const STATUS_TONE: Record<SchedulePaymentStatus, AppStatusTone> = {
+  pending: "info",
+  upcoming: "warning",
   paid: "success",
-  overdue: "danger",
   partially_paid: "warning",
-  cancelled: "muted",
+  overdue: "danger",
 };
 
-// ─── Mock data ──────────────────────────────────────────────────────────────
-// TODO: replace with real API hook (e.g. usePaymentsListQuery)
+// ─── Date formatter ──────────────────────────────────────────────────────────
 
-const MOCK_PAYMENTS: readonly Payment[] = [
-  {
-    id: "p1",
-    dealId: "d1",
-    tenantId: "t1",
-    amount: 150_000,
-    currency: "TJS",
-    status: "paid",
-    dueDate: "2025-06-01",
-    paidDate: "2025-05-28",
-    label: "Первоначальный взнос",
-    receiptNumber: "REC-001",
-  },
-  {
-    id: "p2",
-    dealId: "d1",
-    tenantId: "t1",
-    amount: 50_000,
-    currency: "TJS",
-    status: "paid",
-    dueDate: "2025-07-01",
-    paidDate: "2025-07-01",
-    label: "Рассрочка #1",
-    receiptNumber: "REC-002",
-  },
-  {
-    id: "p3",
-    dealId: "d2",
-    tenantId: "t1",
-    amount: 25_000,
-    currency: "USD",
-    status: "overdue",
-    dueDate: "2025-12-15",
-    paidDate: null,
-    label: "Рассрочка #3",
-    receiptNumber: null,
-  },
-  {
-    id: "p4",
-    dealId: "d2",
-    tenantId: "t1",
-    amount: 25_000,
-    currency: "USD",
-    status: "planned",
-    dueDate: "2026-03-15",
-    paidDate: null,
-    label: "Рассрочка #4",
-    receiptNumber: null,
-  },
-  {
-    id: "p5",
-    dealId: "d3",
-    tenantId: "t1",
-    amount: 80_000,
-    currency: "TJS",
-    status: "partially_paid",
-    dueDate: "2026-01-10",
-    paidDate: null,
-    label: "Рассрочка #2",
-    receiptNumber: null,
-  },
-  {
-    id: "p6",
-    dealId: "d4",
-    tenantId: "t1",
-    amount: 200_000,
-    currency: "TJS",
-    status: "cancelled",
-    dueDate: "2025-09-01",
-    paidDate: null,
-    label: "Полная оплата",
-    receiptNumber: null,
-  },
-] as const;
-
-// ─── Helpers ────────────────────────────────────────────────────────────────
-
-function formatAmount(amount: number, currency: Payment["currency"]): string {
-  const cfg = CURRENCY_CONFIG[currency];
-  return `${amount.toLocaleString("ru-RU")} ${cfg.symbol}`;
+function formatDate(iso: string): string {
+  try {
+    const [year, month, day] = iso.split("-");
+    return `${day ?? ""}.${month ?? ""}.${year ?? ""}`;
+  } catch {
+    return iso;
+  }
 }
 
-// ─── Columns ────────────────────────────────────────────────────────────────
+function isOverdue(status: SchedulePaymentStatus): boolean {
+  return status === "overdue";
+}
 
-const columns: readonly AppDataTableColumn<Payment>[] = [
+// ─── Amount formatter ────────────────────────────────────────────────────────
+
+function formatAmount(amount: number, currency: string): string {
+  return `${amount.toLocaleString("ru-RU")} ${currency}`;
+}
+
+// ─── Month/Year options ──────────────────────────────────────────────────────
+
+const MONTH_OPTIONS = [
+  { value: "1", label: "Январь" },
+  { value: "2", label: "Февраль" },
+  { value: "3", label: "Март" },
+  { value: "4", label: "Апрель" },
+  { value: "5", label: "Май" },
+  { value: "6", label: "Июнь" },
+  { value: "7", label: "Июль" },
+  { value: "8", label: "Август" },
+  { value: "9", label: "Сентябрь" },
+  { value: "10", label: "Октябрь" },
+  { value: "11", label: "Ноябрь" },
+  { value: "12", label: "Декабрь" },
+] as const;
+
+const CURRENT_YEAR = new Date().getFullYear();
+
+const YEAR_OPTIONS = Array.from({ length: 7 }, (_, i) => {
+  const y = CURRENT_YEAR - 1 + i;
+  return { value: String(y), label: String(y) };
+});
+
+const STATUS_FILTER_OPTIONS = [
+  { value: "", label: "Все статусы" },
+  { value: "pending", label: "Ожидается" },
+  { value: "upcoming", label: "Скоро" },
+  { value: "paid", label: "Оплачен" },
+  { value: "partially_paid", label: "Частично оплачен" },
+  { value: "overdue", label: "Просрочен" },
+] as const;
+
+// ─── Columns ─────────────────────────────────────────────────────────────────
+
+const columns: readonly AppDataTableColumn<UpcomingPayment>[] = [
   {
-    id: "label",
-    header: "Назначение",
-    cell: (row) => row.label ?? row.dealId,
-    sortAccessor: (row) => row.label ?? row.dealId,
-    searchAccessor: (row) => row.label ?? row.dealId,
+    id: "due_date",
+    header: "Дата",
+    cell: (row) => (
+      <span style={{ color: isOverdue(row.status) ? "var(--color-danger, #ef4444)" : undefined, fontWeight: isOverdue(row.status) ? 600 : undefined }}>
+        {formatDate(row.dueDate)}
+      </span>
+    ),
+    sortAccessor: (row) => row.dueDate,
   },
   {
-    id: "amount",
-    header: "Сумма",
-    cell: (row) => formatAmount(row.amount, row.currency),
-    sortAccessor: (row) => row.amount,
+    id: "client",
+    header: "Клиент",
+    cell: (row) => (
+      <Box>
+        <div style={{ fontWeight: 500 }}>{row.clientName}</div>
+        <div style={{ fontSize: 12, color: "var(--muted-foreground, #64748b)" }}>
+          {row.clientPhone}
+        </div>
+      </Box>
+    ),
+    sortAccessor: (row) => row.clientName,
+    searchAccessor: (row) => `${row.clientName} ${row.clientPhone}`,
+  },
+  {
+    id: "unit",
+    header: "Квартира / Объект",
+    cell: (row) => (
+      <Box>
+        <div style={{ fontWeight: 500 }}>№{row.unitNumber}</div>
+        <div style={{ fontSize: 12, color: "var(--muted-foreground, #64748b)" }}>
+          {row.propertyName}
+        </div>
+      </Box>
+    ),
+    sortAccessor: (row) => row.unitNumber,
+    searchAccessor: (row) => `${row.unitNumber} ${row.propertyName}`,
+  },
+  {
+    id: "deal",
+    header: "Сделка",
+    cell: (row) => (
+      <Link
+        href={routes.dealDetail(row.dealId)}
+        style={{ color: "rgb(var(--primary))", textDecoration: "none", fontWeight: 500 }}
+      >
+        {row.dealNumber}
+      </Link>
+    ),
+    sortAccessor: (row) => row.dealNumber,
+    searchAccessor: (row) => row.dealNumber,
+  },
+  {
+    id: "planned_amount",
+    header: "Плановая сумма",
+    cell: (row) => formatAmount(row.plannedAmount, row.currency),
+    sortAccessor: (row) => row.plannedAmount,
     align: "right",
+    exportAccessor: (row) => row.plannedAmount,
+  },
+  {
+    id: "paid_amount",
+    header: "Оплачено",
+    cell: (row) => formatAmount(row.paidAmount, row.currency),
+    sortAccessor: (row) => row.paidAmount,
+    align: "right",
+    exportAccessor: (row) => row.paidAmount,
+  },
+  {
+    id: "remaining_amount",
+    header: "Остаток",
+    cell: (row) => formatAmount(row.remainingAmount, row.currency),
+    sortAccessor: (row) => row.remainingAmount,
+    align: "right",
+    exportAccessor: (row) => row.remainingAmount,
   },
   {
     id: "status",
     header: "Статус",
     cell: (row) => (
       <AppStatusBadge
-        label={PAYMENT_STATUS_LABEL[row.status]}
-        tone={PAYMENT_STATUS_TONE[row.status]}
+        label={STATUS_LABEL[row.status]}
+        tone={STATUS_TONE[row.status]}
       />
     ),
     sortAccessor: (row) => row.status,
   },
-  {
-    id: "dueDate",
-    header: "Дата оплаты",
-    cell: (row) => row.dueDate,
-    sortAccessor: (row) => row.dueDate,
-  },
-  {
-    id: "paidDate",
-    header: "Оплачено",
-    cell: (row) => row.paidDate ?? "—",
-    sortAccessor: (row) => row.paidDate ?? "",
-  },
-  {
-    id: "receiptNumber",
-    header: "Квитанция",
-    cell: (row) => row.receiptNumber ?? "—",
-    searchAccessor: (row) => row.receiptNumber,
-  },
 ];
 
-// ─── Page ───────────────────────────────────────────────────────────────────
+// ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function PaymentsPage() {
-  // TODO: replace with real API hook
-  const data = MOCK_PAYMENTS;
+  const now = new Date();
+  const [month, setMonth] = useState(String(now.getMonth() + 1));
+  const [year, setYear] = useState(String(now.getFullYear()));
+  const [propertyId, setPropertyId] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
 
-  const total = data.length;
-  const paid = data.filter((p) => p.status === "paid").length;
-  const overdue = data.filter((p) => p.status === "overdue").length;
-  const planned = data.filter((p) => p.status === "planned" || p.status === "partially_paid").length;
+  const resolvedPropertyId: string | undefined = propertyId || undefined;
+  const resolvedStatus: string | undefined = statusFilter || undefined;
+
+  const { data, isLoading, isError, refetch } = useUpcomingPaymentsQuery({
+    month: Number(month),
+    year: Number(year),
+    propertyId: resolvedPropertyId,
+    status: resolvedStatus,
+  });
+
+  const { data: properties } = usePropertiesFilterQuery();
+
+  const propertyOptions = [
+    { value: "", label: "Все объекты" },
+    ...(properties ?? []).map((p) => ({ value: p.id, label: p.name })),
+  ];
 
   return (
     <main className="space-y-6 p-6">
-      <AppCrudPageScaffold
-        header={
-          <AppPageHeader
-            title="Платежи"
-            subtitle={`${total} платежей`}
-            breadcrumbs={[
-              { id: "dashboard", label: "Панель", href: routes.dashboard },
-              { id: "payments", label: "Платежи" },
-            ]}
-            actions={
-              <AppButton label="Принять платёж" variant="primary" size="md" />
-            }
-          />
-        }
-        filters={
-          <AppKpiGrid
-            columns={4}
-            items={[
-              { title: "Всего платежей", value: total },
-              { title: "Оплачено", value: paid, deltaTone: "success" },
-              { title: "Просрочено", value: overdue, deltaTone: "danger" },
-              { title: "Ожидается", value: planned, deltaTone: "info" },
-            ]}
-          />
-        }
-        content={
-          <AppDataTable<Payment>
-            data={data}
-            columns={columns}
-            rowKey={(row) => row.id}
-            title="Платежи"
-            searchPlaceholder="Поиск по назначению или квитанции..."
-            enableExport
-            enableSettings
-          />
+      <AppPageHeader
+        title="Ближайшие платежи"
+        breadcrumbs={[
+          { id: "dashboard", label: "Панель", href: routes.dashboard },
+          { id: "payments", label: "Платежи", href: routes.payments },
+          { id: "upcoming", label: "Ближайшие платежи" },
+        ]}
+        actions={
+          <Link href={routes.paymentsOverdue} style={{ textDecoration: "none" }}>
+            <AppButton label="Просроченные" variant="outline" size="md" />
+          </Link>
         }
       />
+
+      {/* Filters */}
+      <Box
+        sx={{
+          display: "flex",
+          flexWrap: "wrap",
+          gap: 2,
+          alignItems: "flex-end",
+        }}
+      >
+        <Box sx={{ minWidth: 140 }}>
+          <AppSelect
+            id="month-filter"
+            label="Месяц"
+            options={MONTH_OPTIONS}
+            value={month}
+            onChange={(e) => setMonth(e.target.value)}
+          />
+        </Box>
+        <Box sx={{ minWidth: 110 }}>
+          <AppSelect
+            id="year-filter"
+            label="Год"
+            options={YEAR_OPTIONS}
+            value={year}
+            onChange={(e) => setYear(e.target.value)}
+          />
+        </Box>
+        <Box sx={{ minWidth: 200 }}>
+          <AppSelect
+            id="property-filter"
+            label="Объект"
+            options={propertyOptions}
+            value={propertyId}
+            onChange={(e) => setPropertyId(e.target.value)}
+          />
+        </Box>
+        <Box sx={{ minWidth: 200 }}>
+          <AppSelect
+            id="status-filter"
+            label="Статус"
+            options={STATUS_FILTER_OPTIONS}
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+          />
+        </Box>
+      </Box>
+
+      {/* Content */}
+      {isLoading ? (
+        <ShimmerBox style={{ height: 400, borderRadius: 12 }} />
+      ) : isError ? (
+        <AppStatePanel
+          tone="error"
+          title="Ошибка загрузки платежей"
+          description="Не удалось загрузить данные о ближайших платежах"
+          actionLabel="Повторить"
+          onAction={() => void refetch()}
+        />
+      ) : !data || data.length === 0 ? (
+        <AppStatePanel
+          tone="empty"
+          title="Нет платежей"
+          description="За выбранный период платежи не найдены"
+        />
+      ) : (
+        <AppDataTable<UpcomingPayment>
+          data={data}
+          columns={columns}
+          rowKey={(row) => row.id}
+          title="Ближайшие платежи"
+          searchPlaceholder="Поиск по клиенту, квартире или сделке..."
+          enableExport
+          enableSettings
+          fileNameBase="upcoming-payments"
+        />
+      )}
     </main>
   );
 }

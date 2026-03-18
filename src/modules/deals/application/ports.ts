@@ -1,5 +1,5 @@
-import type { DealsItem } from "@/modules/deals/domain/entities";
+import type { Deal } from "@/modules/deals/domain/deal";
 
 export interface DealsRepository {
-  list(): Promise<DealsItem[]>;
+  list(): Promise<Deal[]>;
 }

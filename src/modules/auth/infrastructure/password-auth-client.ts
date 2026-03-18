@@ -3,9 +3,15 @@
 import type { AuthClientPort } from "@/modules/auth/application/ports";
 import type { PasswordSignInInput } from "@/modules/auth/domain/sign-in";
 import type { SessionUser } from "@/modules/auth/domain/session";
+import { tokenStorage } from "@/shared/lib/http/token-storage";
 
 interface LoginApiResponse {
-  data: SessionUser;
+  data: {
+    user: SessionUser;
+    accessToken: string;
+    accessTokenExpiresAt: string;
+    // refreshToken is stored in httpOnly cookie by the BFF — not returned to JS
+  };
 }
 
 interface LoginApiErrorResponse {
@@ -17,9 +23,7 @@ export class HttpPasswordAuthClient implements AuthClientPort {
   async signInWithPassword(input: PasswordSignInInput): Promise<SessionUser> {
     const response = await fetch("/api/auth/login", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(input),
     });
 
@@ -29,6 +33,10 @@ export class HttpPasswordAuthClient implements AuthClientPort {
     }
 
     const body = (await response.json()) as LoginApiResponse;
-    return body.data;
+
+    // Store access token in memory only
+    tokenStorage.setAccessToken(body.data.accessToken, body.data.accessTokenExpiresAt);
+
+    return body.data.user;
   }
 }

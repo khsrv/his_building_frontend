@@ -1,229 +1,411 @@
 "use client";
 
-import { useMemo } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useMemo } from "react";
+import Link from "next/link";
 import {
   AppPageHeader,
-  AppCrudPageScaffold,
-  AppStatCard,
-  AppStatusBadge,
+  AppKpiGrid,
   AppChartWidget,
+  AppSelect,
+  AppDataTable,
+  ShimmerBox,
+  AppStatePanel,
+  AppCurrencyDisplay,
 } from "@/shared/ui";
-import type { AppChartDataPoint, AppChartSeries } from "@/shared/ui/primitives/chart-widget";
 import { routes } from "@/shared/constants/routes";
+import type { AppStatCardProps } from "@/shared/ui";
+import type { AppChartDataPoint, AppChartSeries } from "@/shared/ui/primitives/chart-widget";
+import type { AppDataTableColumn } from "@/shared/ui/primitives/data-table/types";
+import type { ManagerKpiItem } from "@/modules/dashboard/domain/dashboard";
+import { useDashboardSummaryQuery } from "@/modules/dashboard/presentation/hooks/use-dashboard-summary-query";
+import { useDashboardSalesQuery } from "@/modules/dashboard/presentation/hooks/use-dashboard-sales-query";
+import { useDashboardManagerKpiQuery } from "@/modules/dashboard/presentation/hooks/use-dashboard-manager-kpi-query";
+import { useDashboardPropertiesQuery } from "@/modules/dashboard/presentation/hooks/use-dashboard-properties-query";
+import { usePipelineBoardQuery } from "@/modules/clients/presentation/hooks/use-pipeline-board-query";
 
-// ─── Mock KPI data ─────────────────────────────────────────────────────────────
-// TODO: replace with real API hooks when backend is ready
+// ─── Date helpers ─────────────────────────────────────────────────────────────
 
-const KPI = {
-  buildings: 6,
-  activeDealCount: 23,
-  monthRevenue: 1_250_000,
-  overduePayments: 4,
-  freeUnits: 47,
-  clients: 134,
-  conversionRate: 32,
-  avgDealCycle: 18,
-} as const;
-
-// ─── Chart mock data ───────────────────────────────────────────────────────────
-
-const SALES_CHART_DATA: AppChartDataPoint[] = [
-  { label: "Янв", bookings: 5, sales: 3 },
-  { label: "Фев", bookings: 8, sales: 6 },
-  { label: "Мар", bookings: 12, sales: 9 },
-  { label: "Апр", bookings: 10, sales: 7 },
-  { label: "Май", bookings: 15, sales: 11 },
-  { label: "Июн", bookings: 18, sales: 14 },
-];
-
-const SALES_SERIES: AppChartSeries[] = [
-  { key: "bookings", label: "Бронирования", color: "#F59E0B" },
-  { key: "sales", label: "Продажи", color: "#10B981" },
-];
-
-const REVENUE_CHART_DATA: AppChartDataPoint[] = [
-  { label: "Янв", revenue: 180_000 },
-  { label: "Фев", revenue: 220_000 },
-  { label: "Мар", revenue: 310_000 },
-  { label: "Апр", revenue: 270_000 },
-  { label: "Май", revenue: 350_000 },
-  { label: "Июн", revenue: 420_000 },
-];
-
-const REVENUE_SERIES: AppChartSeries[] = [
-  { key: "revenue", label: "Доход (SM)", color: "#3B82F6" },
-];
-
-const DEAL_STAGE_DATA: AppChartDataPoint[] = [
-  { label: "Новый лид", value: 15 },
-  { label: "В обработке", value: 8 },
-  { label: "Бронь", value: 12 },
-  { label: "Оформление", value: 6 },
-  { label: "Оплата", value: 10 },
-  { label: "Завершено", value: 23 },
-];
-
-const DEAL_STAGE_SERIES: AppChartSeries[] = [
-  { key: "value", label: "Сделки" },
-];
-
-const UNIT_STATUS_DATA: AppChartDataPoint[] = [
-  { label: "Свободна", value: 47 },
-  { label: "Бронь", value: 12 },
-  { label: "Продана", value: 38 },
-  { label: "Резерв", value: 5 },
-];
-
-const UNIT_STATUS_SERIES: AppChartSeries[] = [
-  { key: "value", label: "Квартиры" },
-];
-
-// ─── Recent activity mock ──────────────────────────────────────────────────────
-
-interface RecentActivity {
-  readonly id: string;
-  readonly type: "deal" | "payment" | "client";
-  readonly text: string;
-  readonly time: string;
+function formatDate(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
 }
 
-const RECENT_ACTIVITY: readonly RecentActivity[] = [
-  { id: "1", type: "deal", text: "Новая сделка: кв. 42, ЖК Сомон — Рахимов Ф.", time: "10 мин назад" },
-  { id: "2", type: "payment", text: "Оплата 150 000 SM по сделке #D-0023", time: "25 мин назад" },
-  { id: "3", type: "client", text: "Новый клиент: Каримова Н. (источник: сайт)", time: "1 час назад" },
-  { id: "4", type: "deal", text: "Бронь истекла: кв. 15, ЖК Дусти", time: "2 часа назад" },
-  { id: "5", type: "payment", text: "Просрочен платёж по сделке #D-0019", time: "3 часа назад" },
-  { id: "6", type: "deal", text: "Сделка #D-0021 переведена в этап «Оплата»", time: "5 часов назад" },
+function getSixMonthsAgo(): string {
+  const d = new Date();
+  d.setMonth(d.getMonth() - 6);
+  return formatDate(d);
+}
+
+// ─── Currency formatter ───────────────────────────────────────────────────────
+
+function formatCurrencyShort(value: number): string {
+  if (value >= 1_000_000) {
+    return `${(value / 1_000_000).toFixed(1)}M`;
+  }
+  if (value >= 1_000) {
+    return `${(value / 1_000).toFixed(0)}k`;
+  }
+  return String(value);
+}
+
+// ─── Manager KPI table columns ────────────────────────────────────────────────
+
+const MANAGER_COLUMNS: readonly AppDataTableColumn<ManagerKpiItem>[] = [
+  {
+    id: "managerName",
+    header: "Менеджер",
+    cell: (row) => row.managerName,
+    searchAccessor: (row) => row.managerName,
+    sortAccessor: (row) => row.managerName,
+  },
+  {
+    id: "dealsCount",
+    header: "Сделок",
+    cell: (row) => row.dealsCount,
+    sortAccessor: (row) => row.dealsCount,
+    align: "right",
+  },
+  {
+    id: "totalRevenue",
+    header: "Выручка",
+    cell: (row) => (
+      <AppCurrencyDisplay amount={row.totalRevenue} currency="USD" size="sm" />
+    ),
+    sortAccessor: (row) => row.totalRevenue,
+    align: "right",
+  },
+  {
+    id: "conversionRate",
+    header: "Конверсия",
+    cell: (row) => `${row.conversionRate.toFixed(1)}%`,
+    sortAccessor: (row) => row.conversionRate,
+    align: "right",
+  },
 ];
 
-const ACTIVITY_TONE_MAP: Record<RecentActivity["type"], "info" | "success" | "warning"> = {
-  deal: "info",
-  payment: "success",
-  client: "warning",
+// ─── Sales chart series ────────────────────────────────────────────────────────
+
+const SALES_SERIES: readonly AppChartSeries[] = [
+  { key: "amount", label: "Выручка", color: "#3B82F6" },
+];
+
+// ─── Pie chart series ────────────────────────────────────────────────────────
+
+const UNIT_STATUS_SERIES: readonly AppChartSeries[] = [
+  { key: "value", label: "Квартиры", color: "#10B981" },
+];
+
+const PAYMENT_TYPE_LABELS: Record<string, string> = {
+  full_payment: "Полная оплата",
+  installment: "Рассрочка",
+  mortgage: "Ипотека",
+  barter: "Бартер",
+  combined: "Комбинированная",
 };
 
-const ACTIVITY_LABEL_MAP: Record<RecentActivity["type"], string> = {
-  deal: "Сделка",
-  payment: "Платёж",
-  client: "Клиент",
-};
+// ─── Funnel component ────────────────────────────────────────────────────────
 
-// ─── Component ─────────────────────────────────────────────────────────────────
+function ConversionFunnel({ stages }: { stages: readonly { name: string; count: number; color: string }[] }) {
+  const maxCount = Math.max(...stages.map((s) => s.count), 1);
+
+  return (
+    <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
+      <p className="mb-4 text-sm font-semibold text-foreground">Воронка конверсии</p>
+      {stages.length === 0 ? (
+        <p className="py-6 text-center text-sm text-muted-foreground">Нет данных</p>
+      ) : (
+        <div className="space-y-2">
+          {stages.map((stage, i) => {
+            const widthPct = Math.max((stage.count / maxCount) * 100, 12);
+            return (
+              <div key={stage.name} className="flex items-center gap-3">
+                <span className="w-28 shrink-0 truncate text-xs text-muted-foreground">
+                  {stage.name}
+                </span>
+                <div className="relative flex-1">
+                  <div
+                    className="flex h-8 items-center justify-end rounded-md px-2 text-xs font-semibold text-white transition-all"
+                    style={{
+                      width: `${widthPct}%`,
+                      backgroundColor: stage.color || `hsl(${210 - i * 30}, 70%, 50%)`,
+                    }}
+                  >
+                    {stage.count}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Skeleton loader ─────────────────────────────────────────────────────────
+
+function KpiSkeleton() {
+  return (
+    <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+      {Array.from({ length: 4 }).map((_, i) => (
+        <ShimmerBox key={i} className="h-24" />
+      ))}
+    </div>
+  );
+}
+
+// ─── Page Component ───────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
-  const router = useRouter();
+  const [selectedPropertyId, setSelectedPropertyId] = useState<string>("");
 
-  const formatCurrency = useMemo(
-    () => (value: number) => `${(value / 1000).toFixed(0)}k`,
-    [],
-  );
+  const dateFrom = useMemo(() => getSixMonthsAgo(), []);
+  const dateTo = useMemo(() => formatDate(new Date()), []);
+
+  const activePropertyId = selectedPropertyId !== "" ? selectedPropertyId : undefined;
+
+  const propertiesQuery = useDashboardPropertiesQuery();
+  const summaryQuery = useDashboardSummaryQuery(activePropertyId);
+  const salesQuery = useDashboardSalesQuery(dateFrom, dateTo, activePropertyId);
+  const managerKpiQuery = useDashboardManagerKpiQuery();
+  const pipelineQuery = usePipelineBoardQuery();
+
+  // ─── Property filter options ──────────────────────────────────────────────
+
+  const propertyOptions = useMemo(() => {
+    const base = [{ value: "", label: "Все объекты" }];
+    if (!propertiesQuery.data) return base;
+    return [
+      ...base,
+      ...propertiesQuery.data.map((p) => ({ value: p.id, label: p.name })),
+    ];
+  }, [propertiesQuery.data]);
+
+  // ─── KPI data ─────────────────────────────────────────────────────────────
+
+  const summary = summaryQuery.data;
+
+  const primaryKpiItems: readonly AppStatCardProps[] = useMemo(() => {
+    const items: AppStatCardProps[] = [
+      {
+        title: "Всего квартир",
+        value: summary?.units.total ?? "—",
+        hint: "По всем объектам",
+      },
+      {
+        title: "Свободных",
+        value: summary?.units.available ?? "—",
+        deltaTone: "success" as const,
+        ...(summary ? { delta: `${summary.units.available} доступно` } : {}),
+      },
+      {
+        title: "Активных сделок",
+        value: summary?.deals.active ?? "—",
+        deltaTone: "info" as const,
+        ...(summary ? { delta: `Завершено: ${summary.deals.completed}` } : {}),
+      },
+      {
+        title: "Просроченных платежей",
+        value: summary?.payments.overdueCount ?? "—",
+        deltaTone: "danger" as const,
+        ...(summary?.payments.overdueCount ? { delta: "Требует внимания" } : {}),
+      },
+    ];
+    return items;
+  }, [summary]);
+
+  const secondaryKpiItems: readonly AppStatCardProps[] = useMemo(() => {
+    const fmt = new Intl.NumberFormat("ru-RU", { style: "currency", currency: "USD" });
+    const items: AppStatCardProps[] = [
+      {
+        title: "Выручка всего",
+        value: summary ? fmt.format(summary.revenue.total) : "—",
+        hint: "С начала работы",
+      },
+      {
+        title: "Выручка за месяц",
+        value: summary ? fmt.format(summary.revenue.thisMonth) : "—",
+        deltaTone: "success" as const,
+      },
+      {
+        title: "Дебиторка",
+        value: summary ? fmt.format(summary.receivables.total) : "—",
+        deltaTone: "warning" as const,
+        ...(summary?.receivables.total ? { delta: "Ожидает погашения" } : {}),
+      },
+      {
+        title: "Забронировано",
+        value: summary?.units.booked ?? "—",
+        hint: `Резерв: ${summary?.units.reserved ?? "—"}`,
+      },
+    ];
+    return items;
+  }, [summary]);
+
+  // ─── Sales chart data ─────────────────────────────────────────────────────
+
+  const salesChartData: readonly AppChartDataPoint[] = useMemo(() => {
+    if (!salesQuery.data) return [];
+    return salesQuery.data.map((item) => ({
+      label: item.month,
+      amount: item.totalAmount,
+    }));
+  }, [salesQuery.data]);
+
+  // ─── Unit status pie chart data ──────────────────────────────────────────
+
+  const unitStatusPieData: readonly AppChartDataPoint[] = useMemo(() => {
+    if (!summary) return [];
+    return [
+      { label: "Свободно", value: summary.units.available },
+      { label: "Забронировано", value: summary.units.booked },
+      { label: "Резерв", value: summary.units.reserved },
+      { label: "Продано", value: summary.units.sold },
+    ].filter((d) => d.value > 0);
+  }, [summary]);
+
+  const unitStatusSeries: readonly AppChartSeries[] = useMemo(() => [
+    { key: "value", label: "Квартиры" },
+  ], []);
+
+  // ─── Funnel data from pipeline board ────────────────────────────────────
+
+  const funnelStages = useMemo(() => {
+    if (!pipelineQuery.data) return [];
+    return pipelineQuery.data
+      .slice()
+      .sort((a, b) => a.order - b.order)
+      .map((stage) => ({
+        name: stage.name,
+        count: stage.clients.length,
+        color: stage.color,
+      }));
+  }, [pipelineQuery.data]);
+
+  // ─── Manager KPI table data ───────────────────────────────────────────────
+
+  const managerKpiData: readonly ManagerKpiItem[] = managerKpiQuery.data ?? [];
 
   return (
     <main className="space-y-6 p-6">
-      <AppPageHeader
-        title="Панель управления"
-        subtitle="Обзор ключевых показателей Hisob Building"
-      />
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <AppPageHeader
+          title="Панель управления"
+          subtitle="Обзор ключевых показателей Hisob Building"
+        />
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <AppStatCard
-          title="Объекты"
-          value={KPI.buildings}
-          delta="+1 за месяц"
-          deltaTone="success"
-          hint="Активных"
-          onClick={() => router.push(routes.buildings)}
-          className="cursor-pointer transition-shadow hover:shadow-md"
-        />
-        <AppStatCard
-          title="Активные сделки"
-          value={KPI.activeDealCount}
-          delta="+5 за неделю"
-          deltaTone="success"
-          onClick={() => router.push(routes.deals)}
-          className="cursor-pointer transition-shadow hover:shadow-md"
-        />
-        <AppStatCard
-          title="Доход за месяц"
-          value={`${KPI.monthRevenue.toLocaleString("ru-RU")} SM`}
-          delta="+18%"
-          deltaTone="success"
-          onClick={() => router.push(routes.financeLedger)}
-          className="cursor-pointer transition-shadow hover:shadow-md"
-        />
-        <AppStatCard
-          title="Просрочено платежей"
-          value={KPI.overduePayments}
-          delta="Требует внимания"
-          deltaTone="danger"
-          onClick={() => router.push(routes.payments)}
-          className="cursor-pointer transition-shadow hover:shadow-md"
-        />
-      </div>
-
-      {/* Secondary KPI */}
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <AppStatCard title="Свободных квартир" value={KPI.freeUnits} hint="По всем объектам" />
-        <AppStatCard title="Клиентов" value={KPI.clients} delta="+12 за месяц" deltaTone="info" />
-        <AppStatCard title="Конверсия" value={`${KPI.conversionRate}%`} hint="Лид → сделка" />
-        <AppStatCard title="Цикл сделки" value={`${KPI.avgDealCycle} дн.`} hint="Среднее" />
-      </div>
-
-      {/* Charts */}
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-        <AppChartWidget
-          type="bar"
-          title="Бронирования и продажи"
-          data={SALES_CHART_DATA}
-          series={SALES_SERIES}
-          height={280}
-        />
-        <AppChartWidget
-          type="area"
-          title="Доход по месяцам"
-          data={REVENUE_CHART_DATA}
-          series={REVENUE_SERIES}
-          height={280}
-          formatValue={formatCurrency}
-        />
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-        <AppChartWidget
-          type="bar"
-          title="Воронка сделок"
-          data={DEAL_STAGE_DATA}
-          series={DEAL_STAGE_SERIES}
-          height={260}
-        />
-        <AppChartWidget
-          type="doughnut"
-          title="Статусы квартир"
-          data={UNIT_STATUS_DATA}
-          series={UNIT_STATUS_SERIES}
-          height={260}
-        />
-      </div>
-
-      {/* Recent Activity */}
-      <AppCrudPageScaffold
-        header={
-          <h2 className="text-lg font-semibold text-foreground">Последняя активность</h2>
-        }
-        content={
-          <div className="divide-y divide-border rounded-xl border border-border bg-card">
-            {RECENT_ACTIVITY.map((item) => (
-              <div className="flex items-center gap-3 px-4 py-3" key={item.id}>
-                <AppStatusBadge label={ACTIVITY_LABEL_MAP[item.type]} tone={ACTIVITY_TONE_MAP[item.type]} />
-                <p className="flex-1 text-sm text-foreground">{item.text}</p>
-                <span className="shrink-0 text-xs text-muted-foreground">{item.time}</span>
-              </div>
-            ))}
+        <div className="flex items-end gap-2">
+          <div className="w-full sm:w-64">
+            <AppSelect
+              id="property-filter"
+              label="Объект"
+              value={selectedPropertyId}
+              options={propertyOptions}
+              onChange={(e) => setSelectedPropertyId(e.target.value)}
+            />
           </div>
-        }
-      />
+          {activePropertyId ? (
+            <Link
+              href={routes.dashboardPropertyAnalytics(activePropertyId)}
+              className="mb-1 shrink-0 text-xs font-medium text-primary hover:underline"
+            >
+              Подробнее &rarr;
+            </Link>
+          ) : null}
+        </div>
+      </div>
+
+      {/* Primary KPI row */}
+      {summaryQuery.isLoading ? (
+        <KpiSkeleton />
+      ) : summaryQuery.isError ? (
+        <AppStatePanel
+          tone="error"
+          title="Ошибка загрузки"
+          description="Не удалось загрузить данные сводки. Попробуйте обновить страницу."
+        />
+      ) : (
+        <AppKpiGrid items={primaryKpiItems} columns={4} />
+      )}
+
+      {/* Secondary KPI row */}
+      {summaryQuery.isLoading ? (
+        <KpiSkeleton />
+      ) : summaryQuery.isError ? null : (
+        <AppKpiGrid items={secondaryKpiItems} columns={4} />
+      )}
+
+      {/* Sales chart */}
+      <div className="grid grid-cols-1 gap-4">
+        {salesQuery.isLoading ? (
+          <ShimmerBox className="h-72 rounded-xl" />
+        ) : salesQuery.isError ? (
+          <AppStatePanel
+            tone="error"
+            title="Ошибка графика"
+            description="Не удалось загрузить данные продаж."
+          />
+        ) : (
+          <AppChartWidget
+            type="bar"
+            title="Выручка по месяцам"
+            data={salesChartData}
+            series={SALES_SERIES}
+            height={280}
+            formatValue={formatCurrencyShort}
+          />
+        )}
+      </div>
+
+      {/* Pie chart (unit statuses) + Funnel (pipeline conversion) */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        {summaryQuery.isLoading ? (
+          <ShimmerBox className="h-72 rounded-xl" />
+        ) : unitStatusPieData.length > 0 ? (
+          <AppChartWidget
+            type="doughnut"
+            title="Квартиры по статусу"
+            data={unitStatusPieData}
+            series={unitStatusSeries}
+            height={280}
+            showLegend
+          />
+        ) : (
+          <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
+            <p className="mb-3 text-sm font-semibold text-foreground">Квартиры по статусу</p>
+            <p className="py-12 text-center text-sm text-muted-foreground">Нет данных</p>
+          </div>
+        )}
+
+        {pipelineQuery.isLoading ? (
+          <ShimmerBox className="h-72 rounded-xl" />
+        ) : (
+          <ConversionFunnel stages={funnelStages} />
+        )}
+      </div>
+
+      {/* Manager KPI table */}
+      <div>
+        {managerKpiQuery.isLoading ? (
+          <ShimmerBox className="h-64 rounded-xl" />
+        ) : managerKpiQuery.isError ? (
+          <AppStatePanel
+            tone="error"
+            title="Ошибка загрузки"
+            description="Не удалось загрузить KPI менеджеров."
+          />
+        ) : (
+          <AppDataTable
+            title="KPI менеджеров"
+            data={managerKpiData}
+            columns={MANAGER_COLUMNS}
+            rowKey={(row) => row.managerId}
+            searchPlaceholder="Поиск по менеджеру..."
+          />
+        )}
+      </div>
     </main>
   );
 }

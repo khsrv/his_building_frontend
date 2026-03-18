@@ -1,138 +1,135 @@
 import { NextResponse } from "next/server";
-import type { PasswordSignInInput } from "@/modules/auth/domain/sign-in";
-import type { Session, SessionUser } from "@/modules/auth/domain/session";
-import type { UserRole } from "@/shared/types/permissions";
+import { backendRequest } from "@/shared/lib/http/backend-client";
 import { resolvePermissions } from "@/shared/types/permissions";
-import { SESSION_COOKIE_KEY, SESSION_TTL_DAYS } from "@/modules/auth/infrastructure/session-cookie";
+import type { UserRole } from "@/shared/types/permissions";
+import { SESSION_COOKIE_KEY, REFRESH_TOKEN_COOKIE_KEY } from "@/modules/auth/infrastructure/session-cookie";
+import type { Session, SessionUser } from "@/modules/auth/domain/session";
 
-interface DemoAccount {
-  login: string;
-  password: string;
-  user: SessionUser;
+interface BackendUser {
+  id: string;
+  email: string;
+  full_name: string;
+  role: string;
+  tenant_id?: string;
+  can_login: boolean;
 }
 
-// ─── Demo accounts for development ───────────────────────────────────────────
-// Replace with real backend integration in production
+interface BackendAuthResponse {
+  access_token: string;
+  access_token_expires_at: string;
+  refresh_token: string;
+  refresh_token_expires_at: string;
+  user: BackendUser;
+}
 
-const DEMO_TENANT = {
-  id: "t-demo-001",
-  name: "Сохтмони Дусти",
-  slug: "sohtmoni-dusti",
-} as const;
+interface BackendMeResponse {
+  id: string;
+  email: string;
+  full_name: string;
+  role: string;
+  tenant_id?: string;
+  tenant_name?: string;
+  can_login: boolean;
+}
 
-function makeDemoUser(
-  id: string,
-  email: string,
-  fullName: string,
-  roles: readonly UserRole[],
-): SessionUser {
+function mapBackendUser(user: BackendUser, me?: BackendMeResponse | null): SessionUser {
+  const role = (me?.role ?? user.role) as UserRole;
   return {
-    id,
-    email,
-    fullName,
+    id: me?.id ?? user.id,
+    email: me?.email ?? user.email,
+    fullName: me?.full_name ?? user.full_name,
     avatarUrl: null,
-    roles,
-    permissions: resolvePermissions(roles),
-    tenantId: DEMO_TENANT.id,
-    tenantName: DEMO_TENANT.name,
-    tenantSlug: DEMO_TENANT.slug,
+    role,
+    roles: [role],
+    permissions: resolvePermissions([role]),
+    tenantId: me?.tenant_id ?? user.tenant_id ?? "",
+    tenantName: me?.tenant_name ?? "",
   };
-}
-
-const demoAccounts: readonly DemoAccount[] = [
-  {
-    login: "demo",
-    password: "demo123",
-    user: makeDemoUser(
-      "u-demo-admin",
-      "admin@Hisob Building.tj",
-      "Алишер Назаров",
-      ["admin_company"],
-    ),
-  },
-  {
-    login: "manager",
-    password: "manager123",
-    user: makeDemoUser(
-      "u-demo-manager",
-      "manager@Hisob Building.tj",
-      "Фаррух Рахимов",
-      ["sales_manager"],
-    ),
-  },
-  {
-    login: "director",
-    password: "director123",
-    user: makeDemoUser(
-      "u-demo-director",
-      "director@Hisob Building.tj",
-      "Саид Ибрагимов",
-      ["sales_director"],
-    ),
-  },
-  {
-    login: "accountant",
-    password: "accountant123",
-    user: makeDemoUser(
-      "u-demo-accountant",
-      "accountant@Hisob Building.tj",
-      "Нигина Каримова",
-      ["accountant"],
-    ),
-  },
-];
-
-function normalizeLogin(value: string) {
-  return value.trim().toLowerCase();
-}
-
-function parseInput(body: unknown): PasswordSignInInput | null {
-  if (!body || typeof body !== "object") return null;
-  const record = body as Record<string, unknown>;
-  const login = typeof record.login === "string" ? record.login : "";
-  const password = typeof record.password === "string" ? record.password : "";
-  return { login, password };
 }
 
 export async function POST(request: Request) {
-  const rawBody = (await request.json().catch(() => null)) as unknown;
-  const input = parseInput(rawBody);
+  const rawBody = await request.json().catch(() => null) as unknown;
 
-  if (!input) {
+  if (!rawBody || typeof rawBody !== "object") {
     return NextResponse.json({ code: "AUTH_INVALID_INPUT" }, { status: 400 });
   }
 
-  const normalizedLogin = normalizeLogin(input.login);
-  const password = input.password.trim();
+  const body = rawBody as Record<string, unknown>;
+  const email = typeof body.email === "string" ? body.email : "";
+  const password = typeof body.password === "string" ? body.password : "";
 
-  if (!normalizedLogin || !password) {
+  if (!email || !password) {
     return NextResponse.json({ code: "AUTH_INVALID_INPUT" }, { status: 400 });
   }
 
-  const account = demoAccounts.find(
-    (c) => normalizeLogin(c.login) === normalizedLogin && c.password === password,
-  );
+  try {
+    const result = await backendRequest<BackendAuthResponse>("/api/v1/auth/login", {
+      method: "POST",
+      body: { email, password },
+    });
 
-  if (!account) {
-    return NextResponse.json({ code: "AUTH_INVALID_CREDENTIALS" }, { status: 401 });
+    const authData = result.data;
+
+    // Fetch fresh user profile with new access token to enrich session (tenant info, etc.)
+    const meData = await backendRequest<BackendMeResponse>("/api/v1/users/me", {
+      token: authData.access_token,
+    }).then((r) => r.data).catch(() => null);
+
+    const sessionUser = mapBackendUser(authData.user, meData);
+
+    const expiresAt = new Date(authData.refresh_token_expires_at);
+    const session: Session = {
+      user: sessionUser,
+      expiresAtIso: expiresAt.toISOString(),
+    };
+
+    const response = NextResponse.json(
+      {
+        data: {
+          user: sessionUser,
+          accessToken: authData.access_token,
+          accessTokenExpiresAt: authData.access_token_expires_at,
+          // refresh token is stored in httpOnly cookie only — never exposed to JS
+        },
+      },
+      { status: 200 },
+    );
+
+    const isProduction = process.env.NODE_ENV === "production";
+
+    // Store session in httpOnly cookie for server-side access
+    response.cookies.set({
+      name: SESSION_COOKIE_KEY,
+      value: encodeURIComponent(JSON.stringify(session)),
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: "lax",
+      path: "/",
+      expires: expiresAt,
+    });
+
+    // Store refresh token in httpOnly cookie — never accessible to JavaScript
+    response.cookies.set({
+      name: REFRESH_TOKEN_COOKIE_KEY,
+      value: authData.refresh_token,
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: "lax",
+      path: "/api/auth",
+      expires: expiresAt,
+    });
+
+    return response;
+  } catch (err) {
+    const error = err as { status?: number; code?: string; message?: string };
+
+    if (error.status === 401 || error.code === "UNAUTHORIZED") {
+      return NextResponse.json({ code: "AUTH_INVALID_CREDENTIALS" }, { status: 401 });
+    }
+
+    return NextResponse.json(
+      { code: error.code ?? "AUTH_UNKNOWN_ERROR", message: error.message },
+      { status: error.status ?? 500 },
+    );
   }
-
-  const expiresAt = new Date(Date.now() + SESSION_TTL_DAYS * 24 * 60 * 60 * 1000);
-  const session: Session = {
-    user: account.user,
-    expiresAtIso: expiresAt.toISOString(),
-  };
-
-  const response = NextResponse.json({ data: account.user }, { status: 200 });
-  response.cookies.set({
-    name: SESSION_COOKIE_KEY,
-    value: encodeURIComponent(JSON.stringify(session)),
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/",
-    expires: expiresAt,
-  });
-
-  return response;
 }

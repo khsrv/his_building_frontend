@@ -12,7 +12,7 @@ import { useNotifier } from "@/shared/providers/notifier-provider";
 import { AppButton, AppInput, LocaleSwitcher, ThemeModeSwitcher } from "@/shared/ui";
 
 interface FormErrors {
-  login?: string;
+  email?: string;
   password?: string;
   form?: string;
 }
@@ -25,11 +25,11 @@ export function LoginForm() {
     return createSignInWithPasswordUseCase(new HttpPasswordAuthClient());
   }, []);
 
-  const [login, setLogin] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<FormErrors>({});
-  const loginInputError = errors.login;
+  const emailInputError = errors.email;
   const passwordInputError = errors.password;
 
   const resolveErrorMessage = (error: unknown) => {
@@ -50,14 +50,14 @@ export function LoginForm() {
     event.preventDefault();
 
     const nextErrors: FormErrors = {};
-    if (!login.trim()) {
-      nextErrors.login = t("auth.login.validation.loginRequired");
+    if (!email.trim()) {
+      nextErrors.email = t("auth.login.validation.loginRequired");
     }
     if (!password.trim()) {
       nextErrors.password = t("auth.login.validation.passwordRequired");
     }
 
-    if (nextErrors.login || nextErrors.password) {
+    if (nextErrors.email || nextErrors.password) {
       setErrors(nextErrors);
       return;
     }
@@ -67,7 +67,7 @@ export function LoginForm() {
 
     try {
       await signInWithPassword({
-        login: login.trim(),
+        email: email.trim(),
         password: password.trim(),
       });
 
@@ -137,12 +137,12 @@ export function LoginForm() {
 
           <form className="space-y-3" onSubmit={onSubmit}>
             <AppInput
-              autoComplete="username"
+              autoComplete="email"
               label={t("auth.login.loginLabel")}
-              onChangeValue={setLogin}
+              onChangeValue={setEmail}
               placeholder={t("auth.login.loginPlaceholder")}
-              value={login}
-              {...(loginInputError ? { errorText: loginInputError } : {})}
+              value={email}
+              {...(emailInputError ? { errorText: emailInputError } : {})}
             />
 
             <AppInput

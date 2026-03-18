@@ -1,108 +1,30 @@
 "use client";
 
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import {
-  AppButton,
-  AppCrudPageScaffold,
-  AppDataTable,
-  type AppDataTableColumn,
-  AppKpiGrid,
   AppPageHeader,
+  AppDataTable,
+  AppDrawerForm,
+  AppButton,
+  AppInput,
   AppStatusBadge,
-  type AppStatusTone,
+  AppActionMenu,
+  ConfirmDialog,
+  ShimmerBox,
+  AppStatePanel,
+  type AppDataTableColumn,
 } from "@/shared/ui";
 import { routes } from "@/shared/constants/routes";
-import type { LandParcel } from "@/shared/types/entities";
-import type { LandDealType, LandStatus } from "@/shared/types/enums";
-import { CURRENCY_CONFIG } from "@/shared/types/enums";
-
-// ─── Status helpers ──────────────────────────────────────────────────────────
-
-const LAND_STATUS_LABEL: Record<LandStatus, string> = {
-  searching: "Поиск",
-  negotiation: "Переговоры",
-  acquired: "Приобретён",
-  in_development: "В разработке",
-  completed: "Завершён",
-};
-
-const LAND_STATUS_TONE: Record<LandStatus, AppStatusTone> = {
-  searching: "muted",
-  negotiation: "warning",
-  acquired: "success",
-  in_development: "info",
-  completed: "default",
-};
-
-const LAND_DEAL_TYPE_LABEL: Record<LandDealType, string> = {
-  monetary: "Денежная",
-  barter: "Бартер",
-  combined: "Комбинированная",
-};
-
-// ─── Mock data ──────────────────────────────────────────────────────────────
-// TODO: replace with real API hook (e.g. useLandParcelsQuery)
-
-const MOCK_PARCELS: readonly LandParcel[] = [
-  {
-    id: "l1",
-    tenantId: "t1",
-    address: "г. Душанбе, ул. Рудаки 100",
-    cadastralNumber: "01:01:0001:001",
-    areaSqm: 4500,
-    status: "acquired",
-    dealType: "monetary",
-    sellerName: "Раджабов А.",
-    totalCost: 2_500_000,
-    currency: "TJS",
-  },
-  {
-    id: "l2",
-    tenantId: "t1",
-    address: "г. Душанбе, пр. Сомони 55",
-    cadastralNumber: "01:01:0002:015",
-    areaSqm: 3200,
-    status: "negotiation",
-    dealType: "barter",
-    sellerName: "Каримов Б.",
-    totalCost: 1_800_000,
-    currency: "TJS",
-  },
-  {
-    id: "l3",
-    tenantId: "t1",
-    address: "г. Худжанд, ул. Ленина 30",
-    cadastralNumber: "03:05:0010:042",
-    areaSqm: 6000,
-    status: "in_development",
-    dealType: "combined",
-    sellerName: "Назаров В.",
-    totalCost: 150_000,
-    currency: "USD",
-  },
-  {
-    id: "l4",
-    tenantId: "t1",
-    address: "г. Бохтар, ул. Мирзо Турсунзода 12",
-    cadastralNumber: "02:03:0008:007",
-    areaSqm: 2800,
-    status: "searching",
-    dealType: "monetary",
-    sellerName: "Ходжаев Г.",
-    totalCost: 900_000,
-    currency: "TJS",
-  },
-] as const;
-
-// ─── Helpers ────────────────────────────────────────────────────────────────
-
-function formatCost(amount: number, currency: LandParcel["currency"]): string {
-  const cfg = CURRENCY_CONFIG[currency];
-  return `${amount.toLocaleString("ru-RU")} ${cfg.symbol}`;
-}
+import type { LandPlot } from "@/modules/land/domain/land";
+import { useLandPlotsQuery } from "@/modules/land/presentation/hooks/use-land-plots-query";
+import { useCreateLandPlotMutation } from "@/modules/land/presentation/hooks/use-create-land-plot-mutation";
+import { useUpdateLandPlotMutation } from "@/modules/land/presentation/hooks/use-update-land-plot-mutation";
+import { useDeleteLandPlotMutation } from "@/modules/land/presentation/hooks/use-delete-land-plot-mutation";
 
 // ─── Columns ────────────────────────────────────────────────────────────────
 
-const columns: readonly AppDataTableColumn<LandParcel>[] = [
+const BASE_COLUMNS: readonly AppDataTableColumn<LandPlot>[] = [
   {
     id: "address",
     header: "Адрес",
@@ -113,95 +35,229 @@ const columns: readonly AppDataTableColumn<LandParcel>[] = [
   {
     id: "cadastralNumber",
     header: "Кадастровый №",
-    cell: (row) => row.cadastralNumber,
-    searchAccessor: (row) => row.cadastralNumber,
+    cell: (row) => row.cadastralNumber ?? "—",
+    searchAccessor: (row) => row.cadastralNumber ?? "",
   },
   {
     id: "areaSqm",
     header: "Площадь (м\u00B2)",
-    cell: (row) => row.areaSqm.toLocaleString("ru-RU"),
-    sortAccessor: (row) => row.areaSqm,
+    cell: (row) => (row.areaSqm !== null ? row.areaSqm.toLocaleString("ru-RU") : "—"),
+    sortAccessor: (row) => row.areaSqm ?? 0,
     align: "right",
+  },
+  {
+    id: "propertyName",
+    header: "Объект",
+    cell: (row) => row.propertyName ?? "—",
+    sortAccessor: (row) => row.propertyName ?? "",
   },
   {
     id: "status",
     header: "Статус",
-    cell: (row) => (
-      <AppStatusBadge
-        label={LAND_STATUS_LABEL[row.status]}
-        tone={LAND_STATUS_TONE[row.status]}
-      />
-    ),
+    cell: (row) => <AppStatusBadge label={row.status} tone="default" />,
     sortAccessor: (row) => row.status,
-  },
-  {
-    id: "dealType",
-    header: "Тип сделки",
-    cell: (row) => LAND_DEAL_TYPE_LABEL[row.dealType],
-    sortAccessor: (row) => row.dealType,
-  },
-  {
-    id: "sellerName",
-    header: "Продавец",
-    cell: (row) => row.sellerName,
-    searchAccessor: (row) => row.sellerName,
-  },
-  {
-    id: "totalCost",
-    header: "Стоимость",
-    cell: (row) => formatCost(row.totalCost, row.currency),
-    sortAccessor: (row) => row.totalCost,
-    align: "right",
   },
 ];
 
 // ─── Page ───────────────────────────────────────────────────────────────────
 
-export default function LandPage() {
-  // TODO: replace with real API hook
-  const data = MOCK_PARCELS;
+export default function LandPlotsPage() {
+  const router = useRouter();
 
-  const total = data.length;
-  const acquired = data.filter((p) => p.status === "acquired" || p.status === "in_development" || p.status === "completed").length;
-  const inNegotiation = data.filter((p) => p.status === "negotiation").length;
+  // Drawer state
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [editingPlot, setEditingPlot] = useState<LandPlot | null>(null);
+  const [address, setAddress] = useState("");
+  const [cadastralNumber, setCadastralNumber] = useState("");
+  const [areaSqm, setAreaSqm] = useState("");
+  const [propertyId, setPropertyId] = useState("");
+  const [notes, setNotes] = useState("");
+
+  // Delete state
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+
+  // Queries & mutations
+  const plotsQuery = useLandPlotsQuery();
+  const createMutation = useCreateLandPlotMutation();
+  const updateMutation = useUpdateLandPlotMutation();
+  const deleteMutation = useDeleteLandPlotMutation();
+
+  const plots = plotsQuery.data ?? [];
+
+  function resetForm() {
+    setAddress("");
+    setCadastralNumber("");
+    setAreaSqm("");
+    setPropertyId("");
+    setNotes("");
+    setEditingPlot(null);
+  }
+
+  function openCreate() {
+    resetForm();
+    setDrawerOpen(true);
+  }
+
+  function openEdit(plot: LandPlot) {
+    setEditingPlot(plot);
+    setAddress(plot.address);
+    setCadastralNumber(plot.cadastralNumber ?? "");
+    setAreaSqm(plot.areaSqm !== null ? String(plot.areaSqm) : "");
+    setNotes(plot.notes ?? "");
+    setDrawerOpen(true);
+  }
+
+  function handleSave() {
+    if (!address) return;
+
+    if (editingPlot) {
+      updateMutation.mutate(
+        {
+          id: editingPlot.id,
+          input: {
+            address,
+            cadastralNumber: cadastralNumber || undefined,
+            areaSqm: areaSqm ? Number(areaSqm) : undefined,
+            notes: notes || undefined,
+          },
+        },
+        { onSuccess: () => { setDrawerOpen(false); resetForm(); } },
+      );
+    } else {
+      createMutation.mutate(
+        {
+          address,
+          cadastralNumber: cadastralNumber || undefined,
+          areaSqm: areaSqm ? Number(areaSqm) : undefined,
+          propertyId: propertyId || undefined,
+          notes: notes || undefined,
+        },
+        { onSuccess: () => { setDrawerOpen(false); resetForm(); } },
+      );
+    }
+  }
+
+  const columnsWithActions: readonly AppDataTableColumn<LandPlot>[] = [
+    ...BASE_COLUMNS,
+    {
+      id: "actions",
+      header: "",
+      cell: (row) => (
+        <AppActionMenu
+          triggerLabel="Действия"
+          groups={[
+            {
+              id: "main",
+              items: [
+                { id: "edit", label: "Редактировать", onClick: () => openEdit(row) },
+                { id: "delete", label: "Удалить", destructive: true, onClick: () => setDeleteId(row.id) },
+              ],
+            },
+          ]}
+        />
+      ),
+      align: "right",
+    },
+  ];
 
   return (
     <main className="space-y-6 p-6">
-      <AppCrudPageScaffold
-        header={
-          <AppPageHeader
-            title="Земельные участки"
-            subtitle={`${total} участков`}
-            breadcrumbs={[
-              { id: "dashboard", label: "Панель", href: routes.dashboard },
-              { id: "land", label: "Земля" },
-            ]}
-            actions={
-              <AppButton label="Добавить участок" variant="primary" size="md" />
-            }
-          />
+      <AppPageHeader
+        title="Земельные участки"
+        subtitle="Управление земельными участками"
+        breadcrumbs={[
+          { id: "home", label: "Панель", href: routes.dashboard },
+          { id: "land", label: "Земельные участки" },
+        ]}
+        actions={
+          <AppButton label="Добавить участок" variant="primary" onClick={openCreate} />
         }
-        filters={
-          <AppKpiGrid
-            columns={3}
-            items={[
-              { title: "Всего участков", value: total },
-              { title: "Приобретено", value: acquired, deltaTone: "success" },
-              { title: "В переговорах", value: inNegotiation, deltaTone: "warning" },
-            ]}
+      />
+
+      {plotsQuery.isLoading ? (
+        <ShimmerBox className="h-64" />
+      ) : plotsQuery.isError ? (
+        <AppStatePanel tone="error" title="Ошибка" description="Не удалось загрузить участки" />
+      ) : (
+        <AppDataTable<LandPlot>
+          title="Земельные участки"
+          data={plots}
+          columns={columnsWithActions}
+          rowKey={(row) => row.id}
+          searchPlaceholder="Поиск по адресу или кадастровому номеру..."
+          onRowClick={(row) => router.push(routes.landDetail(row.id))}
+          enableExport
+        />
+      )}
+
+      {/* Create / Edit drawer */}
+      <AppDrawerForm
+        open={drawerOpen}
+        onClose={() => { setDrawerOpen(false); resetForm(); }}
+        title={editingPlot ? "Редактировать участок" : "Новый участок"}
+        onSave={handleSave}
+        saveLabel={editingPlot ? "Сохранить" : "Создать"}
+        isSaving={createMutation.isPending || updateMutation.isPending}
+      >
+        <div className="space-y-4">
+          <AppInput
+            id="land-address"
+            label="Адрес"
+            value={address}
+            onChange={(e) => setAddress(e.target.value)}
+            required
+            placeholder="г. Душанбе, ул. Рудаки 100"
           />
-        }
-        content={
-          <AppDataTable<LandParcel>
-            data={data}
-            columns={columns}
-            rowKey={(row) => row.id}
-            title="Земельные участки"
-            searchPlaceholder="Поиск по адресу, кадастровому номеру или продавцу..."
-            enableExport
-            enableSettings
+          <AppInput
+            id="land-cadastral"
+            label="Кадастровый номер"
+            value={cadastralNumber}
+            onChange={(e) => setCadastralNumber(e.target.value)}
+            placeholder="01:01:0001:001"
           />
-        }
+          <AppInput
+            id="land-area"
+            label="Площадь (м\u00B2)"
+            type="number"
+            value={areaSqm}
+            onChange={(e) => setAreaSqm(e.target.value)}
+            placeholder="4500"
+          />
+          {!editingPlot && (
+            <AppInput
+              id="land-property"
+              label="ID объекта"
+              value={propertyId}
+              onChange={(e) => setPropertyId(e.target.value)}
+              placeholder="ID объекта (необязательно)"
+            />
+          )}
+          <AppInput
+            id="land-notes"
+            label="Примечания"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder="Дополнительная информация"
+          />
+        </div>
+      </AppDrawerForm>
+
+      {/* Delete confirmation */}
+      <ConfirmDialog
+        open={deleteId !== null}
+        title="Удалить участок"
+        message="Вы уверены, что хотите удалить этот земельный участок? Это действие необратимо."
+        confirmText="Удалить"
+        cancelText="Отмена"
+        destructive
+        onConfirm={() => {
+          if (deleteId) {
+            deleteMutation.mutate(deleteId, {
+              onSuccess: () => setDeleteId(null),
+            });
+          }
+        }}
+        onClose={() => setDeleteId(null)}
       />
     </main>
   );

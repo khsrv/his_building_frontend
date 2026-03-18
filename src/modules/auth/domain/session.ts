@@ -7,11 +7,12 @@ export interface SessionUser {
   readonly email: string;
   readonly fullName: string;
   readonly avatarUrl: string | null;
-  readonly roles: readonly UserRole[];
+  readonly role: UserRole;
+  readonly roles: readonly UserRole[]; // keep for compatibility = [role]
   readonly permissions: readonly PermissionCode[];
   readonly tenantId: string;
   readonly tenantName: string;
-  readonly tenantSlug: string;
+  readonly tenantSlug?: string; // optional — not returned by backend
 }
 
 export interface Session {

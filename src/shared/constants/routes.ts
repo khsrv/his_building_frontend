@@ -5,6 +5,7 @@ export const routes = {
 
   // Admin root
   dashboard: "/dashboard",
+  dashboardPropertyAnalytics: (id: string) => `/dashboard/properties/${id}` as const,
 
   // Buildings (ЖК)
   buildings: "/buildings",
@@ -20,6 +21,9 @@ export const routes = {
   clientCreate: "/clients/new",
   clientDetail: (id: string) => `/clients/${id}` as const,
 
+  // Pipeline (Kanban)
+  pipeline: "/pipeline",
+
   // Deals
   deals: "/deals",
   dealDetail: (id: string) => `/deals/${id}` as const,
@@ -33,7 +37,11 @@ export const routes = {
 
   // Payments
   payments: "/payments",
+  paymentsOverdue: "/payments/overdue",
   paymentSchedule: (dealId: string) => `/deals/${dealId}/payments` as const,
+
+  // Profile
+  profile: "/profile",
 
   // Finance
   finance: "/finance",
@@ -41,6 +49,9 @@ export const routes = {
   financeAccounts: "/finance/accounts",
   financeExchangeRates: "/finance/exchange-rates",
   financeReports: "/finance/reports",
+  financePayableReminders: "/finance/payable-reminders",
+  financeCurrencies: "/finance/currencies",
+  financeCategories: "/finance/categories",
 
   // Land
   land: "/land",
@@ -68,5 +79,13 @@ export const routes = {
   settingsUsers: "/settings/users",
   settingsRoles: "/settings/roles",
   settingsTemplates: "/settings/templates",
+  settingsSmsTemplates: "/settings/sms-templates",
   settingsIntegrations: "/settings/integrations",
+  settingsPipeline: "/settings/pipeline",
+  settingsPricingRules: "/settings/pricing-rules",
+  settingsBrokers: "/settings/brokers",
+  settingsInvoices: "/settings/invoices",
+
+  // Administration (super_admin)
+  adminTenants: "/admin/tenants",
 } as const;

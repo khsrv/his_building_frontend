@@ -1,12 +1,16 @@
 "use client";
 
-import { useMemo, type ReactNode } from "react";
+import { useCallback, useMemo, useState, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import Drawer from "@mui/material/Drawer";
+import IconButton from "@mui/material/IconButton";
 import { NAVIGATION_ITEMS, type NavItem } from "@/shared/constants/navigation";
 import { routes } from "@/shared/constants/routes";
 import { useI18n } from "@/shared/providers/locale-provider";
 import { useThemeMode } from "@/shared/providers/theme-provider";
 import { useAuth } from "@/modules/auth/presentation/hooks/use-auth";
+import { roleHasPermission } from "@/shared/types/permissions";
+import type { UserRole } from "@/shared/types/permissions";
 import type { AppSidebarItem } from "@/shared/ui/layout/app-sidebar";
 import { AppSidebar } from "@/shared/ui/layout/app-sidebar";
 import { AppTopBar, type AppTopBarAction } from "@/shared/ui/layout/app-top-bar";
@@ -106,6 +110,21 @@ function LogoutIcon() {
   );
 }
 
+function MenuIcon() {
+  return (
+    <svg
+      aria-hidden
+      className="h-6 w-6"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      viewBox="0 0 24 24"
+    >
+      <path d="M3 6h18M3 12h18M3 18h18" />
+    </svg>
+  );
+}
+
 function FlagRuIcon() {
   return (
     <svg aria-hidden className="h-6 w-9 rounded-sm" viewBox="0 0 18 12">
@@ -157,6 +176,30 @@ function FlagUzIcon() {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+/** Filter navigation items based on user's role permissions */
+function filterNavByRole(items: readonly NavItem[], roles: readonly UserRole[]): readonly NavItem[] {
+  const filtered: NavItem[] = [];
+
+  for (const item of items) {
+    // If item requires a permission, check if user has it
+    if (item.permission && !roleHasPermission(roles, item.permission)) {
+      continue;
+    }
+
+    if (item.children) {
+      const filteredChildren = filterNavByRole(item.children, roles);
+      // Only include parent if it has visible children
+      if (filteredChildren.length > 0) {
+        filtered.push({ ...item, children: filteredChildren });
+      }
+    } else {
+      filtered.push(item);
+    }
+  }
+
+  return filtered;
+}
+
 function navToSidebar(items: readonly NavItem[], t: (key: never) => string): readonly AppSidebarItem[] {
   return items.map((item) => ({
     id: item.id,
@@ -196,16 +239,32 @@ export function AppShell({ children }: AppShellProps) {
   const { user } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
+  const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
+
+  const handleMobileDrawerToggle = useCallback(() => {
+    setMobileDrawerOpen((prev) => !prev);
+  }, []);
+
+  const handleMobileDrawerClose = useCallback(() => {
+    setMobileDrawerOpen(false);
+  }, []);
 
   const activeItemId = useMemo(
     () => findActiveItemId(NAVIGATION_ITEMS, pathname) ?? "dashboard",
     [pathname],
   );
 
-  const sidebarItems = useMemo<readonly AppSidebarItem[]>(
-    () => navToSidebar(NAVIGATION_ITEMS, t),
-    [t],
+  const userRoles = useMemo<readonly UserRole[]>(
+    () => user?.roles ?? [],
+    [user?.roles],
   );
+
+  const sidebarItems = useMemo<readonly AppSidebarItem[]>(() => {
+    const visibleItems = userRoles.length > 0
+      ? filterNavByRole(NAVIGATION_ITEMS, userRoles)
+      : NAVIGATION_ITEMS;
+    return navToSidebar(visibleItems, t);
+  }, [t, userRoles]);
 
   const topBarActions = useMemo<readonly AppTopBarAction[]>(() => {
     return [
@@ -296,19 +355,58 @@ export function AppShell({ children }: AppShellProps) {
         items={sidebarItems}
       />
 
+      {/* Mobile sidebar drawer */}
+      <Drawer
+        ModalProps={{ keepMounted: true }}
+        onClose={handleMobileDrawerClose}
+        open={mobileDrawerOpen}
+        sx={{
+          display: { xs: "block", md: "none" },
+          "& .MuiDrawer-paper": {
+            width: 280,
+            boxSizing: "border-box",
+          },
+        }}
+        variant="temporary"
+      >
+        <div onClick={handleMobileDrawerClose}>
+          <AppSidebar
+            activeItemId={activeItemId}
+            brandIcon={<BrandIcon />}
+            brandLabel="Hisob Building"
+            className="!flex !relative !h-auto !min-h-screen !border-r-0"
+            items={sidebarItems}
+          />
+        </div>
+      </Drawer>
+
       <div className="flex-1 bg-background">
         <div className="mx-auto max-w-[1600px] px-4 py-4 md:px-6">
           <AppTopBar
             actions={topBarActions}
             className="mb-4"
             leftSlot={
-              <button
-                className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                title={t("topbar.openCalendar")}
-                type="button"
-              >
-                <CalendarToolsIcon />
-              </button>
+              <div className="flex items-center gap-1">
+                <IconButton
+                  aria-label="Open menu"
+                  className="md:!hidden"
+                  onClick={handleMobileDrawerToggle}
+                  size="small"
+                  sx={{
+                    display: { xs: "inline-flex", md: "none" },
+                    color: "rgb(var(--muted-foreground))",
+                  }}
+                >
+                  <MenuIcon />
+                </IconButton>
+                <button
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                  title={t("topbar.openCalendar")}
+                  type="button"
+                >
+                  <CalendarToolsIcon />
+                </button>
+              </div>
             }
             profile={{
               name: user?.fullName ?? "Demo",
@@ -321,7 +419,7 @@ export function AppShell({ children }: AppShellProps) {
                   label: t("topbar.profile"),
                   icon: <ProfileIcon />,
                   tone: "primary",
-                  href: routes.settings,
+                  href: routes.profile,
                 },
                 {
                   id: "logout",
@@ -330,6 +428,9 @@ export function AppShell({ children }: AppShellProps) {
                   tone: "danger",
                   onClick: async () => {
                     await fetch("/api/auth/logout", { method: "POST" }).catch(() => undefined);
+                    // Clear in-memory access token
+                    const { tokenStorage } = await import("@/shared/lib/http/token-storage");
+                    tokenStorage.clearAll();
                     router.replace(routes.login);
                     router.refresh();
                   },

@@ -1,0 +1,10 @@
+import { ShimmerBox } from "@/shared/ui";
+
+export default function Loading() {
+  return (
+    <div className="space-y-4 p-6">
+      <ShimmerBox className="h-16" />
+      <ShimmerBox className="h-64" />
+    </div>
+  );
+}

@@ -1,190 +1,449 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useParams } from "next/navigation";
+import { Box, Grid, Typography } from "@mui/material";
 import {
   AppPageHeader,
   AppStatusBadge,
   AppDataTable,
   AppCommentThread,
-  AppTagInput,
+  AppTabs,
+  AppButton,
+  AppSelect,
+  AppStatePanel,
+  ShimmerBox,
   type AppDataTableColumn,
   type AppComment,
+  type AppStatusTone,
 } from "@/shared/ui";
 import { routes } from "@/shared/constants/routes";
+import { useClientDetailQuery } from "@/modules/clients/presentation/hooks/use-client-detail-query";
+import { useClientInteractionsQuery } from "@/modules/clients/presentation/hooks/use-client-interactions-query";
+import { useAssignManagerMutation } from "@/modules/clients/presentation/hooks/use-assign-manager-mutation";
+import { EditClientDrawer } from "@/modules/clients/presentation/components/edit-client-drawer";
+import { AddInteractionDrawer } from "@/modules/clients/presentation/components/add-interaction-drawer";
+import { useDealsListQuery } from "@/modules/deals/presentation/hooks/use-deals-list-query";
+import { useUsersListQuery } from "@/modules/admin/presentation/hooks/use-users-list-query";
+import type { Interaction, ClientSource } from "@/modules/clients/domain/client";
+import type { Deal } from "@/modules/deals/domain/deal";
 
-// ---------------------------------------------------------------------------
-// Mock data
-// ---------------------------------------------------------------------------
+// ─── Source helpers ──────────────────────────────────────────────────────────
 
-interface ClientDeal {
-  id: string;
-  unitLabel: string;
-  buildingName: string;
-  stage: string;
-  stageTone: "success" | "warning" | "info" | "default";
-  totalAmount: string;
-  paidAmount: string;
-}
+const SOURCE_LABEL: Record<ClientSource, string> = {
+  website: "Сайт",
+  phone: "Телефон",
+  walk_in: "Визит",
+  referral: "Рекомендация",
+  broker: "Брокер",
+  social_media: "Соцсети",
+  advertising: "Реклама",
+  other: "Другое",
+};
 
-const MOCK_DEALS: readonly ClientDeal[] = [
+const INTERACTION_TYPE_LABEL: Record<Interaction["type"], string> = {
+  call: "Звонок",
+  meeting: "Встреча",
+  message: "Сообщение",
+  email: "Email",
+  other: "Другое",
+};
+
+const DEAL_STATUS_LABEL: Record<Deal["status"], string> = {
+  draft: "Черновик",
+  active: "Активная",
+  completed: "Завершена",
+  cancelled: "Отменена",
+};
+
+const DEAL_STATUS_TONE: Record<Deal["status"], AppStatusTone> = {
+  draft: "muted",
+  active: "success",
+  completed: "info",
+  cancelled: "danger",
+};
+
+const DEAL_COLUMNS: readonly AppDataTableColumn<Deal>[] = [
   {
-    id: "d-001",
-    unitLabel: "Кв. 42, 3-этаж",
-    buildingName: 'ЖК "Сомон"',
-    stage: "Договор",
-    stageTone: "success",
-    totalAmount: "450 000 USD",
-    paidAmount: "150 000 USD",
+    id: "dealNumber",
+    header: "Номер сделки",
+    cell: (row) => row.dealNumber,
+    sortAccessor: (row) => row.dealNumber,
   },
   {
-    id: "d-002",
-    unitLabel: "Кв. 15, 7-этаж",
-    buildingName: 'ЖК "Истиклол"',
-    stage: "Бронь",
-    stageTone: "warning",
-    totalAmount: "320 000 USD",
-    paidAmount: "32 000 USD",
+    id: "unit",
+    header: "Квартира / Объект",
+    cell: (row) => `${row.unitNumber} — ${row.propertyName}`,
   },
   {
-    id: "d-003",
-    unitLabel: "Кв. 88, 12-этаж",
-    buildingName: 'ЖК "Душанбе Сити"',
-    stage: "Переговоры",
-    stageTone: "info",
-    totalAmount: "580 000 USD",
-    paidAmount: "0 USD",
+    id: "status",
+    header: "Статус",
+    cell: (row) => (
+      <AppStatusBadge label={DEAL_STATUS_LABEL[row.status]} tone={DEAL_STATUS_TONE[row.status]} />
+    ),
+    sortAccessor: (row) => row.status,
   },
-] as const;
-
-const DEAL_COLUMNS: readonly AppDataTableColumn<ClientDeal>[] = [
-  { id: "unit", header: "Квартира", cell: (row) => row.unitLabel },
-  { id: "building", header: "ЖК", cell: (row) => row.buildingName },
   {
-    id: "stage",
-    header: "Этап",
-    cell: (row) => <AppStatusBadge label={row.stage} tone={row.stageTone} />,
+    id: "totalAmount",
+    header: "Сумма",
+    cell: (row) =>
+      row.totalAmount.toLocaleString("ru-RU") + " " + row.currency,
+    align: "right",
   },
-  { id: "total", header: "Сумма", cell: (row) => row.totalAmount, align: "right" },
-  { id: "paid", header: "Оплачено", cell: (row) => row.paidAmount, align: "right" },
+  {
+    id: "createdAt",
+    header: "Дата",
+    cell: (row) => new Date(row.createdAt).toLocaleDateString("ru-RU"),
+    sortAccessor: (row) => row.createdAt,
+  },
 ];
 
-const MOCK_COMMENTS: readonly AppComment[] = [
-  {
-    id: "c-1",
-    authorId: "u-1",
-    authorName: "Саидов Алишер",
-    text: "Клиент заинтересован в 3-комнатной квартире на высоком этаже. Бюджет до 500 000 USD.",
-    createdAt: new Date(Date.now() - 86400000 * 2).toISOString(),
-  },
-  {
-    id: "c-2",
-    authorId: "u-2",
-    authorName: "Каримова Нигина",
-    text: "Провели показ ЖК Сомон. Клиенту понравилась кв. 42. Готов внести задаток.",
-    createdAt: new Date(Date.now() - 86400000).toISOString(),
-  },
-  {
-    id: "c-3",
-    authorId: "u-1",
-    authorName: "Саидов Алишер",
-    text: "Задаток получен. Оформляем бронь на 48 часов.",
-    createdAt: new Date(Date.now() - 3600000).toISOString(),
-    replyToId: "c-2",
-  },
-] as const;
+// ─── Info Tab ─────────────────────────────────────────────────────────────────
 
-const TAG_OPTIONS = [
-  { id: "vip", label: "VIP" },
-  { id: "investor", label: "Инвестор" },
-  { id: "repeat", label: "Повторный" },
-  { id: "broker", label: "Через брокера" },
-] as const;
+interface InfoTabProps {
+  clientId: string;
+}
 
-// ---------------------------------------------------------------------------
-// Page component
-// ---------------------------------------------------------------------------
+function InfoTab({ clientId }: InfoTabProps) {
+  const [editOpen, setEditOpen] = useState(false);
+  const [managerDialogOpen, setManagerDialogOpen] = useState(false);
+  const [selectedManagerId, setSelectedManagerId] = useState("");
+  const { data: client, isLoading, isError } = useClientDetailQuery(clientId);
+  const usersQuery = useUsersListQuery({ limit: 100 });
+  const assignManagerMutation = useAssignManagerMutation();
 
-export default function ClientDetailPage() {
-  const params = useParams();
-  const _id = params.id as string;
+  const managerOptions = useMemo(() => {
+    const base = [{ value: "", label: "Выберите менеджера" }];
+    if (!usersQuery.data) return base;
+    return [
+      ...base,
+      ...usersQuery.data.items
+        .filter((u) => ["manager", "sales_head", "company_admin"].includes(u.role))
+        .map((u) => ({ value: u.id, label: `${u.fullName} (${u.role})` })),
+    ];
+  }, [usersQuery.data]);
 
-  const [tags, setTags] = useState<string[]>(["vip"]);
+  if (isLoading) {
+    return (
+      <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
+        <ShimmerBox style={{ height: 32 }} />
+        <ShimmerBox style={{ height: 32 }} />
+        <ShimmerBox style={{ height: 32 }} />
+      </Box>
+    );
+  }
 
-  const handleCommentSubmit = async (_text: string, _replyToId: string | null): Promise<void> => {
-    // TODO: mutation
-  };
+  if (isError || !client) {
+    return (
+      <AppStatePanel
+        tone="error"
+        title="Ошибка загрузки"
+        description="Не удалось загрузить данные клиента"
+      />
+    );
+  }
 
   return (
-    <div className="space-y-6">
-      <AppPageHeader
-        title="Рахимов Фаррух"
-        breadcrumbs={[
-          { id: "dashboard", label: "Панель", href: routes.dashboard },
-          { id: "clients", label: "Клиенты", href: routes.clients },
-          { id: "detail", label: "Рахимов Фаррух" },
-        ]}
-      />
+    <>
+      <Box sx={{ display: "flex", justifyContent: "flex-end", mb: 2 }}>
+        <AppButton
+          label="Редактировать"
+          variant="secondary"
+          size="sm"
+          onClick={() => setEditOpen(true)}
+        />
+      </Box>
 
-      {/* Client info card */}
-      <div className="rounded-xl border border-border bg-card p-6 shadow-sm">
-        <h2 className="mb-4 text-lg font-semibold text-foreground">
-          Информация о клиенте
-        </h2>
+      <Grid container spacing={3}>
+        <Grid size={{ xs: 12, sm: 6, lg: 4 }}>
+          <Typography variant="caption" color="text.secondary">
+            ФИО
+          </Typography>
+          <Typography variant="body2" fontWeight={500}>
+            {client.fullName}
+          </Typography>
+        </Grid>
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <div>
-            <p className="text-xs text-muted-foreground">Телефон</p>
-            <p className="text-sm font-medium text-foreground">+992 93 123 4567</p>
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground">Email</p>
-            <p className="text-sm font-medium text-foreground">rakhimov.f@mail.tj</p>
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground">Источник</p>
-            <p className="text-sm font-medium text-foreground">Рекомендация</p>
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground">Менеджер</p>
-            <p className="text-sm font-medium text-foreground">Саидов Алишер</p>
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground">Паспорт</p>
-            <p className="text-sm font-medium text-foreground">А 1234567</p>
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground">Теги</p>
-            <div className="mt-1">
-              <AppTagInput
-                value={tags}
-                onChange={setTags}
-                options={[...TAG_OPTIONS]}
-                size="small"
+        <Grid size={{ xs: 12, sm: 6, lg: 4 }}>
+          <Typography variant="caption" color="text.secondary">
+            Телефон
+          </Typography>
+          <Typography variant="body2" fontWeight={500}>
+            {client.phone}
+          </Typography>
+        </Grid>
+
+        {client.extraPhone ? (
+          <Grid size={{ xs: 12, sm: 6, lg: 4 }}>
+            <Typography variant="caption" color="text.secondary">
+              Доп. телефон
+            </Typography>
+            <Typography variant="body2" fontWeight={500}>
+              {client.extraPhone}
+            </Typography>
+          </Grid>
+        ) : null}
+
+        {client.email ? (
+          <Grid size={{ xs: 12, sm: 6, lg: 4 }}>
+            <Typography variant="caption" color="text.secondary">
+              Email
+            </Typography>
+            <Typography variant="body2" fontWeight={500}>
+              {client.email}
+            </Typography>
+          </Grid>
+        ) : null}
+
+        {client.whatsapp ? (
+          <Grid size={{ xs: 12, sm: 6, lg: 4 }}>
+            <Typography variant="caption" color="text.secondary">
+              WhatsApp
+            </Typography>
+            <Typography variant="body2" fontWeight={500}>
+              {client.whatsapp}
+            </Typography>
+          </Grid>
+        ) : null}
+
+        {client.telegram ? (
+          <Grid size={{ xs: 12, sm: 6, lg: 4 }}>
+            <Typography variant="caption" color="text.secondary">
+              Telegram
+            </Typography>
+            <Typography variant="body2" fontWeight={500}>
+              {client.telegram}
+            </Typography>
+          </Grid>
+        ) : null}
+
+        <Grid size={{ xs: 12, sm: 6, lg: 4 }}>
+          <Typography variant="caption" color="text.secondary">
+            Источник
+          </Typography>
+          <Typography variant="body2" fontWeight={500}>
+            {SOURCE_LABEL[client.source]}
+          </Typography>
+        </Grid>
+
+        <Grid size={{ xs: 12, sm: 6, lg: 4 }}>
+          <Typography variant="caption" color="text.secondary">
+            Менеджер
+          </Typography>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+            <Typography variant="body2" fontWeight={500}>
+              {client.managerName ?? "Не назначен"}
+            </Typography>
+            <AppButton
+              label="Сменить"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setSelectedManagerId(client.managerId ?? "");
+                setManagerDialogOpen(true);
+              }}
+            />
+          </Box>
+        </Grid>
+
+        {client.pipelineStageName ? (
+          <Grid size={{ xs: 12, sm: 6, lg: 4 }}>
+            <Typography variant="caption" color="text.secondary">
+              Этап воронки
+            </Typography>
+            <Typography variant="body2" fontWeight={500}>
+              {client.pipelineStageName}
+            </Typography>
+          </Grid>
+        ) : null}
+
+        {client.address ? (
+          <Grid size={{ xs: 12 }}>
+            <Typography variant="caption" color="text.secondary">
+              Адрес
+            </Typography>
+            <Typography variant="body2" fontWeight={500}>
+              {client.address}
+            </Typography>
+          </Grid>
+        ) : null}
+
+        {client.notes ? (
+          <Grid size={{ xs: 12 }}>
+            <Typography variant="caption" color="text.secondary">
+              Заметки
+            </Typography>
+            <Typography variant="body2" fontWeight={500} sx={{ whiteSpace: "pre-wrap" }}>
+              {client.notes}
+            </Typography>
+          </Grid>
+        ) : null}
+      </Grid>
+
+      <EditClientDrawer client={client} open={editOpen} onClose={() => setEditOpen(false)} />
+
+      {/* Manager assignment dialog */}
+      {managerDialogOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4">
+          <div className="w-full max-w-md rounded-xl border border-border bg-card p-6 shadow-xl">
+            <h3 className="mb-4 text-lg font-semibold text-foreground">Назначить менеджера</h3>
+            <AppSelect
+              id="assign-manager"
+              label="Менеджер"
+              options={managerOptions}
+              value={selectedManagerId}
+              onChange={(e) => setSelectedManagerId(e.target.value)}
+            />
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              <AppButton
+                label="Отмена"
+                variant="outline"
+                onClick={() => setManagerDialogOpen(false)}
+              />
+              <AppButton
+                label="Назначить"
+                variant="primary"
+                disabled={!selectedManagerId || assignManagerMutation.isPending}
+                onClick={() => {
+                  if (!selectedManagerId) return;
+                  assignManagerMutation.mutate(
+                    { clientId, managerId: selectedManagerId },
+                    { onSuccess: () => setManagerDialogOpen(false) },
+                  );
+                }}
               />
             </div>
           </div>
         </div>
-      </div>
+      ) : null}
+    </>
+  );
+}
 
-      {/* Deals table */}
-      <AppDataTable<ClientDeal>
-        title="Сделки клиента"
-        data={MOCK_DEALS}
-        columns={DEAL_COLUMNS}
-        rowKey={(row) => row.id}
-        enableSelection={false}
-        enableExport={false}
-        enableSettings={false}
-        initialPageSize={5}
+// ─── Interactions Tab ─────────────────────────────────────────────────────────
+
+interface InteractionsTabProps {
+  clientId: string;
+}
+
+function InteractionsTab({ clientId }: InteractionsTabProps) {
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const { data: interactions, isLoading } = useClientInteractionsQuery(clientId);
+
+  const comments: readonly AppComment[] = (interactions ?? []).map(
+    (interaction): AppComment => ({
+      id: interaction.id,
+      authorId: interaction.id, // no userId, use id as key
+      authorName: interaction.createdByName,
+      text: `[${INTERACTION_TYPE_LABEL[interaction.type]}] ${interaction.notes}${
+        interaction.nextContactDate
+          ? `\n\nСледующий контакт: ${new Date(interaction.nextContactDate).toLocaleDateString("ru-RU")}`
+          : ""
+      }`,
+      createdAt: interaction.createdAt,
+    }),
+  );
+
+  return (
+    <>
+      <Box sx={{ display: "flex", justifyContent: "flex-end", mb: 2 }}>
+        <AppButton
+          label="Добавить взаимодействие"
+          variant="primary"
+          size="sm"
+          onClick={() => setDrawerOpen(true)}
+        />
+      </Box>
+
+      <AppCommentThread
+        title="История взаимодействий"
+        comments={comments}
+        currentUserId="__readonly__"
+        loading={isLoading}
+        onSubmit={async () => {
+          // Submission is done through the drawer, not inline
+        }}
       />
 
-      {/* Comments */}
-      <AppCommentThread
-        title="Заметки и история"
-        comments={MOCK_COMMENTS}
-        currentUserId="u-1"
-        onSubmit={handleCommentSubmit}
+      <AddInteractionDrawer
+        clientId={clientId}
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+      />
+    </>
+  );
+}
+
+// ─── Deals Tab ────────────────────────────────────────────────────────────────
+
+interface DealsTabProps {
+  clientId: string;
+}
+
+function DealsTab({ clientId }: DealsTabProps) {
+  const { data: deals, isLoading, isError } = useDealsListQuery({ clientId });
+
+  if (isError) {
+    return (
+      <AppStatePanel
+        tone="error"
+        title="Ошибка загрузки"
+        description="Не удалось загрузить сделки клиента"
+      />
+    );
+  }
+
+  return (
+    <AppDataTable<Deal>
+      title="Сделки клиента"
+      data={deals ?? []}
+      columns={DEAL_COLUMNS}
+      rowKey={(row) => row.id}
+      enableSelection={false}
+      enableExport={false}
+      enableSettings={false}
+      initialPageSize={5}
+    />
+  );
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
+export default function ClientDetailPage() {
+  const params = useParams();
+  const id = params["id"] as string;
+
+  const { data: client, isLoading } = useClientDetailQuery(id);
+
+  return (
+    <div className="space-y-6 p-6">
+      <AppPageHeader
+        title={isLoading ? "Загрузка..." : (client?.fullName ?? "Клиент")}
+        breadcrumbs={[
+          { id: "dashboard", label: "Панель", href: routes.dashboard },
+          { id: "clients", label: "Клиенты", href: routes.clients },
+          { id: "detail", label: client?.fullName ?? "..." },
+        ]}
+      />
+
+      <AppTabs
+        tabs={[
+          {
+            id: "info",
+            title: "Информация",
+            content: <InfoTab clientId={id} />,
+          },
+          {
+            id: "interactions",
+            title: "Взаимодействия",
+            content: <InteractionsTab clientId={id} />,
+          },
+          {
+            id: "deals",
+            title: "Сделки",
+            content: <DealsTab clientId={id} />,
+          },
+        ]}
       />
     </div>
   );

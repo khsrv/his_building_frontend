@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   AppButton,
@@ -10,14 +11,16 @@ import {
   AppPageHeader,
   AppStatusBadge,
   type AppStatusTone,
+  AppStatePanel,
 } from "@/shared/ui";
 import { routes } from "@/shared/constants/routes";
-import type { Client } from "@/shared/types/entities";
-import type { DealSource } from "@/shared/types/enums";
+import { useClientsListQuery } from "@/modules/clients/presentation/hooks/use-clients-list-query";
+import { CreateClientDrawer } from "@/modules/clients/presentation/components/create-client-drawer";
+import type { Client, ClientSource } from "@/modules/clients/domain/client";
 
 // ─── Source helpers ──────────────────────────────────────────────────────────
 
-const SOURCE_LABEL: Record<DealSource, string> = {
+const SOURCE_LABEL: Record<ClientSource, string> = {
   website: "Сайт",
   phone: "Телефон",
   walk_in: "Визит",
@@ -28,7 +31,7 @@ const SOURCE_LABEL: Record<DealSource, string> = {
   other: "Другое",
 };
 
-const SOURCE_TONE: Record<DealSource, AppStatusTone> = {
+const SOURCE_TONE: Record<ClientSource, AppStatusTone> = {
   website: "info",
   phone: "default",
   walk_in: "success",
@@ -38,89 +41,6 @@ const SOURCE_TONE: Record<DealSource, AppStatusTone> = {
   advertising: "default",
   other: "muted",
 };
-
-// ─── Mock data (replace with API hook) ───────────────────────────────────────
-
-const MOCK_CLIENTS: readonly Client[] = [
-  {
-    id: "c1",
-    tenantId: "t1",
-    fullName: "Рахимов Фаррух Сайдуллоевич",
-    phone: "+992 93 123 4567",
-    email: "rakhimov@mail.tj",
-    passportNumber: null,
-    source: "website",
-    managerId: "m1",
-    managerName: "Шарипов А.",
-    tags: ["VIP", "ЖК Сомон"],
-    createdAt: "2025-12-01T10:00:00Z",
-  },
-  {
-    id: "c2",
-    tenantId: "t1",
-    fullName: "Каримова Нигина Абдуллоевна",
-    phone: "+992 90 987 6543",
-    email: "nkarimova@gmail.com",
-    passportNumber: null,
-    source: "referral",
-    managerId: "m2",
-    managerName: "Назаров Д.",
-    tags: ["Ипотека"],
-    createdAt: "2026-01-15T14:30:00Z",
-  },
-  {
-    id: "c3",
-    tenantId: "t1",
-    fullName: "Саидов Бехруз Рахматуллоевич",
-    phone: "+992 91 555 1234",
-    email: null,
-    passportNumber: null,
-    source: "phone",
-    managerId: "m1",
-    managerName: "Шарипов А.",
-    tags: ["2-комн"],
-    createdAt: "2026-02-10T09:15:00Z",
-  },
-  {
-    id: "c4",
-    tenantId: "t1",
-    fullName: "Назарова Мадина Ходжиевна",
-    phone: "+992 92 777 8899",
-    email: "madina.n@inbox.tj",
-    passportNumber: null,
-    source: "walk_in",
-    managerId: "m3",
-    managerName: "Ализода М.",
-    tags: ["Рассрочка", "ЖК Дусти"],
-    createdAt: "2026-02-20T11:00:00Z",
-  },
-  {
-    id: "c5",
-    tenantId: "t1",
-    fullName: "Ашуров Далер Комилджонович",
-    phone: "+992 93 333 2211",
-    email: "ashurov.d@mail.ru",
-    passportNumber: null,
-    source: "social_media",
-    managerId: "m2",
-    managerName: "Назаров Д.",
-    tags: [],
-    createdAt: "2026-03-01T16:45:00Z",
-  },
-  {
-    id: "c6",
-    tenantId: "t1",
-    fullName: "Джураева Фируза Анваровна",
-    phone: "+992 90 111 4455",
-    email: null,
-    passportNumber: null,
-    source: "advertising",
-    managerId: "m1",
-    managerName: "Шарипов А.",
-    tags: ["Коммерция"],
-    createdAt: "2026-03-10T08:20:00Z",
-  },
-] as const;
 
 // ─── Columns ─────────────────────────────────────────────────────────────────
 
@@ -137,12 +57,6 @@ const columns: readonly AppDataTableColumn<Client>[] = [
     header: "Телефон",
     cell: (row) => row.phone,
     searchAccessor: (row) => row.phone,
-  },
-  {
-    id: "email",
-    header: "Email",
-    cell: (row) => row.email ?? "—",
-    searchAccessor: (row) => row.email,
   },
   {
     id: "source",
@@ -162,9 +76,14 @@ const columns: readonly AppDataTableColumn<Client>[] = [
     sortAccessor: (row) => row.managerName ?? "",
   },
   {
-    id: "tags",
-    header: "Теги",
-    cell: (row) => row.tags.length > 0 ? row.tags.join(", ") : "—",
+    id: "pipelineStageName",
+    header: "Этап",
+    cell: (row) =>
+      row.pipelineStageName ? (
+        <AppStatusBadge label={row.pipelineStageName} tone="info" />
+      ) : (
+        "—"
+      ),
   },
   {
     id: "createdAt",
@@ -178,14 +97,31 @@ const columns: readonly AppDataTableColumn<Client>[] = [
 
 export default function ClientsPage() {
   const router = useRouter();
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
-  // TODO: replace with real API hook (e.g. useClientsListQuery)
-  const data = MOCK_CLIENTS;
+  const { data, isLoading, isError, error } = useClientsListQuery({ page: 1, limit: 100 });
 
-  const totalClients = data.length;
-  // Mock stats — will come from API summary endpoint
-  const newThisMonth = 3;
-  const withActiveDeals = 4;
+  const clients = data?.items ?? [];
+  const total = data?.total ?? 0;
+
+  // Compute new-this-month count from loaded data
+  const now = new Date();
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+  const newThisMonth = clients.filter((c) => c.createdAt >= startOfMonth).length;
+
+  if (isError) {
+    return (
+      <main className="p-6">
+        <AppStatePanel
+          tone="error"
+          title="Ошибка загрузки"
+          description={
+            error instanceof Error ? error.message : "Не удалось загрузить список клиентов"
+          }
+        />
+      </main>
+    );
+  }
 
   return (
     <main className="space-y-6 p-6">
@@ -193,7 +129,7 @@ export default function ClientsPage() {
         header={
           <AppPageHeader
             title="Клиенты"
-            subtitle={`${totalClients} клиентов`}
+            subtitle={`${total} клиентов`}
             breadcrumbs={[
               { id: "dashboard", label: "Панель", href: routes.dashboard },
               { id: "clients", label: "Клиенты" },
@@ -203,7 +139,7 @@ export default function ClientsPage() {
                 label="Добавить клиента"
                 variant="primary"
                 size="md"
-                onClick={() => router.push(routes.clients)}
+                onClick={() => setDrawerOpen(true)}
               />
             }
           />
@@ -212,15 +148,15 @@ export default function ClientsPage() {
           <AppKpiGrid
             columns={3}
             items={[
-              { title: "Всего клиентов", value: totalClients },
+              { title: "Всего клиентов", value: total },
               { title: "Новые за месяц", value: newThisMonth, deltaTone: "info" },
-              { title: "С активными сделками", value: withActiveDeals, deltaTone: "success" },
+              { title: "Загружено", value: clients.length, deltaTone: "success" },
             ]}
           />
         }
         content={
           <AppDataTable<Client>
-            data={data}
+            data={clients}
             columns={columns}
             rowKey={(row) => row.id}
             title="Клиенты"
@@ -230,6 +166,11 @@ export default function ClientsPage() {
             onRowClick={(row) => router.push(routes.clientDetail(row.id))}
           />
         }
+      />
+
+      <CreateClientDrawer
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
       />
     </main>
   );
