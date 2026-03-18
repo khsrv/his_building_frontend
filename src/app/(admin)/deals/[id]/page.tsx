@@ -25,7 +25,7 @@ interface DealTabSpec {
   content: ReactNode;
 }
 import { routes } from "@/shared/constants/routes";
-import { useDealDetailQuery } from "@/modules/deals/presentation/hooks/use-deal-detail-query";
+import { useEnrichedDealDetailQuery } from "@/modules/deals/presentation/hooks/use-enriched-deal-detail-query";
 import { useDealScheduleQuery } from "@/modules/deals/presentation/hooks/use-deal-schedule-query";
 import { useDealPaymentsQuery } from "@/modules/deals/presentation/hooks/use-deal-payments-query";
 import { useActivateDealMutation } from "@/modules/deals/presentation/hooks/use-activate-deal-mutation";
@@ -56,12 +56,10 @@ function mapScheduleStatusToTimeline(status: ScheduleItemStatus): AppPaymentStat
       return "paid";
     case "overdue":
       return "overdue";
-    case "upcoming":
-      return "upcoming";
+    case "partial":
+      return "today";
     case "pending":
       return "upcoming";
-    case "partially_paid":
-      return "today";
     default:
       return "upcoming";
   }
@@ -110,7 +108,7 @@ export default function DealDetailPage() {
   const [confirmPaymentId, setConfirmPaymentId] = useState<string | null>(null);
   const [rejectPaymentId, setRejectPaymentId] = useState<string | null>(null);
 
-  const { data: deal, isLoading: dealLoading, error: dealError } = useDealDetailQuery(id);
+  const { data: deal, isLoading: dealLoading, error: dealError } = useEnrichedDealDetailQuery(id);
   const { data: schedule = [], isLoading: scheduleLoading } = useDealScheduleQuery(id);
   const { data: payments = [] } = useDealPaymentsQuery(id);
 
@@ -404,7 +402,7 @@ export default function DealDetailPage() {
           />
           <AppStatCard
             title="Остаток"
-            value={formatMoney(deal.remainingAmount, deal.currency)}
+            value={formatMoney(deal.finalAmount - paidAmount, deal.currency)}
             deltaTone="warning"
           />
           <AppStatCard title="Статус" value={DEAL_STATUS_LABEL[deal.status]} />

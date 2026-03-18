@@ -84,7 +84,7 @@ export function CreateStockMovementDrawer({
     { label: "— Не указан —", value: "" },
     ...(buildingsQuery.data ?? []).map((b) => ({
       value: b.id,
-      label: b.title,
+      label: b.name,
     })),
   ];
 

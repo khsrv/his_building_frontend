@@ -31,13 +31,11 @@ import type { Deal } from "@/modules/deals/domain/deal";
 // ─── Source helpers ──────────────────────────────────────────────────────────
 
 const SOURCE_LABEL: Record<ClientSource, string> = {
+  instagram: "Instagram",
+  facebook: "Facebook",
   website: "Сайт",
-  phone: "Телефон",
-  walk_in: "Визит",
   referral: "Рекомендация",
-  broker: "Брокер",
-  social_media: "Соцсети",
-  advertising: "Реклама",
+  direct: "Прямой",
   other: "Другое",
 };
 

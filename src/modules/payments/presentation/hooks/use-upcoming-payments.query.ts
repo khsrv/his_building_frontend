@@ -34,7 +34,7 @@ export function useUpcomingPaymentsQuery(params: UpcomingPaymentsParams) {
         "/api/v1/schedule/upcoming",
         query,
       );
-      return response.data.items.map(mapUpcomingPaymentDto);
+      return (response.data.items ?? []).filter((item) => Boolean(item?.id)).map(mapUpcomingPaymentDto);
     },
     staleTime: 2 * 60 * 1000,
   });

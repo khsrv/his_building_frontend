@@ -26,13 +26,50 @@ interface RefreshTokenData {
   accessTokenExpiresAt: string;
 }
 
+// ─── Dev logger (disabled in production) ─────────────────────────────────────
+
+const IS_DEV = process.env.NODE_ENV === "development";
+
+function logRequest(method: string, url: string, body?: unknown) {
+  if (!IS_DEV || typeof window === "undefined") return;
+  console.groupCollapsed(
+    `%c⬆ ${method} %c${url}`,
+    "color:#6366f1;font-weight:700",
+    "color:#94a3b8;font-weight:400",
+  );
+  if (body) console.log("Body:", body);
+  console.groupEnd();
+}
+
+function logResponse(method: string, url: string, status: number, data: unknown) {
+  if (!IS_DEV || typeof window === "undefined") return;
+  const ok = status >= 200 && status < 300;
+  console.groupCollapsed(
+    `%c${ok ? "⬇" : "✗"} ${status} ${method} %c${url}`,
+    ok ? "color:#22c55e;font-weight:700" : "color:#ef4444;font-weight:700",
+    "color:#94a3b8;font-weight:400",
+  );
+  console.log("Response:", data);
+  console.groupEnd();
+}
+
+// ─── Core request ─────────────────────────────────────────────────────────────
+
 async function doRequest<T>(
   path: string,
   options: HttpRequestOptions & { token?: string | null },
 ): Promise<T> {
   const { query, skipAuth: _skipAuth, token, headers, ...requestInit } = options;
+  const url = buildUrl(path, query);
+  const method = (requestInit.method ?? "GET").toUpperCase();
 
-  const response = await fetch(buildUrl(path, query), {
+  let parsedBody: unknown;
+  if (requestInit.body && typeof requestInit.body === "string") {
+    try { parsedBody = JSON.parse(requestInit.body); } catch { parsedBody = requestInit.body; }
+  }
+  logRequest(method, url, parsedBody);
+
+  const response = await fetch(url, {
     ...requestInit,
     headers: {
       "Content-Type": "application/json",
@@ -50,6 +87,8 @@ async function doRequest<T>(
         code?: string;
       };
 
+    logResponse(method, url, response.status, body);
+
     if (response.status === 401)
       throw new AppError("UNAUTHORIZED", body.message ?? "Unauthorized", 401, body);
     if (response.status === 403)
@@ -61,7 +100,9 @@ async function doRequest<T>(
     throw new AppError("UNKNOWN", body.message ?? "Request failed", response.status, body);
   }
 
-  return (await response.json()) as T;
+  const data = (await response.json()) as T;
+  logResponse(method, url, response.status, data);
+  return data;
 }
 
 // Promise lock to prevent concurrent token refresh (race condition guard)

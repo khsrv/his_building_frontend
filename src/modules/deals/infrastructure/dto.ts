@@ -10,24 +10,28 @@ import type {
 
 export interface DealDto {
   id: string;
+  tenant_id: string;
   deal_number: string;
   status: BackendDealStatus;
   payment_type: BackendPaymentType;
   total_amount: number;
   currency: string;
   discount_amount: number;
+  discount_reason: string;
+  surcharge_amount: number;
+  final_amount: number;
   down_payment: number;
   installment_months: number | null;
-  remaining_amount: number;
+  installment_frequency: string;
   client_id: string;
-  client_name: string;
-  client_phone: string;
   unit_id: string;
-  unit_number: string;
-  property_id: string;
-  property_name: string;
   manager_id: string;
-  manager_name: string;
+  contract_number: string;
+  notes: string;
+  signed_at: string | null;
+  completed_at: string | null;
+  cancelled_at: string | null;
+  cancellation_reason: string;
   created_at: string;
   updated_at: string;
 }
@@ -56,9 +60,9 @@ export interface ScheduleItemDto {
   due_date: string;
   planned_amount: number;
   paid_amount: number;
-  remaining_amount: number;
+  remaining: number;
   status: BackendScheduleStatus;
-  paid_at: string | null;
+  penalty_amount: number;
 }
 
 export interface ScheduleResponseDto {

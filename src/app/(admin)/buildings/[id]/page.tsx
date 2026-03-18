@@ -51,18 +51,16 @@ import type {
 
 const PROPERTY_STATUS_LABEL: Record<PropertyStatus, string> = {
   planning: "Планирование",
-  under_construction: "Строительство",
+  construction: "Строительство",
   completed: "Завершён",
-  selling: "Продажа",
-  archived: "Архив",
+  suspended: "Приостановлен",
 };
 
 const PROPERTY_STATUS_TONE: Record<PropertyStatus, AppStatusTone> = {
   planning: "muted",
-  under_construction: "warning",
+  construction: "warning",
   completed: "success",
-  selling: "info",
-  archived: "muted",
+  suspended: "danger",
 };
 
 const UNIT_STATUS_LABEL: Record<UnitStatus, string> = {
@@ -596,25 +594,25 @@ export default function BuildingDetailPage() {
           </div>
           <div>
             <p className="text-xs text-muted-foreground">Начало строительства</p>
-            <p className="text-sm font-medium">{property.startDate ?? "—"}</p>
+            <p className="text-sm font-medium">{property.constructionStartDate ?? "—"}</p>
           </div>
           <div>
             <p className="text-xs text-muted-foreground">Завершение</p>
-            <p className="text-sm font-medium">{property.completionDate ?? "—"}</p>
+            <p className="text-sm font-medium">{property.constructionEndDate ?? "—"}</p>
           </div>
         </div>
       </AppCard>
 
       {/* Stats */}
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <AppStatCard title="Блоков" value={String(property.blocksCount)} />
-        <AppStatCard title="Этажей" value={String(property.floorsCount)} />
-        <AppStatCard title="Всего квартир" value={String(property.unitsCount)} />
+        <AppStatCard title="Всего квартир" value={String(property.totalUnits)} />
+        <AppStatCard title="Продано" value={String(property.soldUnits)} />
+        <AppStatCard title="Реализация" value={`${property.realizationPercent.toFixed(1)}%`} />
         <AppStatCard
           delta={`${freeCount} свободных`}
           deltaTone="success"
           title="Свободных"
-          value={String(property.availableUnits)}
+          value={String(property.totalUnits - property.soldUnits)}
         />
       </div>
 
@@ -765,10 +763,9 @@ export default function BuildingDetailPage() {
             onChange={(e) => setEditPropertyForm((prev) => ({ ...prev, status: e.target.value }))}
             options={[
               { label: "Планирование", value: "planning" },
-              { label: "Строительство", value: "under_construction" },
+              { label: "Строительство", value: "construction" },
               { label: "Завершён", value: "completed" },
-              { label: "Продажа", value: "selling" },
-              { label: "Архив", value: "archived" },
+              { label: "Приостановлен", value: "suspended" },
             ]}
           />
           <TextField

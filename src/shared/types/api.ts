@@ -70,7 +70,7 @@ export type BackendDealStatus = "draft" | "active" | "completed" | "cancelled";
 export type BackendPaymentStatus = "pending" | "confirmed" | "rejected";
 
 /** Payment schedule item status */
-export type BackendScheduleStatus = "pending" | "upcoming" | "paid" | "partially_paid" | "overdue";
+export type BackendScheduleStatus = "pending" | "paid" | "partial" | "overdue";
 
 /** Work order lifecycle */
 export type BackendWorkOrderStatus = "draft" | "in_progress" | "completed" | "accepted";
@@ -85,7 +85,7 @@ export type BackendPayableReminderStatus = "pending" | "paid" | "cancelled";
 export type BackendPayeeType = "supplier" | "contractor" | "master" | "other";
 
 /** Account types for finance */
-export type BackendAccountType = "bank_account" | "cash_register" | "mobile_wallet";
+export type BackendAccountType = "cash" | "bank_account" | "card";
 
 /** Payment method */
 export type BackendPaymentMethod = "cash" | "bank_transfer" | "mobile";

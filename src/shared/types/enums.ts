@@ -6,7 +6,7 @@ export type UnitType = "studio" | "1_room" | "2_room" | "3_room" | "4_room" | "p
 
 // ─── Building / JK statuses ───────────────────────────────────────────────────
 
-export type BuildingStatus = "planning" | "construction" | "completed" | "selling" | "archived";
+export type BuildingStatus = "planning" | "construction" | "completed" | "suspended";
 
 export type ConstructionStage =
   | "foundation"
@@ -31,13 +31,11 @@ export type DealStage =
   | "deferred";
 
 export type DealSource =
+  | "instagram"
+  | "facebook"
   | "website"
-  | "phone"
-  | "walk_in"
   | "referral"
-  | "broker"
-  | "social_media"
-  | "advertising"
+  | "direct"
   | "other";
 
 // ─── Payment types ────────────────────────────────────────────────────────────

@@ -1,5 +1,5 @@
 export interface BuildingsItem {
   id: string;
-  title: string;
+  name: string;
   createdAtIso: string;
 }

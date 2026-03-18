@@ -62,7 +62,7 @@ export function CreateWorkOrderDrawer({
   const buildingOptions: AppSearchableSelectOption[] =
     (buildingsQuery.data ?? []).map((b) => ({
       id: b.id,
-      label: b.title,
+      label: b.name,
     }));
 
   const set = (key: keyof FormState) => (value: string) => {
@@ -108,10 +108,11 @@ export function CreateWorkOrderDrawer({
       {
         masterId: form.masterId,
         propertyId: form.propertyId,
+        title: form.description.trim(),
         description: form.description.trim(),
         plannedAmount: amount,
-        plannedStartDate: form.plannedStartDate,
-        plannedEndDate: form.plannedEndDate || undefined,
+        startedAt: form.plannedStartDate ? new Date(form.plannedStartDate).toISOString() : undefined,
+        completedAt: form.plannedEndDate ? new Date(form.plannedEndDate).toISOString() : undefined,
       },
       {
         onSuccess: () => {

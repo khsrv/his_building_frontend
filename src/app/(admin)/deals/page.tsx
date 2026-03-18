@@ -14,7 +14,7 @@ import {
   type AppStatusTone,
 } from "@/shared/ui";
 import { routes } from "@/shared/constants/routes";
-import { useDealsListQuery } from "@/modules/deals/presentation/hooks/use-deals-list-query";
+import { useEnrichedDealsListQuery } from "@/modules/deals/presentation/hooks/use-enriched-deals-list-query";
 import { CreateDealDrawer } from "@/modules/deals/presentation/components/create-deal-drawer";
 import type { Deal, DealStatus, DealPaymentType } from "@/modules/deals/domain/deal";
 
@@ -130,7 +130,7 @@ export default function DealsPage() {
   const router = useRouter();
   const [drawerOpen, setDrawerOpen] = useState(false);
 
-  const { data = [], error } = useDealsListQuery();
+  const { data = [], error } = useEnrichedDealsListQuery();
 
   const activeCount = data.filter((d) => d.status === "active").length;
   const draftCount = data.filter((d) => d.status === "draft").length;

@@ -272,9 +272,9 @@ export const NAVIGATION_ITEMS: readonly NavItem[] = [
     id: "admin",
     labelKey: "nav.admin",
     icon: <AdminIcon />,
-    permission: "settings.users",
+    permission: "tenants.manage",
     children: [
-      { id: "admin-tenants", labelKey: "nav.admin_tenants", href: routes.adminTenants, icon: <SettingsIcon />, permission: "settings.users" },
+      { id: "admin-tenants", labelKey: "nav.admin_tenants", href: routes.adminTenants, icon: <SettingsIcon />, permission: "tenants.manage" },
     ],
   },
 ];

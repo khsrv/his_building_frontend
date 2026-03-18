@@ -83,11 +83,10 @@ export function CreateMasterDrawer({
 
     mutation.mutate(
       {
-        name: form.name.trim(),
-        type: form.type,
+        fullName: form.name.trim(),
         phone: form.phone.trim() || undefined,
         specialization: form.specialization.trim() || undefined,
-        dailyRate: form.dailyRate && !isNaN(dailyRateNum) ? dailyRateNum : undefined,
+        companyName: form.type === "brigade" ? (form.name.trim() || undefined) : undefined,
       },
       {
         onSuccess: () => {

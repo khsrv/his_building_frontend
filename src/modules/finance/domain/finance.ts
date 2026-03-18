@@ -1,6 +1,6 @@
 // ─── Finance Domain Types ─────────────────────────────────────────────────────
 
-export type AccountType = "bank_account" | "cash_register" | "mobile_wallet";
+export type AccountType = "cash" | "bank_account" | "card";
 export type TransactionType = "income" | "expense" | "transfer";
 export type PayeeType = "supplier" | "contractor" | "master" | "other";
 export type ReminderStatus = "pending" | "paid" | "cancelled";

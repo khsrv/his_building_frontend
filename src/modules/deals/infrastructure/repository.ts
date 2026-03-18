@@ -4,6 +4,7 @@ import type {
   DealsListResponseDto,
   DealDetailResponseDto,
   ScheduleResponseDto,
+  PaymentDto,
   CreateDealRequestDto,
   ReceivePaymentRequestDto,
   PaymentDetailResponseDto,
@@ -23,9 +24,10 @@ export async function fetchDealsList(params?: DealsListParams): Promise<Deal[]> 
   if (params?.status) query["status"] = params.status;
   if (params?.propertyId) query["property_id"] = params.propertyId;
   if (params?.clientId) query["client_id"] = params.clientId;
+  if (params?.unitId) query["unit_id"] = params.unitId;
 
   const res = await apiClient.get<DealsListResponseDto>("/api/v1/deals", query);
-  return res.data.items.map(mapDealDtoToDomain);
+  return (res.data.items ?? []).map(mapDealDtoToDomain);
 }
 
 export async function fetchDealDetail(id: string): Promise<Deal> {
@@ -72,7 +74,7 @@ export async function cancelDeal(id: string): Promise<Deal> {
 
 export async function fetchDealSchedule(dealId: string): Promise<ScheduleItem[]> {
   const res = await apiClient.get<ScheduleResponseDto>(`/api/v1/deals/${dealId}/schedule`);
-  return res.data.items.map(mapScheduleItemDtoToDomain);
+  return (res.data.items ?? []).map(mapScheduleItemDtoToDomain);
 }
 
 // ─── Payments ─────────────────────────────────────────────────────────────────
@@ -91,10 +93,8 @@ export interface Payment {
 }
 
 export async function fetchDealPayments(dealId: string): Promise<Payment[]> {
-  const res = await apiClient.get<{ data: { items: import("@/modules/deals/infrastructure/dto").PaymentDto[] } }>("/api/v1/payments", {
-    deal_id: dealId,
-  });
-  return res.data.items.map((item) => ({
+  const res = await apiClient.get<{ data: { items: PaymentDto[] } }>("/api/v1/payments", { deal_id: dealId });
+  return (res.data.items ?? []).map((item) => ({
     id: item.id,
     dealId: item.deal_id,
     scheduleItemId: item.schedule_item_id,
@@ -130,11 +130,8 @@ export interface ClientSearchResult {
 }
 
 export async function searchClients(search: string): Promise<ClientSearchResult[]> {
-  const res = await apiClient.get<ClientSearchResponseDto>("/api/v1/clients", {
-    search,
-    limit: 20,
-  });
-  return res.data.items.map((item) => ({
+  const res = await apiClient.get<ClientSearchResponseDto>("/api/v1/clients", { search, limit: 20 });
+  return (res.data.items ?? []).map((item) => ({
     id: item.id,
     fullName: item.full_name,
     phone: item.phone,
@@ -159,14 +156,14 @@ export async function fetchAvailableUnits(propertyId: string): Promise<UnitSearc
     status: "available",
     limit: 100,
   });
-  return res.data.items.map((item) => ({
+  return (res.data.items ?? []).map((item) => ({
     id: item.id,
     unitNumber: item.unit_number,
     propertyId: item.property_id,
     propertyName: item.property_name,
-    rooms: item.rooms,
-    totalArea: item.total_area,
-    basePrice: item.base_price,
+    rooms: item.rooms ?? null,
+    totalArea: item.total_area ?? null,
+    basePrice: item.base_price ?? null,
   }));
 }
 
@@ -178,10 +175,8 @@ export interface PropertyMinimal {
 }
 
 export async function fetchPropertiesMinimal(): Promise<PropertyMinimal[]> {
-  const res = await apiClient.get<PropertiesListResponseDto>("/api/v1/properties", {
-    limit: 100,
-  });
-  return res.data.items.map((item) => ({
+  const res = await apiClient.get<PropertiesListResponseDto>("/api/v1/properties", { limit: 100 });
+  return (res.data.items ?? []).map((item) => ({
     id: item.id,
     name: item.name,
   }));

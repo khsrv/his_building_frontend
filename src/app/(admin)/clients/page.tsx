@@ -21,24 +21,20 @@ import type { Client, ClientSource } from "@/modules/clients/domain/client";
 // ─── Source helpers ──────────────────────────────────────────────────────────
 
 const SOURCE_LABEL: Record<ClientSource, string> = {
+  instagram: "Instagram",
+  facebook: "Facebook",
   website: "Сайт",
-  phone: "Телефон",
-  walk_in: "Визит",
   referral: "Рекомендация",
-  broker: "Брокер",
-  social_media: "Соцсети",
-  advertising: "Реклама",
+  direct: "Прямой",
   other: "Другое",
 };
 
 const SOURCE_TONE: Record<ClientSource, AppStatusTone> = {
-  website: "info",
-  phone: "default",
-  walk_in: "success",
+  instagram: "info",
+  facebook: "info",
+  website: "default",
   referral: "warning",
-  broker: "muted",
-  social_media: "info",
-  advertising: "default",
+  direct: "success",
   other: "muted",
 };
 

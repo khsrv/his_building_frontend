@@ -2,7 +2,6 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/shared/lib/http/api-client";
-import type { ApiResponse } from "@/shared/types/api";
 import type { DashboardSummary } from "@/modules/dashboard/domain/dashboard";
 import type { DashboardSummaryDto } from "@/modules/dashboard/infrastructure/dashboard-dto";
 import { mapSummaryDtoToDomain } from "@/modules/dashboard/infrastructure/dashboard-dto";
@@ -16,7 +15,7 @@ export function useDashboardSummaryQuery(propertyId?: string) {
       if (propertyId) {
         query["property_id"] = propertyId;
       }
-      const response = await apiClient.get<ApiResponse<DashboardSummaryDto>>(
+      const response = await apiClient.get<{ data: DashboardSummaryDto }>(
         "/api/v1/dashboard/summary",
         query,
       );

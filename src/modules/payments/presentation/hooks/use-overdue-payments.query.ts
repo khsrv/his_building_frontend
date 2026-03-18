@@ -13,7 +13,7 @@ export function useOverduePaymentsQuery() {
       const response = await apiClient.get<OverduePaymentsResponseDto>(
         "/api/v1/payments/overdue",
       );
-      return response.data.items.map(mapOverduePaymentDto);
+      return (response.data.items ?? []).filter((item) => Boolean(item?.id)).map(mapOverduePaymentDto);
     },
     staleTime: 5 * 60 * 1000,
     refetchInterval: 5 * 60 * 1000,

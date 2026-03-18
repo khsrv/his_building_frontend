@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import {
   Box,
   Divider,
@@ -28,6 +28,7 @@ import { useChessBoardQuery } from "@/modules/properties/presentation/hooks/use-
 import { useBookUnitMutation } from "@/modules/properties/presentation/hooks/use-book-unit-mutation";
 import { useReleaseUnitMutation } from "@/modules/properties/presentation/hooks/use-release-unit-mutation";
 import { useReserveUnitMutation } from "@/modules/properties/presentation/hooks/use-reserve-unit-mutation";
+import { useDealsListQuery } from "@/modules/deals/presentation/hooks/use-deals-list-query";
 import type {
   ChessBoardFilters,
   ChessUnit,
@@ -38,18 +39,16 @@ import type {
 
 const PROPERTY_STATUS_LABEL: Record<PropertyStatus, string> = {
   planning: "Планирование",
-  under_construction: "Строительство",
+  construction: "Строительство",
   completed: "Завершён",
-  selling: "Продажа",
-  archived: "Архив",
+  suspended: "Приостановлен",
 };
 
 const PROPERTY_STATUS_TONE: Record<PropertyStatus, AppStatusTone> = {
   planning: "muted",
-  under_construction: "warning",
+  construction: "warning",
   completed: "success",
-  selling: "info",
-  archived: "muted",
+  suspended: "danger",
 };
 
 const UNIT_STATUS_LABEL: Record<ChessUnit["status"], string> = {
@@ -109,9 +108,9 @@ function toApiFilters(local: LocalFilters): ChessBoardFilters {
 // ─── Map ChessUnit to AppColorGridCell ────────────────────────────────────────
 
 function unitToCell(unit: ChessUnit): AppColorGridCell {
-  const roomsStr = unit.rooms !== null ? `${unit.rooms}-комн` : "";
-  const areaStr = unit.totalArea !== null ? `${unit.totalArea}м²` : "";
-  const priceStr = unit.basePrice !== null ? `$${unit.basePrice.toLocaleString("ru-RU")}` : "";
+  const roomsStr = unit.rooms != null ? `${unit.rooms}-комн` : "";
+  const areaStr = unit.totalArea != null ? `${unit.totalArea}м²` : "";
+  const priceStr = unit.currentPrice != null ? `$${unit.currentPrice.toLocaleString("ru-RU")}` : "";
   const tooltipParts = [roomsStr, areaStr, priceStr].filter(Boolean).join(", ");
 
   return {
@@ -126,6 +125,7 @@ function unitToCell(unit: ChessUnit): AppColorGridCell {
 
 export default function ChessGridPage() {
   const params = useParams<{ id: string }>();
+  const router = useRouter();
   const propertyId = params.id;
 
   const [localFilters, setLocalFilters] = useState<LocalFilters>(DEFAULT_FILTERS);
@@ -140,6 +140,16 @@ export default function ChessGridPage() {
   const bookMutation = useBookUnitMutation(propertyId);
   const releaseMutation = useReleaseUnitMutation(propertyId);
   const reserveMutation = useReserveUnitMutation(propertyId);
+
+  const unitNeedsDeal =
+    selectedUnit?.status === "booked" ||
+    selectedUnit?.status === "reserved" ||
+    selectedUnit?.status === "sold";
+
+  const unitDealQuery = useDealsListQuery(
+    { unitId: selectedUnit?.id ?? "", limit: 1 },
+    Boolean(unitNeedsDeal && selectedUnit?.id),
+  );
 
   const property = propertyQuery.data;
   const chessBoard = chessBoardQuery.data;
@@ -327,15 +337,15 @@ export default function ChessGridPage() {
         />
       ) : (
         <div className="space-y-8">
-          {chessBoard.blocks.map((block) => {
+          {chessBoard.blocks.map((block, blockIdx) => {
             const rows: AppColorGridRow[] = block.floors.map((floor) => ({
-              id: `${block.id}-floor-${floor.floorNumber}`,
+              id: `${block.id ?? blockIdx}-floor-${floor.floorNumber}`,
               label: `Этаж ${floor.floorNumber}`,
               cells: floor.units.map(unitToCell),
             }));
 
             return (
-              <div key={block.id} className="space-y-3">
+              <div key={block.id ?? `block-${blockIdx}`} className="space-y-3">
                 <h2 className="text-lg font-semibold">{block.name}</h2>
                 <AppColorGrid
                   cellSize="md"
@@ -373,25 +383,22 @@ export default function ChessGridPage() {
           <Box sx={{ flex: 1, overflowY: "auto", px: 3, py: 2 }}>
             {selectedUnit ? (
               <Stack spacing={2}>
+                {/* Unit info grid */}
                 <div className="grid grid-cols-2 gap-3 rounded-xl border border-border bg-muted/30 p-4 text-sm">
                   <div>
                     <p className="text-xs text-muted-foreground">Номер</p>
                     <p className="font-semibold">{selectedUnit.unitNumber}</p>
                   </div>
                   <div>
-                    <p className="text-xs text-muted-foreground">Этаж</p>
-                    <p className="font-semibold">{selectedUnit.floorNumber}</p>
-                  </div>
-                  <div>
                     <p className="text-xs text-muted-foreground">Комнат</p>
                     <p className="font-semibold">
-                      {selectedUnit.rooms !== null ? selectedUnit.rooms : "—"}
+                      {selectedUnit.rooms != null ? selectedUnit.rooms : "—"}
                     </p>
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">Площадь</p>
                     <p className="font-semibold">
-                      {selectedUnit.totalArea !== null
+                      {selectedUnit.totalArea != null
                         ? `${selectedUnit.totalArea} м²`
                         : "—"}
                     </p>
@@ -399,8 +406,16 @@ export default function ChessGridPage() {
                   <div>
                     <p className="text-xs text-muted-foreground">Цена</p>
                     <p className="font-semibold">
-                      {selectedUnit.basePrice !== null
-                        ? `$${selectedUnit.basePrice.toLocaleString("ru-RU")}`
+                      {selectedUnit.currentPrice != null
+                        ? `$${selectedUnit.currentPrice.toLocaleString("ru-RU")}`
+                        : "—"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Цена за м²</p>
+                    <p className="font-semibold">
+                      {selectedUnit.pricePerSqm != null
+                        ? `$${selectedUnit.pricePerSqm.toLocaleString("ru-RU")}`
                         : "—"}
                     </p>
                   </div>
@@ -409,6 +424,58 @@ export default function ChessGridPage() {
                     <p className="font-semibold">{selectedUnit.unitType}</p>
                   </div>
                 </div>
+
+                {/* Deal info for booked / reserved / sold units */}
+                {unitNeedsDeal ? (
+                  <div className="rounded-xl border border-border bg-card p-4 text-sm">
+                    <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      Сделка
+                    </p>
+                    {unitDealQuery.isLoading ? (
+                      <div className="space-y-2">
+                        <ShimmerBox className="h-4 w-3/4 rounded" />
+                        <ShimmerBox className="h-4 w-1/2 rounded" />
+                        <ShimmerBox className="h-4 w-2/3 rounded" />
+                      </div>
+                    ) : unitDealQuery.data && unitDealQuery.data.length > 0 ? (() => {
+                      const deal = unitDealQuery.data[0]!;
+                      return (
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-muted-foreground">№ сделки</span>
+                            <span className="font-semibold">{deal.dealNumber}</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-muted-foreground">Клиент</span>
+                            <span className="font-semibold">{deal.clientName}</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-muted-foreground">Телефон</span>
+                            <span className="font-semibold">{deal.clientPhone}</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-muted-foreground">Сумма</span>
+                            <span className="font-semibold">
+                              {deal.totalAmount.toLocaleString("ru-RU")} {deal.currency}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-muted-foreground">Остаток</span>
+                            <span className="font-semibold">
+                              {(deal.finalAmount - deal.downPayment).toLocaleString("ru-RU")} {deal.currency}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-muted-foreground">Менеджер</span>
+                            <span className="font-semibold">{deal.managerName}</span>
+                          </div>
+                        </div>
+                      );
+                    })() : (
+                      <p className="text-muted-foreground">Сделка не найдена</p>
+                    )}
+                  </div>
+                ) : null}
               </Stack>
             ) : null}
           </Box>
@@ -417,6 +484,20 @@ export default function ChessGridPage() {
 
           {/* Action buttons */}
           <Stack direction="column" spacing={1.5} sx={{ px: 3, py: 2 }}>
+            {/* Open deal button */}
+            {unitNeedsDeal && unitDealQuery.data && unitDealQuery.data.length > 0 ? (
+              <AppButton
+                label="Открыть сделку"
+                variant="primary"
+                fullWidth
+                onClick={() => {
+                  const deal = unitDealQuery.data[0]!;
+                  router.push(routes.dealDetail(deal.id));
+                  handleCloseDrawer();
+                }}
+              />
+            ) : null}
+
             {selectedUnit?.status === "free" ? (
               <>
                 <AppButton

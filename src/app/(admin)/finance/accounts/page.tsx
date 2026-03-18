@@ -48,9 +48,9 @@ import type { Account } from "@/modules/finance/domain/finance";
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const ACCOUNT_TYPE_OPTIONS = [
+  { value: "cash" as AccountType, label: "Касса" },
   { value: "bank_account" as AccountType, label: "Банковский счёт" },
-  { value: "cash_register" as AccountType, label: "Касса" },
-  { value: "mobile_wallet" as AccountType, label: "Мобильный кошелёк" },
+  { value: "card" as AccountType, label: "Карта" },
 ] as const;
 
 const CURRENCY_OPTIONS = [
@@ -60,8 +60,8 @@ const CURRENCY_OPTIONS = [
 ] as const;
 
 function accountTypeIcon(type: AccountType) {
+  if (type === "cash") return <CashIcon />;
   if (type === "bank_account") return <BankIcon />;
-  if (type === "cash_register") return <CashIcon />;
   return <MobileIcon />;
 }
 

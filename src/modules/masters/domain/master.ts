@@ -8,12 +8,19 @@ export type WorkOrderStatus = "draft" | "in_progress" | "completed" | "accepted"
 
 export interface Master {
   readonly id: string;
+  /** Mapped from API `FullName` */
   readonly name: string;
+  /** Inferred from CompanyName presence; API has no explicit type field */
   readonly type: MasterType;
   readonly phone: string | null;
   readonly specialization: string | null;
+  readonly companyName: string | null;
+  readonly notes: string | null;
+  readonly isActive: boolean;
+  /** Kept for backward compat — API does not provide this field */
   readonly dailyRate: number | null;
   readonly createdAt: string;
+  readonly updatedAt: string;
 }
 
 // ─── Work Order ───────────────────────────────────────────────────────────────
@@ -21,45 +28,57 @@ export interface Master {
 export interface WorkOrder {
   readonly id: string;
   readonly masterId: string;
+  /** Fallback: empty string — API returns only MasterID, no joined name */
   readonly masterName: string;
   readonly propertyId: string;
+  /** Fallback: empty string — API returns only PropertyID, no joined name */
   readonly propertyName: string;
+  readonly title: string;
   readonly description: string;
   readonly status: WorkOrderStatus;
   readonly plannedAmount: number;
   readonly actualAmount: number | null;
-  readonly plannedStartDate: string;
-  readonly plannedEndDate: string | null;
-  readonly actualEndDate: string | null;
+  readonly currency: string;
+  readonly startedAt: string | null;
+  readonly completedAt: string | null;
+  readonly acceptedAt: string | null;
+  readonly acceptedBy: string | null;
   readonly notes: string | null;
+  /** Kept for backward compat — mapped from startedAt */
+  readonly plannedStartDate: string;
+  /** Kept for backward compat — mapped from completedAt */
+  readonly plannedEndDate: string | null;
   readonly createdAt: string;
+  readonly updatedAt: string;
 }
 
 // ─── Input types ──────────────────────────────────────────────────────────────
 
 export interface CreateMasterInput {
-  name: string;
-  type: MasterType;
+  fullName: string;
   phone?: string | undefined;
   specialization?: string | undefined;
-  dailyRate?: number | undefined;
+  companyName?: string | undefined;
+  notes?: string | undefined;
 }
 
 export interface UpdateMasterInput {
-  name?: string | undefined;
-  type?: MasterType | undefined;
+  fullName?: string | undefined;
   phone?: string | undefined;
   specialization?: string | undefined;
-  dailyRate?: number | undefined;
+  companyName?: string | undefined;
+  notes?: string | undefined;
 }
 
 export interface CreateWorkOrderInput {
   masterId: string;
   propertyId: string;
-  description: string;
+  title: string;
+  description?: string | undefined;
   plannedAmount: number;
-  plannedStartDate: string;
-  plannedEndDate?: string | undefined;
+  currency?: string | undefined;
+  startedAt?: string | undefined;
+  completedAt?: string | undefined;
 }
 
 export interface CompleteWorkOrderInput {

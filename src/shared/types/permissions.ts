@@ -56,7 +56,9 @@ export type PermissionCode =
   // SMS
   | "sms.send" | "sms.templates" | "sms.logs"
   // Documents
-  | "documents.read" | "documents.upload" | "documents.delete";
+  | "documents.read" | "documents.upload" | "documents.delete"
+  // Tenants (platform-level)
+  | "tenants.manage";
 
 // ─── Role → Permissions mapping ───────────────────────────────────────────────
 
@@ -79,6 +81,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, readonly PermissionCode[]> = {
     "settings.company", "settings.users", "settings.roles", "settings.templates", "settings.integrations",
     "sms.send", "sms.templates", "sms.logs",
     "documents.read", "documents.upload", "documents.delete",
+    "tenants.manage",
   ],
 
   company_admin: [

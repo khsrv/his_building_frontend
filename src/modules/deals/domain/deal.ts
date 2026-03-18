@@ -11,9 +11,8 @@ export type DealPaymentType =
 
 export type ScheduleItemStatus =
   | "pending"
-  | "upcoming"
   | "paid"
-  | "partially_paid"
+  | "partial"
   | "overdue";
 
 export interface Deal {
@@ -24,9 +23,10 @@ export interface Deal {
   readonly totalAmount: number;
   readonly currency: string;
   readonly discountAmount: number;
+  readonly surchargeAmount: number;
+  readonly finalAmount: number;
   readonly downPayment: number;
   readonly installmentMonths: number | null;
-  readonly remainingAmount: number;
   readonly clientId: string;
   readonly clientName: string;
   readonly clientPhone: string;
@@ -34,7 +34,14 @@ export interface Deal {
   readonly unitNumber: string;
   readonly propertyId: string;
   readonly propertyName: string;
+  readonly managerId: string;
   readonly managerName: string;
+  readonly contractNumber: string;
+  readonly notes: string;
+  readonly signedAt: string | null;
+  readonly completedAt: string | null;
+  readonly cancelledAt: string | null;
+  readonly cancellationReason: string;
   readonly createdAt: string;
 }
 
@@ -45,9 +52,9 @@ export interface ScheduleItem {
   readonly dueDate: string;
   readonly plannedAmount: number;
   readonly paidAmount: number;
-  readonly remainingAmount: number;
+  readonly remaining: number;
   readonly status: ScheduleItemStatus;
-  readonly paidAt: string | null;
+  readonly penaltyAmount: number;
 }
 
 export interface CreateDealInput {
@@ -70,6 +77,7 @@ export interface DealsListParams {
   status?: DealStatus;
   propertyId?: string;
   clientId?: string;
+  unitId?: string;
   page?: number;
   limit?: number;
 }

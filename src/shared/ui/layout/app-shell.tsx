@@ -27,15 +27,6 @@ function BrandIcon() {
   );
 }
 
-function CalendarToolsIcon() {
-  return (
-    <svg aria-hidden className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-      <rect height="14" rx="2" width="18" x="3" y="5" />
-      <path d="M16 3v4M8 3v4M3 10h18M18.5 16.5l2 2M18.5 20.5v-2M16.5 18.5h2" />
-    </svg>
-  );
-}
-
 function MonitorIcon() {
   return (
     <svg aria-hidden className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -269,13 +260,6 @@ export function AppShell({ children }: AppShellProps) {
   const topBarActions = useMemo<readonly AppTopBarAction[]>(() => {
     return [
       {
-        id: "workspace",
-        icon: <MonitorIcon />,
-        label: "Hisob Building",
-        active: true,
-        title: t("topbar.workspace"),
-      },
-      {
         id: "locale",
         icon: <LanguageIcon />,
         title: t("topbar.language"),
@@ -399,13 +383,6 @@ export function AppShell({ children }: AppShellProps) {
                 >
                   <MenuIcon />
                 </IconButton>
-                <button
-                  className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                  title={t("topbar.openCalendar")}
-                  type="button"
-                >
-                  <CalendarToolsIcon />
-                </button>
               </div>
             }
             profile={{

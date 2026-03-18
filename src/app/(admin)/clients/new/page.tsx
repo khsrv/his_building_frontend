@@ -5,13 +5,11 @@ import { AppPageHeader, AppButton, AppInput, AppSelect } from "@/shared/ui";
 import { routes } from "@/shared/constants/routes";
 
 const SOURCE_OPTIONS = [
+  { label: "Instagram", value: "instagram" },
+  { label: "Facebook", value: "facebook" },
   { label: "Сайт", value: "website" },
-  { label: "Телефон", value: "phone" },
-  { label: "Визит", value: "visit" },
   { label: "Рекомендация", value: "referral" },
-  { label: "Брокер", value: "broker" },
-  { label: "Соцсети", value: "social" },
-  { label: "Реклама", value: "ads" },
+  { label: "Прямой", value: "direct" },
   { label: "Другое", value: "other" },
 ] as const;
 

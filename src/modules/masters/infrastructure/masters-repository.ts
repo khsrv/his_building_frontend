@@ -2,7 +2,6 @@ import { apiClient } from "@/shared/lib/http/api-client";
 import type {
   Master,
   WorkOrder,
-  MasterType,
   WorkOrderStatus,
   CreateMasterInput,
   UpdateMasterInput,
@@ -12,33 +11,40 @@ import type {
   WorkOrdersListParams,
 } from "@/modules/masters/domain/master";
 
-// ─── DTOs ─────────────────────────────────────────────────────────────────────
+// ─── DTOs (PascalCase — matches backend API) ────────────────────────────────
 
 interface MasterDto {
-  id: string;
-  name: string;
-  type: string;
-  phone: string | null;
-  specialization: string | null;
-  daily_rate: number | null;
-  created_at: string;
+  ID: string;
+  TenantID: string;
+  FullName: string;
+  Phone: string | null;
+  Specialization: string | null;
+  CompanyName: string | null;
+  Notes: string | null;
+  IsActive: boolean;
+  CreatedAt: string;
+  UpdatedAt: string;
+  DeletedAt: string | null;
 }
 
 interface WorkOrderDto {
-  id: string;
-  master_id: string;
-  master_name: string;
-  property_id: string;
-  property_name: string;
-  description: string;
-  status: string;
-  planned_amount: number;
-  actual_amount: number | null;
-  planned_start_date: string;
-  planned_end_date: string | null;
-  actual_end_date: string | null;
-  notes: string | null;
-  created_at: string;
+  ID: string;
+  TenantID: string;
+  MasterID: string;
+  PropertyID: string;
+  Title: string;
+  Description: string;
+  PlannedAmount: number;
+  ActualAmount: number | null;
+  Currency: string;
+  Status: string;
+  StartedAt: string | null;
+  CompletedAt: string | null;
+  AcceptedAt: string | null;
+  AcceptedBy: string | null;
+  Notes: string | null;
+  CreatedAt: string;
+  UpdatedAt: string;
 }
 
 interface PaginatedResponseDto<T> {
@@ -54,16 +60,9 @@ interface SingleResponseDto<T> {
 
 // ─── Mappers ──────────────────────────────────────────────────────────────────
 
-const VALID_MASTER_TYPES: readonly MasterType[] = ["individual", "brigade"];
 const VALID_WORK_ORDER_STATUSES: readonly WorkOrderStatus[] = [
   "draft", "in_progress", "completed", "accepted",
 ];
-
-function toMasterType(value: string): MasterType {
-  return (VALID_MASTER_TYPES as readonly string[]).includes(value)
-    ? (value as MasterType)
-    : "individual";
-}
 
 function toWorkOrderStatus(value: string): WorkOrderStatus {
   return (VALID_WORK_ORDER_STATUSES as readonly string[]).includes(value)
@@ -73,32 +72,42 @@ function toWorkOrderStatus(value: string): WorkOrderStatus {
 
 function mapMasterDto(dto: MasterDto): Master {
   return {
-    id: dto.id,
-    name: dto.name,
-    type: toMasterType(dto.type),
-    phone: dto.phone,
-    specialization: dto.specialization,
-    dailyRate: dto.daily_rate,
-    createdAt: dto.created_at,
+    id: dto.ID,
+    name: dto.FullName,
+    type: dto.CompanyName ? "brigade" : "individual",
+    phone: dto.Phone,
+    specialization: dto.Specialization,
+    companyName: dto.CompanyName,
+    notes: dto.Notes,
+    isActive: dto.IsActive,
+    dailyRate: null,
+    createdAt: dto.CreatedAt,
+    updatedAt: dto.UpdatedAt,
   };
 }
 
 function mapWorkOrderDto(dto: WorkOrderDto): WorkOrder {
   return {
-    id: dto.id,
-    masterId: dto.master_id,
-    masterName: dto.master_name,
-    propertyId: dto.property_id,
-    propertyName: dto.property_name,
-    description: dto.description,
-    status: toWorkOrderStatus(dto.status),
-    plannedAmount: dto.planned_amount,
-    actualAmount: dto.actual_amount,
-    plannedStartDate: dto.planned_start_date,
-    plannedEndDate: dto.planned_end_date,
-    actualEndDate: dto.actual_end_date,
-    notes: dto.notes,
-    createdAt: dto.created_at,
+    id: dto.ID,
+    masterId: dto.MasterID,
+    masterName: "",
+    propertyId: dto.PropertyID,
+    propertyName: "",
+    title: dto.Title,
+    description: dto.Description,
+    status: toWorkOrderStatus(dto.Status),
+    plannedAmount: dto.PlannedAmount,
+    actualAmount: dto.ActualAmount,
+    currency: dto.Currency,
+    startedAt: dto.StartedAt,
+    completedAt: dto.CompletedAt,
+    acceptedAt: dto.AcceptedAt,
+    acceptedBy: dto.AcceptedBy,
+    notes: dto.Notes,
+    plannedStartDate: dto.StartedAt ?? dto.CreatedAt,
+    plannedEndDate: dto.CompletedAt,
+    createdAt: dto.CreatedAt,
+    updatedAt: dto.UpdatedAt,
   };
 }
 
@@ -129,26 +138,25 @@ export async function fetchMastersList(
   };
   if (params?.search) query["search"] = params.search;
 
-  const res = await apiClient.get<PaginatedResponseDto<MasterDto>>(
-    "/api/v1/masters",
-    query,
-  );
+  const res = await apiClient.get<PaginatedResponseDto<MasterDto>>("/api/v1/masters", query);
+  const payload = res.data;
+  const items = (payload.items ?? []).filter((item): item is MasterDto => Boolean(item?.ID));
   return {
-    items: res.data.items.map(mapMasterDto),
-    total: res.data.pagination.total,
-    page: res.data.pagination.page,
-    limit: res.data.pagination.limit,
+    items: items.map(mapMasterDto),
+    total: payload.pagination?.total ?? 0,
+    page: payload.pagination?.page ?? 1,
+    limit: payload.pagination?.limit ?? 20,
   };
 }
 
 export async function createMaster(input: CreateMasterInput): Promise<Master> {
   const body: Record<string, unknown> = {
-    name: input.name,
-    type: input.type,
+    FullName: input.fullName,
   };
-  if (input.phone !== undefined) body["phone"] = input.phone;
-  if (input.specialization !== undefined) body["specialization"] = input.specialization;
-  if (input.dailyRate !== undefined) body["daily_rate"] = input.dailyRate;
+  if (input.phone !== undefined) body["Phone"] = input.phone;
+  if (input.specialization !== undefined) body["Specialization"] = input.specialization;
+  if (input.companyName !== undefined) body["CompanyName"] = input.companyName;
+  if (input.notes !== undefined) body["Notes"] = input.notes;
 
   const res = await apiClient.post<SingleResponseDto<MasterDto>>("/api/v1/masters", body);
   return mapMasterDto(res.data);
@@ -159,11 +167,11 @@ export async function updateMaster(
   input: UpdateMasterInput,
 ): Promise<Master> {
   const body: Record<string, unknown> = {};
-  if (input.name !== undefined) body["name"] = input.name;
-  if (input.type !== undefined) body["type"] = input.type;
-  if (input.phone !== undefined) body["phone"] = input.phone;
-  if (input.specialization !== undefined) body["specialization"] = input.specialization;
-  if (input.dailyRate !== undefined) body["daily_rate"] = input.dailyRate;
+  if (input.fullName !== undefined) body["FullName"] = input.fullName;
+  if (input.phone !== undefined) body["Phone"] = input.phone;
+  if (input.specialization !== undefined) body["Specialization"] = input.specialization;
+  if (input.companyName !== undefined) body["CompanyName"] = input.companyName;
+  if (input.notes !== undefined) body["Notes"] = input.notes;
 
   const res = await apiClient.patch<SingleResponseDto<MasterDto>>(
     `/api/v1/masters/${id}`,
@@ -187,27 +195,28 @@ export async function fetchWorkOrdersList(
   if (params?.masterId) query["master_id"] = params.masterId;
   if (params?.propertyId) query["property_id"] = params.propertyId;
 
-  const res = await apiClient.get<PaginatedResponseDto<WorkOrderDto>>(
-    "/api/v1/work-orders",
-    query,
-  );
+  const res = await apiClient.get<PaginatedResponseDto<WorkOrderDto>>("/api/v1/work-orders", query);
+  const payload = res.data;
+  const items = (payload.items ?? []).filter((item): item is WorkOrderDto => Boolean(item?.ID));
   return {
-    items: res.data.items.map(mapWorkOrderDto),
-    total: res.data.pagination.total,
-    page: res.data.pagination.page,
-    limit: res.data.pagination.limit,
+    items: items.map(mapWorkOrderDto),
+    total: payload.pagination?.total ?? 0,
+    page: payload.pagination?.page ?? 1,
+    limit: payload.pagination?.limit ?? 20,
   };
 }
 
 export async function createWorkOrder(input: CreateWorkOrderInput): Promise<WorkOrder> {
   const body: Record<string, unknown> = {
-    master_id: input.masterId,
-    property_id: input.propertyId,
-    description: input.description,
-    planned_amount: input.plannedAmount,
-    planned_start_date: input.plannedStartDate,
+    MasterID: input.masterId,
+    PropertyID: input.propertyId,
+    Title: input.title,
+    PlannedAmount: input.plannedAmount,
   };
-  if (input.plannedEndDate !== undefined) body["planned_end_date"] = input.plannedEndDate;
+  if (input.description !== undefined) body["Description"] = input.description;
+  if (input.currency !== undefined) body["Currency"] = input.currency;
+  if (input.startedAt !== undefined) body["StartedAt"] = input.startedAt;
+  if (input.completedAt !== undefined) body["CompletedAt"] = input.completedAt;
 
   const res = await apiClient.post<SingleResponseDto<WorkOrderDto>>(
     "/api/v1/work-orders",
@@ -229,9 +238,9 @@ export async function completeWorkOrder(
   input: CompleteWorkOrderInput,
 ): Promise<WorkOrder> {
   const body: Record<string, unknown> = {
-    actual_amount: input.actualAmount,
+    ActualAmount: input.actualAmount,
   };
-  if (input.notes !== undefined) body["notes"] = input.notes;
+  if (input.notes !== undefined) body["Notes"] = input.notes;
 
   const res = await apiClient.post<SingleResponseDto<WorkOrderDto>>(
     `/api/v1/work-orders/${id}/complete`,

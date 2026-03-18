@@ -22,25 +22,21 @@ import type { Client, ClientSource, PipelineBoardParams } from "@/modules/client
 // ─── Source helpers ──────────────────────────────────────────────────────────
 
 const SOURCE_LABEL: Record<ClientSource, string> = {
+  instagram: "Instagram",
+  facebook: "Facebook",
   website: "Сайт",
-  phone: "Телефон",
-  walk_in: "Визит",
   referral: "Рекомендация",
-  broker: "Брокер",
-  social_media: "Соцсети",
-  advertising: "Реклама",
+  direct: "Прямой",
   other: "Другое",
 };
 
 const SOURCE_OPTIONS = [
   { value: "", label: "Все источники" },
+  { value: "instagram", label: "Instagram" },
+  { value: "facebook", label: "Facebook" },
   { value: "website", label: "Сайт" },
-  { value: "phone", label: "Телефон" },
-  { value: "walk_in", label: "Визит" },
   { value: "referral", label: "Рекомендация" },
-  { value: "broker", label: "Брокер" },
-  { value: "social_media", label: "Соцсети" },
-  { value: "advertising", label: "Реклама" },
+  { value: "direct", label: "Прямой" },
   { value: "other", label: "Другое" },
 ];
 

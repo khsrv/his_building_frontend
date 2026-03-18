@@ -21,8 +21,8 @@ import type { IncomeExpenseReportParams } from "@/modules/finance/domain/finance
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function formatMoney(value: number): string {
-  return value.toLocaleString("ru-RU");
+function formatMoney(value: number | null | undefined): string {
+  return (value ?? 0).toLocaleString("ru-RU");
 }
 
 function todayIso(): string {

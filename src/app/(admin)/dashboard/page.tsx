@@ -21,7 +21,6 @@ import { useDashboardSummaryQuery } from "@/modules/dashboard/presentation/hooks
 import { useDashboardSalesQuery } from "@/modules/dashboard/presentation/hooks/use-dashboard-sales-query";
 import { useDashboardManagerKpiQuery } from "@/modules/dashboard/presentation/hooks/use-dashboard-manager-kpi-query";
 import { useDashboardPropertiesQuery } from "@/modules/dashboard/presentation/hooks/use-dashboard-properties-query";
-import { usePipelineBoardQuery } from "@/modules/clients/presentation/hooks/use-pipeline-board-query";
 
 // ─── Date helpers ─────────────────────────────────────────────────────────────
 
@@ -68,19 +67,19 @@ const MANAGER_COLUMNS: readonly AppDataTableColumn<ManagerKpiItem>[] = [
     align: "right",
   },
   {
-    id: "totalRevenue",
+    id: "totalAmount",
     header: "Выручка",
     cell: (row) => (
-      <AppCurrencyDisplay amount={row.totalRevenue} currency="USD" size="sm" />
+      <AppCurrencyDisplay amount={row.totalAmount} currency="USD" size="sm" />
     ),
-    sortAccessor: (row) => row.totalRevenue,
+    sortAccessor: (row) => row.totalAmount,
     align: "right",
   },
   {
-    id: "conversionRate",
-    header: "Конверсия",
-    cell: (row) => `${row.conversionRate.toFixed(1)}%`,
-    sortAccessor: (row) => row.conversionRate,
+    id: "clientCount",
+    header: "Клиентов",
+    cell: (row) => row.clientCount,
+    sortAccessor: (row) => row.clientCount,
     align: "right",
   },
 ];
@@ -92,10 +91,6 @@ const SALES_SERIES: readonly AppChartSeries[] = [
 ];
 
 // ─── Pie chart series ────────────────────────────────────────────────────────
-
-const UNIT_STATUS_SERIES: readonly AppChartSeries[] = [
-  { key: "value", label: "Квартиры", color: "#10B981" },
-];
 
 const PAYMENT_TYPE_LABELS: Record<string, string> = {
   full_payment: "Полная оплата",
@@ -170,7 +165,6 @@ export default function DashboardPage() {
   const summaryQuery = useDashboardSummaryQuery(activePropertyId);
   const salesQuery = useDashboardSalesQuery(dateFrom, dateTo, activePropertyId);
   const managerKpiQuery = useDashboardManagerKpiQuery();
-  const pipelineQuery = usePipelineBoardQuery();
 
   // ─── Property filter options ──────────────────────────────────────────────
 
@@ -186,31 +180,32 @@ export default function DashboardPage() {
   // ─── KPI data ─────────────────────────────────────────────────────────────
 
   const summary = summaryQuery.data;
+  const sales = salesQuery.data;
 
   const primaryKpiItems: readonly AppStatCardProps[] = useMemo(() => {
     const items: AppStatCardProps[] = [
       {
         title: "Всего квартир",
-        value: summary?.units.total ?? "—",
+        value: summary?.totalUnits ?? "—",
         hint: "По всем объектам",
       },
       {
         title: "Свободных",
-        value: summary?.units.available ?? "—",
+        value: summary?.availableUnits ?? "—",
         deltaTone: "success" as const,
-        ...(summary ? { delta: `${summary.units.available} доступно` } : {}),
+        ...(summary ? { delta: `${summary.availableUnits} доступно` } : {}),
       },
       {
         title: "Активных сделок",
-        value: summary?.deals.active ?? "—",
+        value: summary?.activeDeals ?? "—",
         deltaTone: "info" as const,
-        ...(summary ? { delta: `Завершено: ${summary.deals.completed}` } : {}),
+        ...(summary ? { delta: `Клиентов: ${summary.totalClients}` } : {}),
       },
       {
         title: "Просроченных платежей",
-        value: summary?.payments.overdueCount ?? "—",
+        value: summary?.overdueCount ?? "—",
         deltaTone: "danger" as const,
-        ...(summary?.payments.overdueCount ? { delta: "Требует внимания" } : {}),
+        ...(summary?.overdueCount ? { delta: "Требует внимания" } : {}),
       },
     ];
     return items;
@@ -221,24 +216,24 @@ export default function DashboardPage() {
     const items: AppStatCardProps[] = [
       {
         title: "Выручка всего",
-        value: summary ? fmt.format(summary.revenue.total) : "—",
+        value: summary ? fmt.format(summary.totalRevenue) : "—",
         hint: "С начала работы",
       },
       {
-        title: "Выручка за месяц",
-        value: summary ? fmt.format(summary.revenue.thisMonth) : "—",
+        title: "Баланс счёта",
+        value: summary ? fmt.format(summary.accountBalance) : "—",
         deltaTone: "success" as const,
       },
       {
         title: "Дебиторка",
-        value: summary ? fmt.format(summary.receivables.total) : "—",
+        value: summary ? fmt.format(summary.totalDebt) : "—",
         deltaTone: "warning" as const,
-        ...(summary?.receivables.total ? { delta: "Ожидает погашения" } : {}),
+        ...(summary?.totalDebt ? { delta: "Ожидает погашения" } : {}),
       },
       {
         title: "Забронировано",
-        value: summary?.units.booked ?? "—",
-        hint: `Резерв: ${summary?.units.reserved ?? "—"}`,
+        value: summary?.bookedUnits ?? "—",
+        hint: `Резерв: ${summary?.reservedUnits ?? "—"}`,
       },
     ];
     return items;
@@ -247,22 +242,22 @@ export default function DashboardPage() {
   // ─── Sales chart data ─────────────────────────────────────────────────────
 
   const salesChartData: readonly AppChartDataPoint[] = useMemo(() => {
-    if (!salesQuery.data) return [];
-    return salesQuery.data.map((item) => ({
+    if (!sales) return [];
+    return sales.monthlySales.map((item) => ({
       label: item.month,
       amount: item.totalAmount,
     }));
-  }, [salesQuery.data]);
+  }, [sales]);
 
   // ─── Unit status pie chart data ──────────────────────────────────────────
 
   const unitStatusPieData: readonly AppChartDataPoint[] = useMemo(() => {
     if (!summary) return [];
     return [
-      { label: "Свободно", value: summary.units.available },
-      { label: "Забронировано", value: summary.units.booked },
-      { label: "Резерв", value: summary.units.reserved },
-      { label: "Продано", value: summary.units.sold },
+      { label: "Свободно", value: summary.availableUnits },
+      { label: "Забронировано", value: summary.bookedUnits },
+      { label: "Резерв", value: summary.reservedUnits },
+      { label: "Продано", value: summary.soldUnits },
     ].filter((d) => d.value > 0);
   }, [summary]);
 
@@ -270,19 +265,30 @@ export default function DashboardPage() {
     { key: "value", label: "Квартиры" },
   ], []);
 
-  // ─── Funnel data from pipeline board ────────────────────────────────────
+  // ─── Funnel data from sales API ──────────────────────────────────────────
 
   const funnelStages = useMemo(() => {
-    if (!pipelineQuery.data) return [];
-    return pipelineQuery.data
-      .slice()
-      .sort((a, b) => a.order - b.order)
-      .map((stage) => ({
-        name: stage.name,
-        count: stage.clients.length,
-        color: stage.color,
-      }));
-  }, [pipelineQuery.data]);
+    if (!sales) return [];
+    const fc = sales.funnelConversion;
+    return [
+      { name: "Лиды", count: fc.totalLeads, color: "#3B82F6" },
+      { name: "Сделки", count: fc.totalDeals, color: "#10B981" },
+    ];
+  }, [sales]);
+
+  // ─── Payment type breakdown ─────────────────────────────────────────────
+
+  const paymentTypePieData: readonly AppChartDataPoint[] = useMemo(() => {
+    if (!sales) return [];
+    return sales.byPaymentType.map((item) => ({
+      label: PAYMENT_TYPE_LABELS[item.paymentType] ?? item.paymentType,
+      value: item.count,
+    }));
+  }, [sales]);
+
+  const paymentTypeSeries: readonly AppChartSeries[] = useMemo(() => [
+    { key: "value", label: "Сделки" },
+  ], []);
 
   // ─── Manager KPI table data ───────────────────────────────────────────────
 
@@ -359,7 +365,7 @@ export default function DashboardPage() {
         )}
       </div>
 
-      {/* Pie chart (unit statuses) + Funnel (pipeline conversion) */}
+      {/* Pie chart (unit statuses) + Funnel (sales conversion) */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {summaryQuery.isLoading ? (
           <ShimmerBox className="h-72 rounded-xl" />
@@ -379,12 +385,26 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {pipelineQuery.isLoading ? (
+        {salesQuery.isLoading ? (
           <ShimmerBox className="h-72 rounded-xl" />
         ) : (
           <ConversionFunnel stages={funnelStages} />
         )}
       </div>
+
+      {/* Payment type breakdown */}
+      {sales && sales.byPaymentType.length > 0 ? (
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <AppChartWidget
+            type="doughnut"
+            title="Сделки по типу оплаты"
+            data={paymentTypePieData}
+            series={paymentTypeSeries}
+            height={280}
+            showLegend
+          />
+        </div>
+      ) : null}
 
       {/* Manager KPI table */}
       <div>

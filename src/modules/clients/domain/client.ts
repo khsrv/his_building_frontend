@@ -1,13 +1,11 @@
 // ─── Client domain types ──────────────────────────────────────────────────────
 
 export type ClientSource =
+  | "instagram"
+  | "facebook"
   | "website"
-  | "phone"
-  | "walk_in"
   | "referral"
-  | "broker"
-  | "social_media"
-  | "advertising"
+  | "direct"
   | "other";
 
 export type InteractionType = "call" | "meeting" | "message" | "email" | "other";

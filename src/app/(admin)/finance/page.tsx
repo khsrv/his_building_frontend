@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import Link from "next/link";
 import { Box, Stack } from "@mui/material";
 import {
@@ -90,8 +91,27 @@ const recentColumns: readonly AppDataTableColumn<Transaction>[] = [
 
 export default function FinancePage() {
   const { data: accounts } = useAccountsQuery();
-  const { data: transactions, isLoading: txLoading } = useTransactionsQuery({ limit: 5 });
+  const { data: rawTransactions, isLoading: txLoading } = useTransactionsQuery({ limit: 5 });
   const { data: reminders } = usePayableRemindersQuery({ status: "pending" });
+
+  // Build lookup map for account names
+  const accountNameMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const a of accounts ?? []) {
+      map.set(a.id, a.name);
+    }
+    return map;
+  }, [accounts]);
+
+  // Enrich transactions with resolved account names
+  const transactions = useMemo(() => {
+    if (!rawTransactions) return undefined;
+    return rawTransactions.map((tx) => ({
+      ...tx,
+      accountName: accountNameMap.get(tx.accountId) ?? tx.accountName,
+      toAccountName: tx.toAccountId ? (accountNameMap.get(tx.toAccountId) ?? tx.toAccountName) : tx.toAccountName,
+    }));
+  }, [rawTransactions, accountNameMap]);
 
   // Compute totals per currency
   const balanceByCurrency = (accounts ?? []).reduce<Record<string, number>>((acc, acct) => {

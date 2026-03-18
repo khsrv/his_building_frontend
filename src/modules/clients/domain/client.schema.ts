@@ -1,13 +1,11 @@
 import { z } from "zod";
 
 const CLIENT_SOURCES = [
+  "instagram",
+  "facebook",
   "website",
-  "phone",
-  "walk_in",
   "referral",
-  "broker",
-  "social_media",
-  "advertising",
+  "direct",
   "other",
 ] as const;
 

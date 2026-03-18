@@ -40,7 +40,7 @@ export function AppStatCard({
       <div className="flex items-start justify-between gap-2">
         <div className="space-y-1">
           <p className="text-sm text-muted-foreground">{title}</p>
-          <p className="text-lg font-semibold text-foreground">{value}</p>
+          <div className="text-lg font-semibold text-foreground">{value}</div>
         </div>
         {icon ? <div className="text-muted-foreground">{icon}</div> : null}
       </div>

@@ -2,10 +2,9 @@
 
 export type PropertyStatus =
   | "planning"
-  | "under_construction"
+  | "construction"
   | "completed"
-  | "selling"
-  | "archived";
+  | "suspended";
 
 // ─── Core domain entities ─────────────────────────────────────────────────────
 
@@ -16,12 +15,11 @@ export interface Property {
   readonly city: string;
   readonly status: PropertyStatus;
   readonly currency: string;
-  readonly blocksCount: number;
-  readonly floorsCount: number;
-  readonly unitsCount: number;
-  readonly availableUnits: number;
-  readonly startDate: string | null;
-  readonly completionDate: string | null;
+  readonly totalUnits: number;
+  readonly soldUnits: number;
+  readonly realizationPercent: number;
+  readonly constructionStartDate: string | null;
+  readonly constructionEndDate: string | null;
   readonly createdAt: string;
 }
 
@@ -39,12 +37,13 @@ export type ChessUnitStatus = "free" | "booked" | "reserved" | "sold";
 export interface ChessUnit {
   readonly id: string;
   readonly unitNumber: string;
-  readonly floorNumber: number;
   readonly rooms: number | null;
   readonly totalArea: number | null;
-  readonly basePrice: number | null;
+  readonly currentPrice: number | null;
+  readonly pricePerSqm: number | null;
   readonly status: ChessUnitStatus;
   readonly unitType: string;
+  readonly position: string;
 }
 
 export interface ChessFloor {
@@ -55,6 +54,7 @@ export interface ChessFloor {
 export interface ChessBlock {
   readonly id: string;
   readonly name: string;
+  readonly floorsCount: number;
   readonly floors: readonly ChessFloor[];
 }
 

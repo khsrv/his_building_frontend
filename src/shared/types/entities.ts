@@ -75,14 +75,13 @@ export interface Building {
   readonly name: string;
   readonly address: string;
   readonly status: BuildingStatus;
-  readonly blocksCount: number;
-  readonly floorsCount: number;
-  readonly unitsCount: number;
-  readonly freeUnitsCount: number;
+  readonly totalUnits: number;
+  readonly soldUnits: number;
+  readonly realizationPercent: number;
   readonly imageUrl: string | null;
   readonly currency: CurrencyCode;
-  readonly startDate: string | null;
-  readonly completionDate: string | null;
+  readonly constructionStartDate: string | null;
+  readonly constructionEndDate: string | null;
 }
 
 // ─── Unit (Квартира) ──────────────────────────────────────────────────────────

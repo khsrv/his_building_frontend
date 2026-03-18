@@ -19,7 +19,7 @@ export class NextAuthRepository implements AuthRepository {
       if (
         !parsed.user ||
         typeof parsed.user.id !== "string" ||
-        !parsed.user.tenantId ||
+        typeof parsed.user.tenantId !== "string" ||
         !Array.isArray(parsed.user.permissions)
       ) {
         // Invalid/outdated session — clear it

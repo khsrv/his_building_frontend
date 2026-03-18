@@ -12,7 +12,7 @@ export function BuildingsList() {
         <ul className="space-y-2">
           {data.map((item) => (
             <li className="rounded border border-border p-3" key={item.id}>
-              <p className="font-medium">{item.title}</p>
+              <p className="font-medium">{item.name}</p>
               <p className="text-xs text-muted-foreground">{item.createdAtIso}</p>
             </li>
           ))}

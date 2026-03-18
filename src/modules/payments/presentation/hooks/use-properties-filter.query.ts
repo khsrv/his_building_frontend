@@ -14,7 +14,7 @@ export function usePropertiesFilterQuery() {
         "/api/v1/properties",
         { limit: 100 },
       );
-      return response.data.items.map(mapPropertyDto);
+      return (response.data.items ?? []).filter((item) => Boolean(item?.id)).map(mapPropertyDto);
     },
     staleTime: 10 * 60 * 1000,
   });

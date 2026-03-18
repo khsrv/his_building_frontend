@@ -17,11 +17,16 @@ export type StockMovementType = "income" | "expense" | "write_off" | "return";
 export interface Supplier {
   readonly id: string;
   readonly name: string;
+  readonly contactPerson: string | null;
   readonly phone: string | null;
   readonly email: string | null;
   readonly address: string | null;
   readonly notes: string | null;
+  readonly isActive: boolean;
+  readonly totalPurchased: number;
+  readonly totalPaid: number;
   readonly createdAt: string;
+  readonly updatedAt: string;
 }
 
 export interface SupplierBalance {
@@ -46,11 +51,18 @@ export interface SupplierPayment {
 export interface Material {
   readonly id: string;
   readonly name: string;
+  readonly sku: string | null;
   readonly unit: MaterialUnit;
   readonly currentStock: number;
   readonly minStock: number;
+  readonly pricePerUnit: number | null;
+  readonly currency: string | null;
+  readonly categoryId: string | null;
+  readonly notes: string | null;
+  /** Kept for backward compat — mapped from notes */
   readonly description: string | null;
   readonly createdAt: string;
+  readonly updatedAt: string;
 }
 
 // ─── Stock Movement ───────────────────────────────────────────────────────────
@@ -77,6 +89,7 @@ export interface StockMovement {
 
 export interface CreateSupplierInput {
   name: string;
+  contactPerson?: string | undefined;
   phone?: string | undefined;
   email?: string | undefined;
   address?: string | undefined;
@@ -85,6 +98,7 @@ export interface CreateSupplierInput {
 
 export interface UpdateSupplierInput {
   name?: string | undefined;
+  contactPerson?: string | undefined;
   phone?: string | undefined;
   email?: string | undefined;
   address?: string | undefined;
@@ -101,14 +115,24 @@ export interface CreateSupplierPaymentInput {
 export interface CreateMaterialInput {
   name: string;
   unit: MaterialUnit;
+  sku?: string | undefined;
   minStock?: number | undefined;
+  pricePerUnit?: number | undefined;
+  currency?: string | undefined;
+  categoryId?: string | undefined;
+  notes?: string | undefined;
   description?: string | undefined;
 }
 
 export interface UpdateMaterialInput {
   name?: string | undefined;
   unit?: MaterialUnit | undefined;
+  sku?: string | undefined;
   minStock?: number | undefined;
+  pricePerUnit?: number | undefined;
+  currency?: string | undefined;
+  categoryId?: string | undefined;
+  notes?: string | undefined;
   description?: string | undefined;
 }
 

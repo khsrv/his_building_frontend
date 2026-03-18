@@ -102,10 +102,11 @@ function mapGeneratedContractDto(dto: GeneratedContractDto): GeneratedContract {
 // ─── Contract Templates ───────────────────────────────────────────────────────
 
 export async function listContractTemplates(): Promise<ContractTemplate[]> {
-  const res = await apiClient.get<{ data: ContractTemplateDto[] }>(
+  const res = await apiClient.get<{ data: ContractTemplateDto[] | { items: ContractTemplateDto[]; pagination?: unknown } }>(
     "/api/v1/contract-templates",
   );
-  return res.data.map(mapContractTemplateDto);
+  const items = Array.isArray(res.data) ? res.data : (res.data.items ?? []);
+  return items.filter((item) => Boolean(item?.id)).map(mapContractTemplateDto);
 }
 
 export async function getContractTemplate(id: string): Promise<ContractTemplate> {
@@ -165,8 +166,9 @@ export async function generateContract(
 // ─── SMS Templates ────────────────────────────────────────────────────────────
 
 export async function listSmsTemplates(): Promise<SmsTemplate[]> {
-  const res = await apiClient.get<{ data: SmsTemplateDto[] }>("/api/v1/sms-templates");
-  return res.data.map(mapSmsTemplateDto);
+  const res = await apiClient.get<{ data: SmsTemplateDto[] | { items: SmsTemplateDto[]; pagination?: unknown } }>("/api/v1/sms-templates");
+  const items = Array.isArray(res.data) ? res.data : (res.data.items ?? []);
+  return items.filter((item) => Boolean(item?.id)).map(mapSmsTemplateDto);
 }
 
 export async function createSmsTemplate(
@@ -223,7 +225,7 @@ export async function listSmsLogs(
     query,
   );
   return {
-    items: res.data.items.map(mapSmsLogDto),
+    items: (res.data.items ?? []).filter((item) => Boolean(item?.id)).map(mapSmsLogDto),
     total: res.data.pagination.total,
   };
 }

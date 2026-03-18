@@ -124,8 +124,9 @@ export async function fetchPricingRules(propertyId: string): Promise<PricingRule
     property_id: propertyId,
   };
 
-  const res = await apiClient.get<{ data: PricingRuleDto[] }>("/api/v1/pricing-rules", query);
-  return res.data.map(mapPricingRuleDto);
+  const res = await apiClient.get<{ data: PricingRuleDto[] | { items: PricingRuleDto[]; pagination?: unknown } }>("/api/v1/pricing-rules", query);
+  const items = Array.isArray(res.data) ? res.data : (res.data.items ?? []);
+  return items.filter((item) => Boolean(item?.id)).map(mapPricingRuleDto);
 }
 
 export async function createPricingRule(input: CreatePricingRuleInput): Promise<PricingRule> {
@@ -151,8 +152,9 @@ export async function deletePricingRule(id: string): Promise<void> {
 // ─── Brokers ──────────────────────────────────────────────────────────────────
 
 export async function fetchBrokers(): Promise<Broker[]> {
-  const res = await apiClient.get<{ data: BrokerDto[] }>("/api/v1/brokers");
-  return res.data.map(mapBrokerDto);
+  const res = await apiClient.get<{ data: BrokerDto[] | { items: BrokerDto[]; pagination?: unknown } }>("/api/v1/brokers");
+  const items = Array.isArray(res.data) ? res.data : (res.data.items ?? []);
+  return items.filter((item) => Boolean(item?.id)).map(mapBrokerDto);
 }
 
 export async function createBroker(input: CreateBrokerInput): Promise<Broker> {
@@ -175,8 +177,9 @@ export async function deleteBroker(id: string): Promise<void> {
 }
 
 export async function fetchBrokerDeals(brokerId: string): Promise<BrokerDeal[]> {
-  const res = await apiClient.get<{ data: BrokerDealDto[] }>(`/api/v1/brokers/${brokerId}/deals`);
-  return res.data.map(mapBrokerDealDto);
+  const res = await apiClient.get<{ data: BrokerDealDto[] | { items: BrokerDealDto[]; pagination?: unknown } }>(`/api/v1/brokers/${brokerId}/deals`);
+  const items = Array.isArray(res.data) ? res.data : (res.data.items ?? []);
+  return items.filter((item) => Boolean(item?.id)).map(mapBrokerDealDto);
 }
 
 export async function assignBrokerDeal(input: AssignBrokerDealInput): Promise<BrokerDeal> {
@@ -197,8 +200,9 @@ export async function fetchInvoices(status?: string): Promise<Invoice[]> {
   const query: Record<string, string | number | boolean | undefined | null> = {};
   if (status) query["status"] = status;
 
-  const res = await apiClient.get<{ data: InvoiceDto[] }>("/api/v1/invoices", query);
-  return res.data.map(mapInvoiceDto);
+  const res = await apiClient.get<{ data: InvoiceDto[] | { items: InvoiceDto[]; pagination?: unknown } }>("/api/v1/invoices", query);
+  const items = Array.isArray(res.data) ? res.data : (res.data.items ?? []);
+  return items.filter((item) => Boolean(item?.id)).map(mapInvoiceDto);
 }
 
 export async function markInvoicePaid(id: string): Promise<void> {

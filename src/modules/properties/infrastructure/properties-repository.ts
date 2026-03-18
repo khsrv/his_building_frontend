@@ -30,6 +30,7 @@ import type { PropertyStatus } from "@/modules/properties/domain/property";
 
 interface PropertyDto {
   id: string;
+  tenant_id: string;
   name: string;
   address: string;
   city: string;
@@ -38,12 +39,11 @@ interface PropertyDto {
   property_type?: string | null;
   status: string;
   currency: string;
-  floors_count: number;
-  blocks_count: number;
-  units_count: number;
-  available_units: number;
-  start_date: string | null;
-  completion_date: string | null;
+  total_units: number;
+  sold_units: number;
+  realization_percent: number;
+  construction_start_date: string | null;
+  construction_end_date: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -53,18 +53,21 @@ interface BlockDto {
   property_id: string;
   name: string;
   floors_count: number;
+  underground_floors: number;
+  sort_order: number;
   created_at: string;
 }
 
 interface ChessUnitDto {
   id: string;
   unit_number: string;
-  floor_number: number;
+  unit_type: string;
   rooms: number | null;
   total_area: number | null;
-  base_price: number | null;
+  current_price: number | null;
+  price_per_sqm: number | null;
   status: BackendUnitStatus;
-  unit_type: string;
+  position: string;
 }
 
 interface ChessFloorDto {
@@ -73,8 +76,9 @@ interface ChessFloorDto {
 }
 
 interface ChessBlockDto {
-  id: string;
-  name: string;
+  block_id: string;
+  block_name: string;
+  floors_count: number;
   floors: ChessFloorDto[];
 }
 
@@ -87,10 +91,9 @@ interface ChessBoardDto {
 function isPropertyStatus(value: string): value is PropertyStatus {
   return (
     value === "planning" ||
-    value === "under_construction" ||
+    value === "construction" ||
     value === "completed" ||
-    value === "selling" ||
-    value === "archived"
+    value === "suspended"
   );
 }
 
@@ -102,12 +105,11 @@ function mapPropertyDto(dto: PropertyDto): Property {
     city: dto.city,
     status: isPropertyStatus(dto.status) ? dto.status : "planning",
     currency: dto.currency,
-    blocksCount: dto.blocks_count,
-    floorsCount: dto.floors_count,
-    unitsCount: dto.units_count,
-    availableUnits: dto.available_units,
-    startDate: dto.start_date,
-    completionDate: dto.completion_date,
+    totalUnits: dto.total_units,
+    soldUnits: dto.sold_units,
+    realizationPercent: dto.realization_percent,
+    constructionStartDate: dto.construction_start_date,
+    constructionEndDate: dto.construction_end_date,
     createdAt: dto.created_at,
   };
 }
@@ -125,12 +127,13 @@ function mapChessUnitDto(dto: ChessUnitDto): ChessUnit {
   return {
     id: dto.id,
     unitNumber: dto.unit_number,
-    floorNumber: dto.floor_number,
-    rooms: dto.rooms,
-    totalArea: dto.total_area,
-    basePrice: dto.base_price,
+    rooms: dto.rooms ?? null,
+    totalArea: dto.total_area ?? null,
+    currentPrice: dto.current_price ?? null,
+    pricePerSqm: dto.price_per_sqm ?? null,
     status: mapUnitStatus(dto.status),
     unitType: dto.unit_type,
+    position: dto.position,
   };
 }
 
@@ -143,8 +146,9 @@ function mapChessFloorDto(dto: ChessFloorDto): ChessFloor {
 
 function mapChessBlockDto(dto: ChessBlockDto): ChessBlock {
   return {
-    id: dto.id,
-    name: dto.name,
+    id: dto.block_id,
+    name: dto.block_name,
+    floorsCount: dto.floors_count,
     floors: dto.floors.map(mapChessFloorDto),
   };
 }
@@ -172,7 +176,7 @@ export async function fetchPropertiesList(
   );
 
   return {
-    items: response.data.items.map(mapPropertyDto),
+    items: (response.data.items ?? []).filter((item) => Boolean(item?.id)).map(mapPropertyDto),
     total: response.data.pagination.total,
     page: response.data.pagination.page,
     limit: response.data.pagination.limit,
@@ -392,7 +396,7 @@ export async function fetchUnitsList(
 
   const response = await apiClient.get<ApiPaginatedResponse<UnitDto>>("/api/v1/units", query);
   return {
-    items: response.data.items.map(mapUnitDto),
+    items: (response.data.items ?? []).filter((item) => Boolean(item?.id)).map(mapUnitDto),
     total: response.data.pagination.total,
     page: response.data.pagination.page,
     limit: response.data.pagination.limit,

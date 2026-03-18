@@ -7,13 +7,11 @@ import { useCreateClientMutation } from "@/modules/clients/presentation/hooks/us
 import type { ClientSource } from "@/modules/clients/domain/client";
 
 const SOURCE_OPTIONS: Array<{ label: string; value: ClientSource }> = [
+  { value: "instagram", label: "Instagram" },
+  { value: "facebook", label: "Facebook" },
   { value: "website", label: "Сайт" },
-  { value: "phone", label: "Телефон" },
-  { value: "walk_in", label: "Визит" },
   { value: "referral", label: "Рекомендация" },
-  { value: "broker", label: "Брокер" },
-  { value: "social_media", label: "Соцсети" },
-  { value: "advertising", label: "Реклама" },
+  { value: "direct", label: "Прямой" },
   { value: "other", label: "Другое" },
 ];
 

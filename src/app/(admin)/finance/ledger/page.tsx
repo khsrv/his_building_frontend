@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Box, Stack } from "@mui/material";
 import {
   AppButton,
@@ -184,10 +184,38 @@ export default function FinanceLedgerPage() {
     ...(filterDateTo ? { dateTo: filterDateTo } : {}),
   };
 
-  const { data: transactions, isLoading, isError } = useTransactionsQuery(params);
+  const { data: rawTransactions, isLoading, isError } = useTransactionsQuery(params);
   const { data: accounts } = useAccountsQuery();
   const { data: categories } = useExpenseCategoriesQuery();
   const createMutation = useCreateTransactionMutation();
+
+  // Build lookup maps for name resolution
+  const accountNameMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const a of accounts ?? []) {
+      map.set(a.id, a.name);
+    }
+    return map;
+  }, [accounts]);
+
+  const categoryNameMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const c of categories ?? []) {
+      map.set(c.id, c.name);
+    }
+    return map;
+  }, [categories]);
+
+  // Enrich transactions with resolved names
+  const transactions = useMemo(() => {
+    if (!rawTransactions) return undefined;
+    return rawTransactions.map((tx) => ({
+      ...tx,
+      accountName: accountNameMap.get(tx.accountId) ?? tx.accountName,
+      toAccountName: tx.toAccountId ? (accountNameMap.get(tx.toAccountId) ?? tx.toAccountName) : tx.toAccountName,
+      categoryName: tx.categoryId ? (categoryNameMap.get(tx.categoryId) ?? tx.categoryName) : tx.categoryName,
+    }));
+  }, [rawTransactions, accountNameMap, categoryNameMap]);
 
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [form, setForm] = useState<CreateFormState>(INITIAL_FORM);

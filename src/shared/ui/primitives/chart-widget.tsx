@@ -212,7 +212,7 @@ export function AppChartWidget({
         <p className="mb-3 text-sm font-semibold text-foreground">{title}</p>
       ) : null}
       <div style={{ width: "100%", height }}>
-        <ResponsiveContainer height="100%" width="100%">
+        <ResponsiveContainer height="100%" minWidth={0} width="100%">
           {isPie ? renderPie() : renderCartesian()}
         </ResponsiveContainer>
       </div>

@@ -130,7 +130,7 @@ export async function listUsers(
     query,
   );
   return {
-    items: res.data.items.map(mapUserDto),
+    items: (res.data.items ?? []).filter((item) => Boolean(item?.id)).map(mapUserDto),
     total: res.data.pagination.total,
     page: res.data.pagination.page,
     limit: res.data.pagination.limit,
@@ -192,7 +192,7 @@ export async function listTenants(
     query,
   );
   return {
-    items: res.data.items.map(mapTenantDto),
+    items: (res.data.items ?? []).filter((item) => Boolean(item?.id)).map(mapTenantDto),
     total: res.data.pagination.total,
     page: res.data.pagination.page,
     limit: res.data.pagination.limit,
@@ -272,8 +272,9 @@ export async function setSubscription(
 // ─── Settings ─────────────────────────────────────────────────────────────────
 
 export async function listSettings(): Promise<CompanySetting[]> {
-  const res = await apiClient.get<ApiResponse<SettingDto[]>>("/api/v1/settings");
-  return res.data.map(mapSettingDto);
+  const res = await apiClient.get<{ data: SettingDto[] | { items: SettingDto[]; pagination?: unknown } }>("/api/v1/settings");
+  const items = Array.isArray(res.data) ? res.data : (res.data.items ?? []);
+  return items.filter((item) => Boolean(item?.key)).map(mapSettingDto);
 }
 
 export async function setSetting(

@@ -73,7 +73,6 @@ function itemSx(item: AppTopBarMenuItem) {
   if (item.tone === "danger") {
     return {
       color: "error.main",
-      bgcolor: "error.light",
       "&:hover": { bgcolor: "error.light" },
     };
   }
@@ -81,7 +80,6 @@ function itemSx(item: AppTopBarMenuItem) {
   if (item.tone === "primary" || item.active) {
     return {
       color: "primary.main",
-      bgcolor: "primary.light",
       "&:hover": { bgcolor: "primary.light" },
     };
   }
@@ -176,6 +174,7 @@ export function AppTopBar({ leftSlot, actions = [], profile, className }: AppTop
                   anchorEl={menuAnchor}
                   onClose={closeMenu}
                   open={menuOwnerId === action.id}
+                  anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
                   transformOrigin={{ horizontal: "right", vertical: "top" }}
                 >
                   {action.menuItems?.map((item) => renderMenuItem(item, closeMenu))}
@@ -278,6 +277,7 @@ export function AppTopBar({ leftSlot, actions = [], profile, className }: AppTop
               anchorEl={menuAnchor}
               onClose={closeMenu}
               open={menuOwnerId === "profile"}
+              anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
               transformOrigin={{ horizontal: "right", vertical: "top" }}
             >
               {profile.menuItems?.map((item) => renderMenuItem(item, closeMenu))}

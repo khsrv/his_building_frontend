@@ -72,11 +72,11 @@ interface ClientDetailResponseDto {
 }
 
 interface InteractionsListResponseDto {
-  data: InteractionDto[];
+  data: InteractionDto[] | { items: InteractionDto[]; pagination?: unknown };
 }
 
 interface PipelineStagesResponseDto {
-  data: PipelineStageDto[];
+  data: PipelineStageDto[] | { items: PipelineStageDto[]; pagination?: unknown };
 }
 
 interface PipelineBoardResponseDto {
@@ -89,13 +89,11 @@ interface PipelineBoardResponseDto {
 
 function isClientSource(value: string): value is ClientSource {
   return [
+    "instagram",
+    "facebook",
     "website",
-    "phone",
-    "walk_in",
     "referral",
-    "broker",
-    "social_media",
-    "advertising",
+    "direct",
     "other",
   ].includes(value);
 }
@@ -177,7 +175,7 @@ export async function fetchClientsList(params?: ClientsListParams): Promise<Clie
 
   const res = await apiClient.get<ClientsListResponseDto>("/api/v1/clients", query);
   return {
-    items: res.data.items.map(mapClientDto),
+    items: (res.data.items ?? []).filter((item) => Boolean(item?.id)).map(mapClientDto),
     total: res.data.pagination.total,
     page: res.data.pagination.page,
     limit: res.data.pagination.limit,
@@ -234,7 +232,8 @@ export async function fetchClientInteractions(clientId: string): Promise<Interac
   const res = await apiClient.get<InteractionsListResponseDto>(
     `/api/v1/clients/${clientId}/interactions`,
   );
-  return res.data.map(mapInteractionDto);
+  const items = Array.isArray(res.data) ? res.data : (res.data.items ?? []);
+  return items.filter((item) => Boolean(item?.id)).map(mapInteractionDto);
 }
 
 export async function addClientInteraction(
@@ -256,7 +255,8 @@ export async function addClientInteraction(
 
 export async function fetchPipelineStages(): Promise<PipelineStage[]> {
   const res = await apiClient.get<PipelineStagesResponseDto>("/api/v1/pipeline-stages");
-  return res.data.map(mapPipelineStageDto);
+  const items = Array.isArray(res.data) ? res.data : (res.data.items ?? []);
+  return items.filter((item) => Boolean(item?.id)).map(mapPipelineStageDto);
 }
 
 export async function fetchPipelineBoard(params?: PipelineBoardParams): Promise<PipelineBoardStage[]> {
@@ -265,7 +265,7 @@ export async function fetchPipelineBoard(params?: PipelineBoardParams): Promise<
   if (params?.source) query["source"] = params.source;
 
   const res = await apiClient.get<PipelineBoardResponseDto>("/api/v1/pipeline/board", query);
-  return res.data.stages.map(mapPipelineBoardStageDto);
+  return (res.data.stages ?? []).filter((item) => Boolean(item?.id)).map(mapPipelineBoardStageDto);
 }
 
 export async function moveClientStage(clientId: string, stageId: string): Promise<void> {
@@ -335,8 +335,9 @@ function mapPipelineStageDetailDto(dto: PipelineStageDetailDto): PipelineStageDe
 }
 
 export async function fetchPipelineStagesDetail(): Promise<PipelineStageDetail[]> {
-  const res = await apiClient.get<{ data: PipelineStageDetailDto[] }>("/api/v1/pipeline-stages");
-  return res.data.map(mapPipelineStageDetailDto);
+  const res = await apiClient.get<{ data: PipelineStageDetailDto[] | { items: PipelineStageDetailDto[]; pagination?: unknown } }>("/api/v1/pipeline-stages");
+  const items = Array.isArray(res.data) ? res.data : (res.data.items ?? []);
+  return items.filter((item) => Boolean(item?.id)).map(mapPipelineStageDetailDto);
 }
 
 export async function createPipelineStage(input: CreatePipelineStageInput): Promise<PipelineStageDetail> {

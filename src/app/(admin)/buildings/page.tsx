@@ -34,18 +34,16 @@ import type { Property, PropertyStatus, CreatePropertyInput, UpdatePropertyInput
 
 const PROPERTY_STATUS_LABEL: Record<PropertyStatus, string> = {
   planning: "Планирование",
-  under_construction: "Строительство",
+  construction: "Строительство",
   completed: "Завершён",
-  selling: "Продажа",
-  archived: "Архив",
+  suspended: "Приостановлен",
 };
 
 const PROPERTY_STATUS_TONE: Record<PropertyStatus, AppStatusTone> = {
   planning: "muted",
-  under_construction: "warning",
+  construction: "warning",
   completed: "success",
-  selling: "info",
-  archived: "muted",
+  suspended: "danger",
 };
 
 // ─── Chess grid preview rows for a property ──────────────────────────────────
@@ -55,8 +53,8 @@ function makeChessPreviewRows(property: Property): readonly AppColorGridRow[] {
     "free", "free", "sold", "free", "booked", "free", "reserved", "free",
   ];
   const rows: AppColorGridRow[] = [];
-  const floors = Math.min(property.floorsCount, 9);
-  const aptsPerFloor = Math.min(Math.ceil(property.unitsCount / Math.max(floors, 1)), 8);
+  const floors = Math.min(property.totalUnits > 0 ? 9 : 3, 9);
+  const aptsPerFloor = Math.min(Math.ceil(property.totalUnits / Math.max(floors, 1)), 8);
 
   for (let floor = 1; floor <= floors; floor++) {
     const cells: AppColorGridCell[] = [];
@@ -116,9 +114,9 @@ export default function BuildingsPage() {
 
   const properties = data?.items ?? [];
   const totalBuildings = data?.total ?? properties.length;
-  const inConstruction = properties.filter((p) => p.status === "under_construction").length;
-  const selling = properties.filter((p) => p.status === "selling").length;
-  const totalFreeUnits = properties.reduce((sum, p) => sum + p.availableUnits, 0);
+  const inConstruction = properties.filter((p) => p.status === "construction").length;
+  const suspended = properties.filter((p) => p.status === "suspended").length;
+  const totalFreeUnits = properties.reduce((sum, p) => sum + (p.totalUnits - p.soldUnits), 0);
 
   // ─── Drawer state ────────────────────────────────────────────────────
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -143,8 +141,8 @@ export default function BuildingsPage() {
       city: property.city,
       district: "",
       currency: property.currency,
-      constructionStartDate: property.startDate ?? "",
-      constructionEndDate: property.completionDate ?? "",
+      constructionStartDate: property.constructionStartDate ?? "",
+      constructionEndDate: property.constructionEndDate ?? "",
       description: "",
     });
     setDrawerOpen(true);
@@ -231,24 +229,24 @@ export default function BuildingsPage() {
       sortAccessor: (row) => row.status,
     },
     {
-      id: "blocksCount",
-      header: "Блоки",
-      cell: (row) => row.blocksCount,
-      sortAccessor: (row) => row.blocksCount,
-      align: "right",
-    },
-    {
-      id: "unitsCount",
+      id: "totalUnits",
       header: "Квартиры",
-      cell: (row) => row.unitsCount,
-      sortAccessor: (row) => row.unitsCount,
+      cell: (row) => row.totalUnits,
+      sortAccessor: (row) => row.totalUnits,
       align: "right",
     },
     {
-      id: "availableUnits",
-      header: "Свободных",
-      cell: (row) => row.availableUnits,
-      sortAccessor: (row) => row.availableUnits,
+      id: "soldUnits",
+      header: "Продано",
+      cell: (row) => row.soldUnits,
+      sortAccessor: (row) => row.soldUnits,
+      align: "right",
+    },
+    {
+      id: "realizationPercent",
+      header: "Реализация",
+      cell: (row) => `${row.realizationPercent.toFixed(1)}%`,
+      sortAccessor: (row) => row.realizationPercent,
       align: "right",
     },
     {
@@ -415,7 +413,7 @@ export default function BuildingsPage() {
             items={[
               { title: "Всего объектов", value: totalBuildings },
               { title: "В строительстве", value: inConstruction, deltaTone: "warning" },
-              { title: "Продаются", value: selling, deltaTone: "info" },
+              { title: "Приостановлены", value: suspended, deltaTone: "danger" },
               { title: "Свободных квартир", value: totalFreeUnits, deltaTone: "success" },
             ]}
           />
