@@ -1,5 +1,5 @@
 // ─── Roles ────────────────────────────────────────────────────────────────────
-// Matches the 11 roles from BuildCRM TZ
+// Matches the 11 roles from Hisob Building TZ
 
 export type UserRole =
   | "super_admin"      // Platform level — manages tenants, billing, global settings

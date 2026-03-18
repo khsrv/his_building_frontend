@@ -112,7 +112,7 @@ All components are exported from `src/shared/ui/index.ts`. Always import from th
 **Entity Management**
 `AppEntityEditor`, `AppDrawerForm`, `AppCrudPageScaffold`, `AppBulkActionBar`, `AppActionMenu`
 
-**Domain-Specific (BuildCRM)**
+**Domain-Specific (Hisob Building)**
 `AppColorGrid` — apartment grid visualization (шахматка: free/booked/sold/reserved)
 `AppKanbanBoard` — drag-and-drop deal/task board (native HTML5 DnD)
 `AppPaymentTimeline` — installment payment schedule with overdue/today/upcoming states

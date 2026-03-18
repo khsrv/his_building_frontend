@@ -45,7 +45,7 @@ const demoAccounts: readonly DemoAccount[] = [
     password: "demo123",
     user: makeDemoUser(
       "u-demo-admin",
-      "admin@buildcrm.tj",
+      "admin@Hisob Building.tj",
       "Алишер Назаров",
       ["admin_company"],
     ),
@@ -55,7 +55,7 @@ const demoAccounts: readonly DemoAccount[] = [
     password: "manager123",
     user: makeDemoUser(
       "u-demo-manager",
-      "manager@buildcrm.tj",
+      "manager@Hisob Building.tj",
       "Фаррух Рахимов",
       ["sales_manager"],
     ),
@@ -65,7 +65,7 @@ const demoAccounts: readonly DemoAccount[] = [
     password: "director123",
     user: makeDemoUser(
       "u-demo-director",
-      "director@buildcrm.tj",
+      "director@Hisob Building.tj",
       "Саид Ибрагимов",
       ["sales_director"],
     ),
@@ -75,7 +75,7 @@ const demoAccounts: readonly DemoAccount[] = [
     password: "accountant123",
     user: makeDemoUser(
       "u-demo-accountant",
-      "accountant@buildcrm.tj",
+      "accountant@Hisob Building.tj",
       "Нигина Каримова",
       ["accountant"],
     ),

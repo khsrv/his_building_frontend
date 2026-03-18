@@ -123,7 +123,7 @@ export default function DashboardPage() {
     <main className="space-y-6 p-6">
       <AppPageHeader
         title="Панель управления"
-        subtitle="Обзор ключевых показателей BuildCRM"
+        subtitle="Обзор ключевых показателей Hisob Building"
       />
 
       {/* KPI Cards */}

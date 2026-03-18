@@ -212,7 +212,7 @@ export function AppShell({ children }: AppShellProps) {
       {
         id: "workspace",
         icon: <MonitorIcon />,
-        label: "BuildCRM",
+        label: "Hisob Building",
         active: true,
         title: t("topbar.workspace"),
       },
@@ -292,7 +292,7 @@ export function AppShell({ children }: AppShellProps) {
       <AppSidebar
         activeItemId={activeItemId}
         brandIcon={<BrandIcon />}
-        brandLabel="BuildCRM"
+        brandLabel="Hisob Building"
         items={sidebarItems}
       />
 

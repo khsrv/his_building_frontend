@@ -128,7 +128,7 @@ export function LoginForm() {
               B
             </Box>
             <Typography variant="h5" sx={{ fontWeight: 700 }}>
-              BuildCRM
+              Hisob Building
             </Typography>
             <Typography color="text.secondary" sx={{ mt: 0.5 }}>
               {t("auth.login.title")}

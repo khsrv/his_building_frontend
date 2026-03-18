@@ -243,7 +243,7 @@ export function NewComponentsShowcase() {
   return (
     <div className="space-y-2 p-2">
       <div className="mb-4 flex items-center gap-3">
-        <h2 className="text-xl font-bold text-foreground">Новые компоненты — BuildCRM</h2>
+        <h2 className="text-xl font-bold text-foreground">Новые компоненты — Hisob Building</h2>
         <AppNotificationCenter
           notifications={notifications}
           onRead={(id) => setNotifications((p) => p.map((n) => n.id === id ? { ...n, read: true } : n))}

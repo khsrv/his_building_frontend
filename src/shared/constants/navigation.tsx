@@ -1,5 +1,5 @@
 /**
- * Sidebar navigation configuration for BuildCRM.
+ * Sidebar navigation configuration for Hisob Building.
  * Centralized so both AppShell and breadcrumbs can reference it.
  */
 
@@ -133,7 +133,7 @@ export interface NavItem {
   readonly children?: readonly NavItem[];
 }
 
-// ─── BuildCRM navigation tree ─────────────────────────────────────────────────
+// ─── Hisob Building navigation tree ─────────────────────────────────────────────────
 
 export const NAVIGATION_ITEMS: readonly NavItem[] = [
   {

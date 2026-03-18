@@ -89,10 +89,11 @@ export function AppDataTable<TData>({
   enableSettings = true,
   enableExport = true,
   showTotals = true,
-  fileNameBase = "table-data",
+  fileNameBase: fileNameBaseProp,
   storageKey,
 }: AppDataTableProps<TData>) {
   const { locale, t } = useI18n();
+  const fileNameBase = fileNameBaseProp ?? title ?? "table-data";
   const storageNamespace = storageKey ?? fileNameBase;
 
   // ---------------------------------------------------------------------------
@@ -1204,12 +1205,34 @@ export function AppDataTable<TData>({
         options: {
           head: string[][];
           body: string[][];
+          startY?: number;
           styles?: Record<string, unknown>;
           headStyles?: Record<string, unknown>;
         },
       ) => void;
 
       const pdf = new jsPDF({ orientation: "landscape" });
+
+      // Register Cyrillic-compatible font
+      const { TIKTOK_SANS_BASE64 } = await import("@/shared/lib/pdf-font");
+      pdf.addFileToVFS("TikTokSans.ttf", TIKTOK_SANS_BASE64);
+      pdf.addFont("TikTokSans.ttf", "TikTokSans", "normal");
+      pdf.setFont("TikTokSans");
+
+      // Title and date header
+      const pdfTitle = title ?? fileNameBase;
+      const dateStr = new Date().toLocaleDateString("ru-RU", {
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+      });
+      pdf.setFontSize(16);
+      pdf.text(pdfTitle, 14, 15);
+      pdf.setFontSize(9);
+      pdf.setTextColor(120, 120, 120);
+      pdf.text(dateStr, 14, 22);
+      pdf.setTextColor(0, 0, 0);
+
       const head = [activeColumns.map((column) => column.header)];
       const body = exportRows.map((row) =>
         activeColumns.map((column) => row[column.header] ?? ""),
@@ -1218,11 +1241,12 @@ export function AppDataTable<TData>({
       autoTable(pdf, {
         head,
         body,
-        styles: { fontSize: 9, cellPadding: 2 },
-        headStyles: { fillColor: [245, 179, 1], textColor: [17, 24, 39] },
+        startY: 28,
+        styles: { fontSize: 9, cellPadding: 2, font: "TikTokSans" },
+        headStyles: { fillColor: [245, 179, 1], textColor: [17, 24, 39], font: "TikTokSans" },
       });
 
-      pdf.save(`${fileNameBase}.pdf`);
+      pdf.save(`${pdfTitle}.pdf`);
     } finally {
       setIsExporting(false);
     }
