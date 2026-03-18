@@ -27,6 +27,7 @@ export const ruDictionary = {
   "auth.login.validation.passwordRequired": "Укажите пароль",
   "auth.login.validation.fillAll": "Заполните логин и пароль",
   "auth.login.validation.invalidCredentials": "Неверный логин или пароль",
+  "auth.login.validation.rateLimited": "Слишком много попыток. Попробуйте через 15 минут.",
   "auth.login.demoTitle": "Демо-доступ для стартера",
   "auth.login.demoAdmin": "Админ: demo / demo123",
   "auth.login.demoManager": "Менеджер: manager / manager123",

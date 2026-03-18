@@ -4,6 +4,7 @@ import { resolvePermissions } from "@/shared/types/permissions";
 import type { UserRole } from "@/shared/types/permissions";
 import { SESSION_COOKIE_KEY, REFRESH_TOKEN_COOKIE_KEY } from "@/modules/auth/infrastructure/session-cookie";
 import type { Session, SessionUser } from "@/modules/auth/domain/session";
+import { checkRateLimit, getClientIp } from "@/shared/lib/rate-limit";
 
 interface BackendUser {
   id: string;
@@ -48,6 +49,16 @@ function mapBackendUser(user: BackendUser, me?: BackendMeResponse | null): Sessi
 }
 
 export async function POST(request: Request) {
+  // Rate limit: 5 login attempts per 15 minutes per IP
+  const ip = getClientIp(request);
+  const rl = checkRateLimit(`login:${ip}`, 5, 15 * 60 * 1000);
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { code: "RATE_LIMITED", retryAfter: Math.ceil((rl.resetAt - Date.now()) / 1000) },
+      { status: 429, headers: { "Retry-After": String(Math.ceil((rl.resetAt - Date.now()) / 1000)) } },
+    );
+  }
+
   const rawBody = await request.json().catch(() => null) as unknown;
 
   if (!rawBody || typeof rawBody !== "object") {

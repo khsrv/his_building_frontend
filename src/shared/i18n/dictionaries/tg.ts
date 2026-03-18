@@ -27,6 +27,7 @@ export const tgDictionary = {
   "auth.login.validation.passwordRequired": "Паролро нишон диҳед",
   "auth.login.validation.fillAll": "Логин ва паролро пур кунед",
   "auth.login.validation.invalidCredentials": "Логин ё парол нодуруст аст",
+  "auth.login.validation.rateLimited": "Кӯшишҳо зиёданд. Баъд аз 15 дақиқа такрор кунед.",
   "auth.login.demoTitle": "Дастрасии демо барои стартер",
   "auth.login.demoAdmin": "Админ: demo / demo123",
   "auth.login.demoManager": "Менеҷер: manager / manager123",

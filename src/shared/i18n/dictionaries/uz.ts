@@ -27,6 +27,7 @@ export const uzDictionary = {
   "auth.login.validation.passwordRequired": "Parolni kiriting",
   "auth.login.validation.fillAll": "Login va parolni to'ldiring",
   "auth.login.validation.invalidCredentials": "Login yoki parol noto'g'ri",
+  "auth.login.validation.rateLimited": "Juda ko'p urinish. 15 daqiqadan so'ng qayta urinib ko'ring.",
   "auth.login.demoTitle": "Starter uchun demo kirish",
   "auth.login.demoAdmin": "Admin: demo / demo123",
   "auth.login.demoManager": "Menejer: manager / manager123",

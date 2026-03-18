@@ -43,6 +43,10 @@ export function LoginForm() {
       return t("auth.login.validation.invalidCredentials");
     }
 
+    if (code === "RATE_LIMITED") {
+      return t("auth.login.validation.rateLimited");
+    }
+
     return t("auth.login.error");
   };
 

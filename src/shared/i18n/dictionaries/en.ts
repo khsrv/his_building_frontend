@@ -27,6 +27,7 @@ export const enDictionary = {
   "auth.login.validation.passwordRequired": "Password is required",
   "auth.login.validation.fillAll": "Fill in login and password",
   "auth.login.validation.invalidCredentials": "Invalid login or password",
+  "auth.login.validation.rateLimited": "Too many attempts. Please try again in 15 minutes.",
   "auth.login.demoTitle": "Starter demo access",
   "auth.login.demoAdmin": "Admin: demo / demo123",
   "auth.login.demoManager": "Manager: manager / manager123",

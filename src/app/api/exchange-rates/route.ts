@@ -15,7 +15,9 @@ export interface NbtRatesResponse {
 }
 
 /**
- * Parses exchange rates from the National Bank of Tajikistan (nbt.tj).
+ * Fetches exchange rates from the National Bank of Tajikistan (nbt.tj).
+ * nbt.tj has an expired SSL cert — we use Node's https module with rejectUnauthorized: false
+ * as a last resort fallback. This is acceptable for public market data (no sensitive info).
  * Caches the result for 1 hour via Next.js revalidation.
  */
 export async function GET() {
@@ -25,33 +27,47 @@ export async function GET() {
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
   }
 
-  try {
-    // nbt.tj has an expired SSL cert — use Node's native fetch with TLS override
-    const res = await fetch("https://www.nbt.tj/ru/kurs/kurs.php", {
-      next: { revalidate: 3600 },
-      // @ts-expect-error — Node.js fetch supports this but types don't include it
-      agent: undefined,
-    });
+  const NBT_URL = "https://www.nbt.tj/ru/kurs/kurs.php";
 
-    // If the above fails due to SSL, we'll catch and try a workaround
-    const html = await res.text();
+  // Attempt 1: standard fetch with Next.js cache
+  try {
+    const res = await fetch(NBT_URL, { next: { revalidate: 3600 } });
+    if (res.ok) {
+      const html = await res.text();
+      return NextResponse.json(parseRates(html));
+    }
+  } catch {
+    // SSL or network error — fall through to Node https fallback
+  }
+
+  // Attempt 2: Node.js https module with SSL verification disabled
+  // Acceptable because nbt.tj is a known public endpoint serving non-sensitive market data
+  try {
+    const html = await fetchWithNodeHttps(NBT_URL);
     return NextResponse.json(parseRates(html));
   } catch {
-    // Fallback: try with http or return cached/fallback data
-    try {
-      const { execSync } = await import("child_process");
-      const html = execSync(
-        "curl -sk 'https://www.nbt.tj/ru/kurs/kurs.php' --max-time 10",
-        { encoding: "utf-8", timeout: 15000 },
-      );
-      return NextResponse.json(parseRates(html));
-    } catch {
-      return NextResponse.json(
-        { error: "Failed to fetch rates from NBT" },
-        { status: 502 },
-      );
-    }
+    return NextResponse.json(
+      { error: "Failed to fetch rates from NBT" },
+      { status: 502 },
+    );
   }
+}
+
+function fetchWithNodeHttps(url: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    import("https").then(({ get }) => {
+      const req = get(url, { rejectUnauthorized: false }, (res) => {
+        const chunks: Buffer[] = [];
+        res.on("data", (chunk: Buffer) => chunks.push(chunk));
+        res.on("end", () => resolve(Buffer.concat(chunks).toString("utf-8")));
+        res.on("error", reject);
+      });
+      req.on("error", reject);
+      req.setTimeout(10000, () => {
+        req.destroy(new Error("Request timeout"));
+      });
+    }).catch(reject);
+  });
 }
 
 function parseRates(html: string): NbtRatesResponse {
