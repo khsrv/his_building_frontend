@@ -1,14 +1,8 @@
 "use client";
 
-import { useCallback, useDeferredValue, useMemo, useRef, useState } from "react";
-import {
-  Autocomplete,
-  Box,
-  Chip,
-  Paper,
-  TextField,
-  Typography,
-} from "@mui/material";
+import { useCallback, useDeferredValue, useMemo, useState } from "react";
+import { Autocomplete, Chip, Paper, TextField } from "@mui/material";
+import { useI18n } from "@/shared/providers/locale-provider";
 
 export interface AppTagOption {
   id: string;
@@ -17,10 +11,10 @@ export interface AppTagOption {
 }
 
 interface AppTagInputProps {
-  value: readonly string[]; // array of tag ids
+  value: readonly string[];
   onChange: (ids: string[]) => void;
-  options?: readonly AppTagOption[]; // known tags for autocomplete
-  allowCreate?: boolean; // allow creating new tags (label becomes id)
+  options?: readonly AppTagOption[];
+  allowCreate?: boolean;
   placeholder?: string;
   label?: string;
   disabled?: boolean;
@@ -34,16 +28,16 @@ export function AppTagInput({
   onChange,
   options = [],
   allowCreate = true,
-  placeholder = "Добавить тег...",
+  placeholder,
   label,
   disabled = false,
   maxTags,
   className,
   size = "small",
 }: AppTagInputProps) {
+  const { t } = useI18n();
   const [inputValue, setInputValue] = useState("");
   const deferredInput = useDeferredValue(inputValue);
-  const inputRef = useRef<HTMLInputElement | null>(null);
 
   const selectedOptions = useMemo(
     () =>
@@ -67,17 +61,15 @@ export function AppTagInput({
       !options.some((o) => o.label.toLowerCase() === q) &&
       !value.includes(q)
     ) {
-      base.push({ id: q, label: `Создать "${q}"` });
+      base.push({ id: q, label: t("tag.create").replace("{value}", q) });
     }
     return base;
-  }, [deferredInput, options, value, allowCreate]);
+  }, [deferredInput, options, value, allowCreate, t]);
 
   const handleChange = useCallback(
     (_: unknown, newValue: readonly (string | AppTagOption)[]) => {
       if (maxTags !== undefined && newValue.length > maxTags) return;
-      onChange(
-        newValue.map((o) => (typeof o === "string" ? o : o.id)),
-      );
+      onChange(newValue.map((o) => (typeof o === "string" ? o : o.id)));
       setInputValue("");
     },
     [onChange, maxTags],
@@ -102,16 +94,14 @@ export function AppTagInput({
   const isAtMax = maxTags !== undefined && value.length >= maxTags;
 
   return (
-    <Box className={className}>
+    <div className={className}>
       <Autocomplete
         disableClearable
         disabled={disabled}
         filterOptions={(x) => x}
         filterSelectedOptions
         freeSolo={allowCreate}
-        getOptionLabel={(opt) =>
-          typeof opt === "string" ? opt : opt.label
-        }
+        getOptionLabel={(opt) => (typeof opt === "string" ? opt : opt.label)}
         inputValue={inputValue}
         multiple
         onChange={handleChange}
@@ -120,7 +110,7 @@ export function AppTagInput({
         }}
         options={filteredOptions}
         PaperComponent={({ children }) => (
-          <Paper elevation={4} sx={{ mt: 0.5 }}>
+          <Paper className="mt-1 rounded-xl border border-border shadow-sm" elevation={0}>
             {children}
           </Paper>
         )}
@@ -128,38 +118,25 @@ export function AppTagInput({
           <TextField
             {...params}
             disabled={disabled || isAtMax}
-            inputRef={inputRef}
             label={label}
             onKeyDown={handleKeyDown}
-            placeholder={isAtMax ? undefined : placeholder}
+            placeholder={isAtMax ? undefined : (placeholder ?? t("tag.placeholder"))}
             size={size}
-            slotProps={{
-              input: {
-                ...params.InputProps,
-              },
-            }}
+            slotProps={{ input: { ...params.InputProps } }}
           />
         )}
         renderOption={(props, option) => {
           const { key, ...rest } = props as React.HTMLAttributes<HTMLLIElement> & { key: string };
           return (
-            <Box component="li" key={key} {...rest} sx={{ py: 0.5 }}>
+            <li className="flex items-center gap-2 px-3 py-1.5 text-sm" key={key} {...rest}>
               {option.color ? (
-                <Box
-                  component="span"
-                  sx={{
-                    width: 10,
-                    height: 10,
-                    borderRadius: "50%",
-                    bgcolor: option.color,
-                    display: "inline-block",
-                    mr: 1,
-                    flexShrink: 0,
-                  }}
+                <span
+                  className="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
+                  style={{ backgroundColor: option.color }}
                 />
               ) : null}
-              <Typography sx={{ fontSize: 13 }}>{option.label}</Typography>
-            </Box>
+              <span className="text-foreground">{option.label}</span>
+            </li>
           );
         }}
         renderTags={(tagValue, getTagProps) =>
@@ -187,10 +164,10 @@ export function AppTagInput({
         value={selectedOptions}
       />
       {maxTags !== undefined ? (
-        <Typography color="text.disabled" sx={{ fontSize: 10, mt: 0.25, textAlign: "right" }}>
+        <p className="mt-0.5 text-right text-[10px] text-muted-foreground">
           {value.length}/{maxTags}
-        </Typography>
+        </p>
       ) : null}
-    </Box>
+    </div>
   );
 }

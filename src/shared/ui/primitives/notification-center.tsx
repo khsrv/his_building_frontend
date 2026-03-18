@@ -1,21 +1,8 @@
 "use client";
 
-import { useCallback, useState } from "react";
-import {
-  Badge,
-  Box,
-  Chip,
-  ClickAwayListener,
-  Divider,
-  IconButton,
-  Paper,
-  Popper,
-  Stack,
-  Tooltip,
-  Typography,
-} from "@mui/material";
-import { formatDistanceToNow, parseISO, isValid } from "date-fns";
-import { ru } from "date-fns/locale";
+import { useCallback, useRef, useState, useEffect } from "react";
+import { cn } from "@/shared/lib/ui/cn";
+import { useI18n } from "@/shared/providers/locale-provider";
 
 export type AppNotificationType = "info" | "success" | "warning" | "error";
 
@@ -24,7 +11,7 @@ export interface AppNotification {
   title: string;
   body?: string;
   type?: AppNotificationType;
-  createdAt: string; // ISO
+  createdAt: string;
   read?: boolean;
   href?: string;
   action?: { label: string; onClick: () => void };
@@ -39,29 +26,22 @@ interface AppNotificationCenterProps {
   className?: string;
 }
 
-const TYPE_COLOR: Record<AppNotificationType, "info" | "success" | "warning" | "error"> = {
-  info: "info",
-  success: "success",
-  warning: "warning",
-  error: "error",
+const typeChipClass: Record<AppNotificationType, string> = {
+  info: "bg-info/15 text-info",
+  success: "bg-success/15 text-success",
+  warning: "bg-warning/15 text-warning",
+  error: "bg-danger/15 text-danger",
 };
 
-function formatDate(iso: string): string {
-  const date = parseISO(iso);
-  if (!isValid(date)) return iso;
-  try {
-    return formatDistanceToNow(date, { addSuffix: true, locale: ru });
-  } catch {
-    return iso;
-  }
-}
-
-function BellIcon({ filled }: { filled?: boolean }) {
-  return (
-    <svg fill={filled ? "currentColor" : "none"} height="20" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" width="20">
-      <path d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
+function timeAgo(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "< 1m";
+  if (mins < 60) return `${mins}m`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h`;
+  const days = Math.floor(hrs / 24);
+  return `${days}d`;
 }
 
 export function AppNotificationCenter({
@@ -72,19 +52,28 @@ export function AppNotificationCenter({
   maxVisible = 20,
   className,
 }: AppNotificationCenterProps) {
-  const [anchorEl, setAnchorEl] = useState<HTMLButtonElement | null>(null);
-  const open = Boolean(anchorEl);
+  const { t } = useI18n();
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const unreadCount = notifications.filter((n) => !n.read).length;
   const visible = notifications.slice(0, maxVisible);
 
-  const handleToggle = useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
-    setAnchorEl((prev) => (prev ? null : e.currentTarget));
+  const handleToggle = useCallback(() => {
+    setOpen((prev) => !prev);
   }, []);
 
-  const handleClose = useCallback(() => {
-    setAnchorEl(null);
-  }, []);
+  // Close on click outside
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
 
   const handleNotificationClick = useCallback(
     (n: AppNotification) => {
@@ -95,174 +84,142 @@ export function AppNotificationCenter({
   );
 
   return (
-    <Box className={className} sx={{ display: "inline-flex" }}>
-      <Tooltip title="Уведомления">
-        <IconButton onClick={handleToggle} size="small">
-          <Badge
-            badgeContent={unreadCount > 0 ? unreadCount : undefined}
-            color="error"
-            max={99}
-            sx={{ "& .MuiBadge-badge": { fontSize: 10, height: 16, minWidth: 16 } }}
-          >
-            <BellIcon filled={unreadCount > 0} />
-          </Badge>
-        </IconButton>
-      </Tooltip>
-
-      <Popper
-        anchorEl={anchorEl}
-        modifiers={[{ name: "offset", options: { offset: [0, 8] } }]}
-        open={open}
-        placement="bottom-end"
-        style={{ zIndex: 1400 }}
+    <div className={cn("relative inline-flex", className)} ref={containerRef}>
+      {/* Bell button */}
+      <button
+        className="relative flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        onClick={handleToggle}
+        title={t("notification.bell")}
+        type="button"
       >
-        <ClickAwayListener onClickAway={handleClose}>
-          <Paper
-            elevation={8}
-            sx={{
-              width: 360,
-              maxHeight: 520,
-              display: "flex",
-              flexDirection: "column",
-              borderRadius: 2,
-              overflow: "hidden",
-            }}
-          >
-            {/* Header */}
-            <Stack
-              alignItems="center"
-              direction="row"
-              justifyContent="space-between"
-              sx={{ px: 2, py: 1.25, flexShrink: 0 }}
-            >
-              <Typography sx={{ fontWeight: 700, fontSize: 14 }}>
-                Уведомления
-                {unreadCount > 0 ? (
-                  <Box
-                    component="span"
-                    sx={{
-                      ml: 1,
-                      px: 0.75,
-                      py: 0.1,
-                      borderRadius: 10,
-                      bgcolor: "error.main",
-                      color: "error.contrastText",
-                      fontSize: 11,
-                      verticalAlign: "middle",
-                    }}
-                  >
-                    {unreadCount}
-                  </Box>
-                ) : null}
-              </Typography>
+        <svg
+          className="h-5 w-5"
+          fill={unreadCount > 0 ? "currentColor" : "none"}
+          stroke="currentColor"
+          strokeWidth="2"
+          viewBox="0 0 24 24"
+        >
+          <path
+            d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+        {unreadCount > 0 ? (
+          <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-danger px-1 text-[10px] font-bold text-white">
+            {unreadCount > 99 ? "99+" : unreadCount}
+          </span>
+        ) : null}
+      </button>
+
+      {/* Dropdown */}
+      {open ? (
+        <div className="absolute right-0 top-full z-50 mt-2 flex max-h-[520px] w-[360px] flex-col overflow-hidden rounded-xl border border-border bg-card shadow-lg">
+          {/* Header */}
+          <div className="flex shrink-0 items-center justify-between border-b border-border px-3 py-2.5">
+            <span className="text-sm font-bold text-foreground">
+              {t("notification.title")}
               {unreadCount > 0 ? (
-                <Typography
-                  color="primary"
-                  onClick={onReadAll}
-                  sx={{ fontSize: 12, cursor: "pointer", "&:hover": { textDecoration: "underline" } }}
-                >
-                  Прочитать все
-                </Typography>
+                <span className="ml-1.5 inline-flex items-center rounded-full bg-danger px-1.5 py-0.5 text-[10px] font-bold text-white">
+                  {unreadCount}
+                </span>
               ) : null}
-            </Stack>
-            <Divider />
+            </span>
+            {unreadCount > 0 ? (
+              <button
+                className="text-xs text-primary hover:underline"
+                onClick={onReadAll}
+                type="button"
+              >
+                {t("notification.readAll")}
+              </button>
+            ) : null}
+          </div>
 
-            {/* List */}
-            <Box sx={{ flex: 1, overflowY: "auto" }}>
-              {visible.length === 0 ? (
-                <Typography
-                  color="text.disabled"
-                  sx={{ py: 5, textAlign: "center", fontSize: 13 }}
-                >
-                  Нет уведомлений
-                </Typography>
-              ) : (
-                visible.map((n, idx) => (
-                  <Box key={n.id}>
-                    <Box
-                      onClick={() => handleNotificationClick(n)}
-                      sx={{
-                        px: 2,
-                        py: 1.25,
-                        cursor: "pointer",
-                        bgcolor: n.read ? "transparent" : "action.selected",
-                        "&:hover": { bgcolor: "action.hover" },
-                        transition: "background-color 120ms ease",
-                        display: "flex",
-                        gap: 1.25,
-                        alignItems: "flex-start",
-                      }}
-                    >
-                      {/* Unread dot */}
-                      <Box
-                        sx={{
-                          width: 8,
-                          height: 8,
-                          borderRadius: "50%",
-                          bgcolor: n.read ? "transparent" : "primary.main",
-                          flexShrink: 0,
-                          mt: 0.75,
-                        }}
-                      />
+          {/* List */}
+          <div className="flex-1 overflow-y-auto">
+            {visible.length === 0 ? (
+              <p className="py-8 text-center text-sm text-muted-foreground">
+                {t("notification.empty")}
+              </p>
+            ) : (
+              visible.map((n, idx) => (
+                <div key={n.id}>
+                  <div
+                    className={cn(
+                      "flex cursor-pointer items-start gap-2.5 px-3 py-2.5 transition-colors hover:bg-muted/50",
+                      !n.read && "bg-primary/5",
+                    )}
+                    onClick={() => handleNotificationClick(n)}
+                  >
+                    {/* Unread dot */}
+                    <span
+                      className={cn(
+                        "mt-1.5 h-2 w-2 shrink-0 rounded-full",
+                        n.read ? "bg-transparent" : "bg-primary",
+                      )}
+                    />
 
-                      <Box sx={{ flex: 1, minWidth: 0 }}>
-                        <Stack alignItems="center" direction="row" gap={0.75} flexWrap="wrap">
-                          <Typography
-                            noWrap
-                            sx={{ fontSize: 13, fontWeight: n.read ? 400 : 600, flex: 1 }}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5">
+                        <span
+                          className={cn(
+                            "flex-1 truncate text-sm",
+                            n.read ? "font-normal text-foreground" : "font-semibold text-foreground",
+                          )}
+                        >
+                          {n.title}
+                        </span>
+                        {n.type ? (
+                          <span
+                            className={cn(
+                              "inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium",
+                              typeChipClass[n.type],
+                            )}
                           >
-                            {n.title}
-                          </Typography>
-                          {n.type ? (
-                            <Chip
-                              color={TYPE_COLOR[n.type]}
-                              label={n.type}
-                              size="small"
-                              sx={{ fontSize: 10, height: 16 }}
-                            />
-                          ) : null}
-                        </Stack>
-                        {n.body ? (
-                          <Typography
-                            color="text.secondary"
-                            sx={{ fontSize: 12, mt: 0.25, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}
-                          >
-                            {n.body}
-                          </Typography>
+                            {n.type}
+                          </span>
                         ) : null}
-                        <Stack alignItems="center" direction="row" gap={1} sx={{ mt: 0.5 }}>
-                          <Typography color="text.disabled" sx={{ fontSize: 11 }}>
-                            {formatDate(n.createdAt)}
-                          </Typography>
-                          {n.action ? (
-                            <Typography
-                              color="primary"
-                              onClick={(e) => { e.stopPropagation(); n.action!.onClick(); }}
-                              sx={{ fontSize: 12, cursor: "pointer", "&:hover": { textDecoration: "underline" } }}
-                            >
-                              {n.action.label}
-                            </Typography>
-                          ) : null}
-                          {onDismiss ? (
-                            <Typography
-                              color="text.disabled"
-                              onClick={(e) => { e.stopPropagation(); onDismiss(n.id); }}
-                              sx={{ fontSize: 12, cursor: "pointer", ml: "auto", "&:hover": { color: "error.main" } }}
-                            >
-                              ✕
-                            </Typography>
-                          ) : null}
-                        </Stack>
-                      </Box>
-                    </Box>
-                    {idx < visible.length - 1 ? <Divider /> : null}
-                  </Box>
-                ))
-              )}
-            </Box>
-          </Paper>
-        </ClickAwayListener>
-      </Popper>
-    </Box>
+                      </div>
+                      {n.body ? (
+                        <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
+                          {n.body}
+                        </p>
+                      ) : null}
+                      <div className="mt-1 flex items-center gap-2">
+                        <span className="text-[11px] text-muted-foreground/60">
+                          {timeAgo(n.createdAt)}
+                        </span>
+                        {n.action ? (
+                          <button
+                            className="text-xs text-primary hover:underline"
+                            onClick={(e) => { e.stopPropagation(); n.action!.onClick(); }}
+                            type="button"
+                          >
+                            {n.action.label}
+                          </button>
+                        ) : null}
+                        {onDismiss ? (
+                          <button
+                            className="ml-auto text-xs text-muted-foreground hover:text-danger"
+                            onClick={(e) => { e.stopPropagation(); onDismiss(n.id); }}
+                            type="button"
+                          >
+                            ✕
+                          </button>
+                        ) : null}
+                      </div>
+                    </div>
+                  </div>
+                  {idx < visible.length - 1 ? (
+                    <div className="border-b border-border" />
+                  ) : null}
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      ) : null}
+    </div>
   );
 }

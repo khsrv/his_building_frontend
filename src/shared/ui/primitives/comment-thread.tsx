@@ -1,22 +1,11 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import {
-  Avatar,
-  Box,
-  CircularProgress,
-  Divider,
-  IconButton,
-  Paper,
-  Stack,
-  TextField,
-  Tooltip,
-  Typography,
-} from "@mui/material";
-import { formatDistanceToNow, parseISO, isValid } from "date-fns";
-import { ru } from "date-fns/locale";
+import { cn } from "@/shared/lib/ui/cn";
 import { AppButton } from "@/shared/ui/primitives/button";
+import { AppInput } from "@/shared/ui/primitives/input";
 import { useI18n } from "@/shared/providers/locale-provider";
+import type { TranslationKey } from "@/shared/i18n/types";
 
 export interface AppComment {
   id: string;
@@ -24,7 +13,7 @@ export interface AppComment {
   authorName: string;
   authorAvatar?: string;
   text: string;
-  createdAt: string; // ISO date string
+  createdAt: string;
   updatedAt?: string;
   replyToId?: string | null;
   pinned?: boolean;
@@ -44,16 +33,6 @@ interface AppCommentThreadProps {
   maxHeight?: number;
 }
 
-function formatDate(iso: string): string {
-  const date = parseISO(iso);
-  if (!isValid(date)) return iso;
-  try {
-    return formatDistanceToNow(date, { addSuffix: true, locale: ru });
-  } catch {
-    return iso;
-  }
-}
-
 function getInitials(name: string): string {
   return name
     .split(" ")
@@ -62,10 +41,22 @@ function getInitials(name: string): string {
     .join("");
 }
 
+function timeAgo(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "< 1m";
+  if (mins < 60) return `${mins}m`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h`;
+  const days = Math.floor(hrs / 24);
+  return `${days}d`;
+}
+
 interface CommentItemProps {
   comment: AppComment;
   currentUserId: string;
   isReply?: boolean;
+  t: (key: TranslationKey) => string;
   onReply: (id: string, name: string) => void;
   onDelete?: (id: string) => void;
   onPin?: (id: string, pinned: boolean) => void;
@@ -75,6 +66,7 @@ function CommentItem({
   comment,
   currentUserId,
   isReply = false,
+  t,
   onReply,
   onDelete,
   onPin,
@@ -82,103 +74,62 @@ function CommentItem({
   const isOwn = comment.authorId === currentUserId;
 
   return (
-    <Box sx={{ display: "flex", gap: 1, pl: isReply ? 5 : 0 }}>
-      <Avatar
-        src={comment.authorAvatar}
-        sx={{ width: 32, height: 32, fontSize: 13, flexShrink: 0, mt: 0.25 }}
-      >
+    <div className={cn("flex gap-2.5", isReply && "ml-10")}>
+      {/* Avatar */}
+      <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold text-muted-foreground">
         {getInitials(comment.authorName)}
-      </Avatar>
+      </div>
 
-      <Box sx={{ flex: 1, minWidth: 0 }}>
-        <Stack alignItems="center" direction="row" gap={0.75} flexWrap="wrap">
-          <Typography sx={{ fontSize: 13, fontWeight: 600 }}>
-            {comment.authorName}
-          </Typography>
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-sm font-semibold text-foreground">{comment.authorName}</span>
           {comment.pinned ? (
-            <Typography
-              color="primary"
-              sx={{ fontSize: 10, fontWeight: 600, letterSpacing: 0.3 }}
-            >
-              ЗАКРЕПЛЕНО
-            </Typography>
+            <span className="text-[10px] font-bold text-primary">{t("comments.pinned")}</span>
           ) : null}
-          <Typography color="text.disabled" sx={{ fontSize: 11 }}>
-            {formatDate(comment.createdAt)}
-          </Typography>
+          <span className="text-xs text-muted-foreground">{timeAgo(comment.createdAt)}</span>
           {comment.updatedAt ? (
-            <Typography color="text.disabled" sx={{ fontSize: 11 }}>
-              (изм.)
-            </Typography>
+            <span className="text-xs text-muted-foreground">{t("comments.edited")}</span>
           ) : null}
-        </Stack>
+        </div>
 
-        <Typography
-          sx={{ fontSize: 13, mt: 0.25, whiteSpace: "pre-wrap", wordBreak: "break-word" }}
-        >
+        <p className="mt-0.5 whitespace-pre-wrap break-words text-sm text-foreground">
           {comment.text}
-        </Typography>
+        </p>
 
-        <Stack direction="row" gap={0.5} sx={{ mt: 0.5 }}>
+        <div className="mt-1 flex items-center gap-1">
           {!isReply ? (
-            <Tooltip title="Ответить">
-              <IconButton
-                onClick={() => onReply(comment.id, comment.authorName)}
-                size="small"
-                sx={{ p: 0.25 }}
-              >
-                <ReplyIcon />
-              </IconButton>
-            </Tooltip>
+            <button
+              className="text-xs text-muted-foreground transition-colors hover:text-foreground"
+              onClick={() => onReply(comment.id, comment.authorName)}
+              type="button"
+            >
+              {t("comments.reply")}
+            </button>
           ) : null}
           {onPin ? (
-            <Tooltip title={comment.pinned ? "Открепить" : "Закрепить"}>
-              <IconButton
-                onClick={() => onPin(comment.id, !comment.pinned)}
-                size="small"
-                sx={{ p: 0.25, color: comment.pinned ? "primary.main" : undefined }}
-              >
-                <PinIcon />
-              </IconButton>
-            </Tooltip>
+            <button
+              className={cn(
+                "text-xs transition-colors hover:text-foreground",
+                comment.pinned ? "text-primary" : "text-muted-foreground",
+              )}
+              onClick={() => onPin(comment.id, !comment.pinned)}
+              type="button"
+            >
+              {comment.pinned ? t("comments.unpin") : t("comments.pin")}
+            </button>
           ) : null}
           {isOwn && onDelete ? (
-            <Tooltip title="Удалить">
-              <IconButton
-                onClick={() => onDelete(comment.id)}
-                size="small"
-                sx={{ p: 0.25, color: "error.main" }}
-              >
-                <TrashIcon />
-              </IconButton>
-            </Tooltip>
+            <button
+              className="text-xs text-muted-foreground transition-colors hover:text-danger"
+              onClick={() => onDelete(comment.id)}
+              type="button"
+            >
+              {t("common.delete")}
+            </button>
           ) : null}
-        </Stack>
-      </Box>
-    </Box>
-  );
-}
-
-// Minimal inline SVG icons
-function ReplyIcon() {
-  return (
-    <svg fill="none" height="14" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" width="14">
-      <path d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-function PinIcon() {
-  return (
-    <svg fill="none" height="14" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" width="14">
-      <path d="M12 2l3 6h6l-5 4 2 7-6-4-6 4 2-7L3 8h6z" strokeLinejoin="round" />
-    </svg>
-  );
-}
-function TrashIcon() {
-  return (
-    <svg fill="none" height="14" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" width="14">
-      <path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -221,96 +172,87 @@ export function AppCommentThread({
   });
 
   return (
-    <Paper className={className} sx={{ p: 2 }} variant="outlined">
+    <div className={cn("rounded-xl border border-border bg-card p-4 shadow-sm", className)}>
       {title ? (
-        <Typography sx={{ mb: 1.5, fontWeight: 600 }} variant="subtitle2">
-          {title}
-        </Typography>
+        <p className="mb-3 text-sm font-semibold text-foreground">{title}</p>
       ) : null}
 
       {/* Comments list */}
-      <Box sx={{ maxHeight, overflowY: "auto", mb: 2 }}>
+      <div className="overflow-y-auto" style={{ maxHeight }}>
         {loading ? (
-          <Box sx={{ display: "flex", justifyContent: "center", py: 4 }}>
-            <CircularProgress size={24} />
-          </Box>
+          <p className="py-6 text-center text-sm text-muted-foreground">{t("common.loading")}</p>
         ) : sortedTop.length === 0 ? (
-          <Typography
-            color="text.disabled"
-            sx={{ py: 3, textAlign: "center", fontSize: 13 }}
-          >
-            {t("comments.empty")}
-          </Typography>
+          <p className="py-6 text-center text-sm text-muted-foreground">{t("comments.empty")}</p>
         ) : (
-          <Stack divider={<Divider sx={{ my: 0.5 }} />} gap={1.25}>
+          <div className="space-y-3">
             {sortedTop.map((comment) => {
               const replies = comments.filter((c) => c.replyToId === comment.id);
               return (
-                <Box key={comment.id}>
+                <div key={comment.id}>
                   <CommentItem
                     comment={comment}
                     currentUserId={currentUserId}
+                    t={t}
                     {...(onDelete ? { onDelete } : {})}
                     {...(onPin ? { onPin } : {})}
                     onReply={handleReply}
                   />
                   {replies.length > 0 ? (
-                    <Stack gap={1} sx={{ mt: 1 }}>
+                    <div className="mt-2 space-y-2">
                       {replies.map((reply) => (
                         <CommentItem
                           comment={reply}
                           currentUserId={currentUserId}
                           isReply
                           key={reply.id}
+                          t={t}
                           {...(onDelete ? { onDelete } : {})}
                           {...(onPin ? { onPin } : {})}
                           onReply={handleReply}
                         />
                       ))}
-                    </Stack>
+                    </div>
                   ) : null}
-                </Box>
+                </div>
               );
             })}
-          </Stack>
+          </div>
         )}
-      </Box>
+      </div>
 
       {/* Compose box */}
-      <Divider sx={{ mb: 1.5 }} />
-      {replyTo ? (
-        <Stack alignItems="center" direction="row" gap={0.5} sx={{ mb: 0.75 }}>
-          <Typography color="text.secondary" sx={{ fontSize: 12 }}>
-            Ответ для {replyTo.name}
-          </Typography>
-          <IconButton onClick={() => setReplyTo(null)} size="small" sx={{ p: 0.25 }}>
-            <svg fill="none" height="12" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24" width="12">
-              <path d="M18 6L6 18M6 6l12 12" strokeLinecap="round" />
-            </svg>
-          </IconButton>
-        </Stack>
-      ) : null}
-      <Stack direction="row" gap={1}>
-        <Box sx={{ flex: 1 }}>
-          <TextField
-            fullWidth
-            minRows={2}
-            multiline
-            onChange={(e) => setText(e.target.value)}
-            placeholder={placeholder ?? t("comments.placeholder")}
-            size="small"
-            value={text}
-          />
-        </Box>
-        <Box sx={{ display: "flex", alignItems: "flex-end" }}>
+      <div className="mt-3 border-t border-border pt-3">
+        {replyTo ? (
+          <div className="mb-2 flex items-center gap-1">
+            <span className="text-xs text-muted-foreground">
+              {t("comments.replyTo").replace("{name}", replyTo.name)}
+            </span>
+            <button
+              className="text-xs text-muted-foreground hover:text-foreground"
+              onClick={() => setReplyTo(null)}
+              type="button"
+            >
+              ✕
+            </button>
+          </div>
+        ) : null}
+        <div className="flex items-end gap-2">
+          <div className="flex-1">
+            <AppInput
+              onChangeValue={setText}
+              placeholder={placeholder ?? t("comments.placeholder")}
+              value={text}
+            />
+          </div>
           <AppButton
             disabled={!text.trim() || submitting}
             label={submitting ? "..." : t("comments.send")}
             onClick={() => void handleSubmit()}
+            size="sm"
             variant="primary"
           />
-        </Box>
-      </Stack>
-    </Paper>
+        </div>
+      </div>
+    </div>
   );
 }

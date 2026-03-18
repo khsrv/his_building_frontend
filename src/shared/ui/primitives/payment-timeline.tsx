@@ -1,26 +1,18 @@
 "use client";
 
 import { useMemo } from "react";
-import {
-  Box,
-  Chip,
-  LinearProgress,
-  Paper,
-  Stack,
-  Tooltip,
-  Typography,
-} from "@mui/material";
 import { format, isPast, isToday, parseISO, isValid } from "date-fns";
 import { cn } from "@/shared/lib/ui/cn";
+import { useI18n } from "@/shared/providers/locale-provider";
 
-export type AppPaymentStatus = "paid" | "overdue" | "upcoming" | "today";
+export type AppPaymentStatus = "paid" | "overdue" | "today" | "upcoming";
 
 export interface AppPaymentInstallment {
   id: string;
-  dueDate: string; // ISO date string
+  dueDate: string;
   amount: number;
   currency: string;
-  status?: AppPaymentStatus; // if not provided, derived from dueDate
+  status?: AppPaymentStatus;
   label?: string;
   note?: string;
 }
@@ -43,30 +35,18 @@ function deriveStatus(dueDate: string, explicit?: AppPaymentStatus): AppPaymentS
   return "upcoming";
 }
 
-const STATUS_CONFIG: Record<
-  AppPaymentStatus,
-  { label: string; chipColor: "success" | "error" | "warning" | "default"; dotClass: string }
-> = {
-  paid: {
-    label: "Оплачено",
-    chipColor: "success",
-    dotClass: "bg-emerald-500",
-  },
-  overdue: {
-    label: "Просрочено",
-    chipColor: "error",
-    dotClass: "bg-red-500",
-  },
-  today: {
-    label: "Сегодня",
-    chipColor: "warning",
-    dotClass: "bg-amber-500",
-  },
-  upcoming: {
-    label: "Предстоит",
-    chipColor: "default",
-    dotClass: "bg-slate-300 dark:bg-slate-600",
-  },
+const dotClass: Record<AppPaymentStatus, string> = {
+  paid: "bg-success",
+  overdue: "bg-danger",
+  today: "bg-warning",
+  upcoming: "bg-border",
+};
+
+const chipClass: Record<AppPaymentStatus, string> = {
+  paid: "bg-success/15 text-success",
+  overdue: "bg-danger/15 text-danger",
+  today: "bg-warning/15 text-warning",
+  upcoming: "bg-muted text-muted-foreground",
 };
 
 function formatAmount(amount: number, currency: string, locale: string): string {
@@ -88,6 +68,15 @@ export function AppPaymentTimeline({
   className,
   onInstallmentClick,
 }: AppPaymentTimelineProps) {
+  const { t } = useI18n();
+
+  const statusLabels: Record<AppPaymentStatus, string> = {
+    paid: t("payment.status.paid"),
+    overdue: t("payment.status.overdue"),
+    today: t("payment.status.today"),
+    upcoming: t("payment.status.upcoming"),
+  };
+
   const enriched = useMemo(
     () =>
       installments.map((inst) => ({
@@ -115,144 +104,105 @@ export function AppPaymentTimeline({
   const currency = enriched[0]?.currency ?? "";
 
   return (
-    <Paper className={className} sx={{ p: 2 }} variant="outlined">
+    <div className={cn("rounded-xl border border-border bg-card p-4 shadow-sm", className)}>
       {title ? (
-        <Typography sx={{ mb: 1.5, fontWeight: 600 }} variant="subtitle2">
-          {title}
-        </Typography>
+        <p className="mb-3 text-sm font-semibold text-foreground">{title}</p>
       ) : null}
 
       {showProgress && totalCount > 0 ? (
-        <Box sx={{ mb: 2 }}>
-          <Stack
-            alignItems="center"
-            direction="row"
-            justifyContent="space-between"
-            sx={{ mb: 0.5 }}
-          >
-            <Typography color="text.secondary" variant="caption">
-              Оплачено {paidCount} из {totalCount} взносов
-            </Typography>
-            <Typography variant="caption">{progressPct}%</Typography>
-          </Stack>
-          <LinearProgress
-            color={progressPct === 100 ? "success" : "primary"}
-            sx={{ borderRadius: 4, height: 6 }}
-            value={progressPct}
-            variant="determinate"
-          />
-          <Stack
-            alignItems="center"
-            direction="row"
-            justifyContent="space-between"
-            sx={{ mt: 0.5 }}
-          >
-            <Typography color="text.secondary" variant="caption">
+        <div className="mb-4">
+          <div className="mb-1 flex items-center justify-between">
+            <span className="text-xs text-muted-foreground">
+              {t("payment.paidCount")
+                .replace("{paid}", String(paidCount))
+                .replace("{total}", String(totalCount))}
+            </span>
+            <span className="text-xs font-medium text-foreground">{progressPct}%</span>
+          </div>
+          <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+            <div
+              className={cn(
+                "h-full rounded-full transition-all duration-500",
+                progressPct === 100 ? "bg-success" : "bg-primary",
+              )}
+              style={{ width: `${progressPct}%` }}
+            />
+          </div>
+          <div className="mt-1 flex items-center justify-between">
+            <span className="text-xs text-muted-foreground">
               {formatAmount(paidAmount, currency, locale)}
-            </Typography>
-            <Typography color="text.secondary" variant="caption">
+            </span>
+            <span className="text-xs text-muted-foreground">
               {formatAmount(totalAmount, currency, locale)}
-            </Typography>
-          </Stack>
-        </Box>
+            </span>
+          </div>
+        </div>
       ) : null}
 
-      <Box sx={{ position: "relative" }}>
+      {/* Timeline */}
+      <div className="relative">
         {/* Vertical line */}
-        <Box
-          sx={{
-            position: "absolute",
-            left: 9,
-            top: 8,
-            bottom: 8,
-            width: 2,
-            bgcolor: "divider",
-            borderRadius: 1,
-          }}
-        />
+        <div className="absolute bottom-2 left-[9px] top-2 w-0.5 rounded bg-border" />
 
-        <Stack gap={0}>
+        <div className="space-y-0">
           {enriched.map((inst, idx) => {
-            const cfg = STATUS_CONFIG[inst.derivedStatus];
+            const status = inst.derivedStatus;
             const date = parseISO(inst.dueDate);
             const dateLabel = isValid(date) ? format(date, "dd.MM.yyyy") : inst.dueDate;
             const isClickable = Boolean(onInstallmentClick);
 
             return (
-              <Box
+              <div
+                className={cn(
+                  "relative z-[1] flex items-start gap-3 rounded-lg px-0.5 py-2",
+                  isClickable && "cursor-pointer hover:bg-muted/50 transition-colors",
+                )}
                 key={inst.id}
                 onClick={() => onInstallmentClick?.(inst)}
-                sx={{
-                  display: "flex",
-                  alignItems: "flex-start",
-                  gap: 1.5,
-                  py: 0.75,
-                  pl: 0.25,
-                  cursor: isClickable ? "pointer" : "default",
-                  borderRadius: 1.5,
-                  "&:hover": isClickable
-                    ? { bgcolor: "action.hover" }
-                    : undefined,
-                  transition: "background-color 120ms ease",
-                  zIndex: 1,
-                  position: "relative",
-                }}
               >
-                {/* Timeline dot */}
-                <Box
+                {/* Dot */}
+                <span
                   className={cn(
-                    "w-5 h-5 rounded-full border-2 border-white dark:border-gray-900 flex-shrink-0 mt-0.5",
-                    cfg.dotClass,
+                    "mt-1 h-5 w-5 shrink-0 rounded-full border-2 border-card",
+                    dotClass[status],
                   )}
-                  sx={{ boxShadow: "0 0 0 1px rgba(0,0,0,0.08)" }}
+                  style={{ boxShadow: "0 0 0 1px var(--color-border)" }}
                 />
 
-                <Box sx={{ flex: 1, minWidth: 0 }}>
-                  <Stack
-                    alignItems="center"
-                    direction="row"
-                    flexWrap="wrap"
-                    gap={0.75}
-                    justifyContent="space-between"
-                  >
-                    <Stack alignItems="center" direction="row" gap={0.75}>
-                      <Typography sx={{ fontSize: 13, fontWeight: 500 }}>
-                        {inst.label ?? `Взнос ${idx + 1}`}
-                      </Typography>
-                      <Chip
-                        color={cfg.chipColor}
-                        label={cfg.label}
-                        size="small"
-                        sx={{ fontSize: 10, height: 18 }}
-                      />
-                    </Stack>
-                    <Typography sx={{ fontSize: 13, fontWeight: 600 }}>
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center justify-between gap-1">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-sm font-medium text-foreground">
+                        {inst.label ?? t("payment.installment").replace("{n}", String(idx + 1))}
+                      </span>
+                      <span
+                        className={cn(
+                          "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium",
+                          chipClass[status],
+                        )}
+                      >
+                        {statusLabels[status]}
+                      </span>
+                    </div>
+                    <span className="text-sm font-semibold text-foreground">
                       {formatAmount(inst.amount, inst.currency, locale)}
-                    </Typography>
-                  </Stack>
+                    </span>
+                  </div>
 
-                  <Stack alignItems="center" direction="row" gap={1}>
-                    <Typography color="text.secondary" sx={{ fontSize: 11 }}>
-                      {dateLabel}
-                    </Typography>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground">{dateLabel}</span>
                     {inst.note ? (
-                      <Tooltip title={inst.note}>
-                        <Typography
-                          color="text.disabled"
-                          noWrap
-                          sx={{ fontSize: 11, maxWidth: 180 }}
-                        >
-                          {inst.note}
-                        </Typography>
-                      </Tooltip>
+                      <span className="max-w-[180px] truncate text-xs text-muted-foreground/60" title={inst.note}>
+                        {inst.note}
+                      </span>
                     ) : null}
-                  </Stack>
-                </Box>
-              </Box>
+                  </div>
+                </div>
+              </div>
             );
           })}
-        </Stack>
-      </Box>
-    </Paper>
+        </div>
+      </div>
+    </div>
   );
 }

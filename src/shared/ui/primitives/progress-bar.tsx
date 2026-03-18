@@ -1,13 +1,13 @@
 "use client";
 
 import { useMemo } from "react";
-import { Box, Stack, Tooltip, Typography } from "@mui/material";
+import { cn } from "@/shared/lib/ui/cn";
 
 export interface AppProgressSegment {
   id: string;
   label: string;
-  value: number; // absolute value (e.g. units count or percentage points)
-  color?: string; // CSS color string
+  value: number;
+  color?: string;
   tooltip?: string;
 }
 
@@ -15,9 +15,9 @@ type AppProgressBarSize = "sm" | "md" | "lg";
 
 interface AppProgressBarProps {
   segments: readonly AppProgressSegment[];
-  total?: number; // if omitted, derived as sum of segment values
+  total?: number;
   showLegend?: boolean;
-  showLabel?: boolean; // show overall % inside/above bar
+  showLabel?: boolean;
   size?: AppProgressBarSize;
   title?: string;
   className?: string;
@@ -25,18 +25,18 @@ interface AppProgressBarProps {
 }
 
 const DEFAULT_COLORS = [
-  "#2563eb",
-  "#16a34a",
-  "#d97706",
-  "#dc2626",
-  "#7c3aed",
-  "#0891b2",
+  "var(--color-primary)",
+  "var(--color-success)",
+  "var(--color-warning)",
+  "var(--color-danger)",
+  "var(--color-info)",
+  "var(--color-secondary)",
 ];
 
-const SIZE_PX: Record<AppProgressBarSize, number> = {
-  sm: 8,
-  md: 14,
-  lg: 20,
+const heightClass: Record<AppProgressBarSize, string> = {
+  sm: "h-1.5",
+  md: "h-2.5",
+  lg: "h-4",
 };
 
 export function AppProgressBar({
@@ -69,96 +69,62 @@ export function AppProgressBar({
     [enriched],
   );
 
-  const heightPx = SIZE_PX[size];
-
   return (
-    <Box className={className}>
+    <div className={cn("space-y-1.5", className)}>
       {title ? (
-        <Typography sx={{ mb: 0.75, fontWeight: 600, fontSize: 13 }} variant="subtitle2">
-          {title}
-        </Typography>
+        <p className="text-sm font-semibold text-foreground">{title}</p>
       ) : null}
 
       {/* Bar */}
-      <Box
-        sx={{
-          width: "100%",
-          height: heightPx,
-          borderRadius: heightPx / 2,
-          bgcolor: "action.disabledBackground",
-          overflow: "hidden",
-          display: "flex",
-        }}
-      >
-        {enriched.map((seg, idx) => {
-          const isFirst = idx === 0;
-          const isLast = idx === enriched.length - 1;
-          const tooltipText =
-            seg.tooltip ??
-            (formatValue
-              ? formatValue(seg.value, computedTotal)
-              : `${seg.label}: ${seg.pct.toFixed(1)}%`);
+      <div className={cn("w-full overflow-hidden rounded-full bg-muted", heightClass[size])}>
+        <div className="flex h-full">
+          {enriched.map((seg) => {
+            const tooltipText =
+              seg.tooltip ??
+              (formatValue
+                ? formatValue(seg.value, computedTotal)
+                : `${seg.label}: ${seg.pct.toFixed(1)}%`);
 
-          return (
-            <Tooltip key={seg.id} title={tooltipText}>
-              <Box
-                sx={{
+            return (
+              <div
+                key={seg.id}
+                style={{
                   width: `${seg.pct}%`,
-                  bgcolor: seg.color,
-                  flexShrink: 0,
-                  borderRadius:
-                    isFirst && isLast
-                      ? `${heightPx / 2}px`
-                      : isFirst
-                        ? `${heightPx / 2}px 0 0 ${heightPx / 2}px`
-                        : isLast
-                          ? `0 ${heightPx / 2}px ${heightPx / 2}px 0`
-                          : 0,
-                  transition: "width 400ms cubic-bezier(0.4,0,0.2,1)",
+                  backgroundColor: seg.color,
                   minWidth: seg.pct > 0 ? 2 : 0,
+                  transition: "width 400ms cubic-bezier(0.4,0,0.2,1)",
                 }}
+                title={tooltipText}
               />
-            </Tooltip>
-          );
-        })}
-      </Box>
+            );
+          })}
+        </div>
+      </div>
 
       {showLabel ? (
-        <Typography
-          color="text.secondary"
-          sx={{ fontSize: 11, mt: 0.25, textAlign: "right" }}
-        >
+        <p className="text-right text-xs text-muted-foreground">
           {filledPct.toFixed(0)}%
-        </Typography>
+        </p>
       ) : null}
 
       {showLegend ? (
-        <Stack direction="row" flexWrap="wrap" gap={1.25} sx={{ mt: 1 }}>
+        <div className="flex flex-wrap items-center gap-3 pt-0.5">
           {enriched.map((seg) => (
-            <Stack alignItems="center" direction="row" gap={0.5} key={seg.id}>
-              <Box
-                sx={{
-                  width: 10,
-                  height: 10,
-                  borderRadius: "50%",
-                  bgcolor: seg.color,
-                  flexShrink: 0,
-                }}
+            <div className="flex items-center gap-1.5" key={seg.id}>
+              <span
+                className="inline-block h-2.5 w-2.5 rounded-full"
+                style={{ backgroundColor: seg.color }}
               />
-              <Typography color="text.secondary" sx={{ fontSize: 11 }}>
-                {seg.label}
-                {" "}
-                <Typography
-                  component="span"
-                  sx={{ fontSize: 11, fontWeight: 600, color: "text.primary" }}
-                >
+              <span className="text-xs text-muted-foreground">
+                {seg.label}{" "}
+                <span className="font-semibold text-foreground">
                   {seg.pct.toFixed(0)}%
-                </Typography>
-              </Typography>
-            </Stack>
+                </span>
+              </span>
+            </div>
           ))}
-        </Stack>
+        </div>
       ) : null}
-    </Box>
+    </div>
   );
 }

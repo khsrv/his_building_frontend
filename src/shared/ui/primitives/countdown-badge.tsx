@@ -1,17 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Box, Chip, Tooltip, Typography } from "@mui/material";
 import { differenceInSeconds, parseISO, isValid } from "date-fns";
 import { cn } from "@/shared/lib/ui/cn";
+import { useI18n } from "@/shared/providers/locale-provider";
 
 export type AppCountdownVariant = "chip" | "inline" | "block";
 
 interface AppCountdownBadgeProps {
-  expiresAt: string; // ISO date string
+  expiresAt: string;
   variant?: AppCountdownVariant;
   onExpire?: () => void;
-  label?: string; // prefix label e.g. "Бронь до"
+  label?: string;
   className?: string;
   expiredLabel?: string;
 }
@@ -23,30 +23,40 @@ function formatCountdown(totalSeconds: number): string {
   const minutes = Math.floor((totalSeconds % 3600) / 60);
   const seconds = totalSeconds % 60;
 
-  if (days > 0) {
-    return `${days}д ${hours}ч`;
-  }
-  if (hours > 0) {
-    return `${hours}ч ${minutes}м`;
-  }
+  if (days > 0) return `${days}д ${hours}ч`;
+  if (hours > 0) return `${hours}ч ${minutes}м`;
   return `${minutes}м ${seconds}с`;
 }
 
-function getUrgencyClass(seconds: number): string {
-  if (seconds <= 0) return "text-zinc-400";
-  if (seconds < 3600) return "text-red-600 dark:text-red-400"; // < 1 hour: urgent
-  if (seconds < 86400) return "text-amber-600 dark:text-amber-400"; // < 1 day: warning
-  return "text-emerald-600 dark:text-emerald-400"; // ok
+type Urgency = "expired" | "critical" | "warning" | "ok";
+
+function getUrgency(seconds: number): Urgency {
+  if (seconds <= 0) return "expired";
+  if (seconds < 3600) return "critical";
+  if (seconds < 86400) return "warning";
+  return "ok";
 }
 
-function getChipColor(
-  seconds: number,
-): "default" | "error" | "warning" | "success" {
-  if (seconds <= 0) return "default";
-  if (seconds < 3600) return "error";
-  if (seconds < 86400) return "warning";
-  return "success";
-}
+const urgencyTextClass: Record<Urgency, string> = {
+  expired: "text-muted-foreground",
+  critical: "text-danger",
+  warning: "text-warning",
+  ok: "text-success",
+};
+
+const chipClass: Record<Urgency, string> = {
+  expired: "border-border bg-muted text-muted-foreground",
+  critical: "border-danger/30 bg-danger/15 text-danger",
+  warning: "border-warning/30 bg-warning/15 text-warning",
+  ok: "border-success/30 bg-success/15 text-success",
+};
+
+const blockClass: Record<Urgency, string> = {
+  expired: "border-border bg-muted",
+  critical: "border-danger/30 bg-danger/10",
+  warning: "border-warning/30 bg-warning/10",
+  ok: "border-success/30 bg-success/10",
+};
 
 export function AppCountdownBadge({
   expiresAt,
@@ -54,8 +64,10 @@ export function AppCountdownBadge({
   onExpire,
   label,
   className,
-  expiredLabel = "Истекло",
+  expiredLabel,
 }: AppCountdownBadgeProps) {
+  const { t } = useI18n();
+
   const [remaining, setRemaining] = useState<number>(() => {
     const date = parseISO(expiresAt);
     if (!isValid(date)) return 0;
@@ -69,9 +81,7 @@ export function AppCountdownBadge({
     const tick = () => {
       const secs = Math.max(0, differenceInSeconds(date, new Date()));
       setRemaining(secs);
-      if (secs === 0) {
-        onExpire?.();
-      }
+      if (secs === 0) onExpire?.();
     };
 
     tick();
@@ -80,75 +90,55 @@ export function AppCountdownBadge({
   }, [expiresAt, onExpire]);
 
   const isExpired = remaining <= 0;
-  const displayText = isExpired ? expiredLabel : formatCountdown(remaining);
+  const displayText = isExpired
+    ? (expiredLabel ?? t("countdown.expired"))
+    : formatCountdown(remaining);
+  const urgency = getUrgency(remaining);
 
   if (variant === "chip") {
     return (
-      <Tooltip title={label ?? "Время брони"}>
-        <Chip
-          className={className}
-          color={getChipColor(remaining)}
-          label={
-            <span>
-              {label ? `${label}: ` : ""}
-              {displayText}
-            </span>
-          }
-          size="small"
-          sx={{ fontSize: 11, fontWeight: 600 }}
-        />
-      </Tooltip>
+      <span
+        className={cn(
+          "inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold",
+          chipClass[urgency],
+          className,
+        )}
+        title={label ?? t("countdown.tooltip")}
+      >
+        {label ? `${label}: ` : ""}
+        {displayText}
+      </span>
     );
   }
 
   if (variant === "block") {
     return (
-      <Box
+      <div
         className={cn(
-          "rounded-lg border px-3 py-2 text-center",
-          isExpired
-            ? "border-zinc-200 dark:border-zinc-700"
-            : remaining < 3600
-              ? "border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/30"
-              : remaining < 86400
-                ? "border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/30"
-                : "border-emerald-200 dark:border-emerald-900 bg-emerald-50 dark:bg-emerald-950/30",
+          "rounded-xl border p-3 text-center",
+          blockClass[urgency],
           className,
         )}
       >
         {label ? (
-          <Typography color="text.secondary" sx={{ fontSize: 11, mb: 0.25 }}>
-            {label}
-          </Typography>
+          <p className="text-xs text-muted-foreground">{label}</p>
         ) : null}
-        <Typography
-          className={getUrgencyClass(remaining)}
-          sx={{ fontSize: 20, fontWeight: 700, letterSpacing: "-0.02em" }}
-        >
+        <p className={cn("text-xl font-bold tracking-tight", urgencyTextClass[urgency])}>
           {displayText}
-        </Typography>
-      </Box>
+        </p>
+      </div>
     );
   }
 
   // inline
   return (
-    <Box
-      className={cn("inline-flex items-center gap-1", className)}
-      component="span"
-    >
+    <span className={cn("inline-flex items-center gap-1", className)}>
       {label ? (
-        <Typography color="text.secondary" component="span" sx={{ fontSize: 12 }}>
-          {label}:
-        </Typography>
+        <span className="text-xs text-muted-foreground">{label}:</span>
       ) : null}
-      <Typography
-        className={getUrgencyClass(remaining)}
-        component="span"
-        sx={{ fontSize: 12, fontWeight: 600 }}
-      >
+      <span className={cn("text-xs font-semibold", urgencyTextClass[urgency])}>
         {displayText}
-      </Typography>
-    </Box>
+      </span>
+    </span>
   );
 }

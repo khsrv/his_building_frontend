@@ -1,7 +1,7 @@
 "use client";
 
-import { Box, Step, StepLabel, Stepper, Typography } from "@mui/material";
 import type { ReactNode } from "react";
+import { cn } from "@/shared/lib/ui/cn";
 import { AppButton } from "@/shared/ui/primitives/button";
 import { useI18n } from "@/shared/providers/locale-provider";
 
@@ -45,9 +45,7 @@ export function AppStepWizard({
   const handleNext = async () => {
     if (currentStep?.validate) {
       const valid = await currentStep.validate();
-      if (!valid) {
-        return;
-      }
+      if (!valid) return;
     }
     if (isLast) {
       onComplete();
@@ -57,46 +55,72 @@ export function AppStepWizard({
   };
 
   const handleBack = () => {
-    if (!isFirst) {
-      onStepChange(activeStep - 1);
-    }
+    if (!isFirst) onStepChange(activeStep - 1);
   };
 
   return (
-    <Box className={className} sx={{ width: "100%" }}>
-      <Stepper
-        activeStep={activeStep}
-        alternativeLabel
-        sx={{
-          mb: 3,
-          "& .MuiStepLabel-label": { fontSize: 13, mt: 0.5 },
-          "& .MuiStepLabel-label.Mui-active": { fontWeight: 600 },
-        }}
-      >
-        {steps.map((step) => (
-          <Step key={step.id}>
-            <StepLabel
-              optional={
-                step.optional ? (
-                  <Typography sx={{ fontSize: 11 }} variant="caption">
-                    {step.description ?? t("wizard.optional")}
-                  </Typography>
-                ) : step.description ? (
-                  <Typography sx={{ fontSize: 11 }} variant="caption">
-                    {step.description}
-                  </Typography>
-                ) : undefined
-              }
-            >
-              {step.label}
-            </StepLabel>
-          </Step>
-        ))}
-      </Stepper>
+    <div className={cn("w-full", className)}>
+      {/* Stepper */}
+      <div className="mb-6 flex items-center justify-between gap-2">
+        {steps.map((step, idx) => {
+          const isActive = idx === activeStep;
+          const isCompleted = idx < activeStep;
 
-      <Box sx={{ minHeight: 200, mb: 3 }}>{currentStep?.content}</Box>
+          return (
+            <div className="flex flex-1 flex-col items-center gap-1" key={step.id}>
+              <div className="flex w-full items-center">
+                {idx > 0 ? (
+                  <div
+                    className={cn(
+                      "h-0.5 flex-1",
+                      isCompleted ? "bg-primary" : "bg-border",
+                    )}
+                  />
+                ) : null}
+                <div
+                  className={cn(
+                    "flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold transition-colors",
+                    isActive
+                      ? "bg-primary text-primary-foreground shadow-sm"
+                      : isCompleted
+                        ? "bg-primary/15 text-primary"
+                        : "bg-muted text-muted-foreground",
+                  )}
+                >
+                  {isCompleted ? "✓" : idx + 1}
+                </div>
+                {idx < steps.length - 1 ? (
+                  <div
+                    className={cn(
+                      "h-0.5 flex-1",
+                      isCompleted ? "bg-primary" : "bg-border",
+                    )}
+                  />
+                ) : null}
+              </div>
+              <span
+                className={cn(
+                  "text-center text-xs",
+                  isActive ? "font-semibold text-foreground" : "text-muted-foreground",
+                )}
+              >
+                {step.label}
+              </span>
+              {step.description || step.optional ? (
+                <span className="text-center text-[10px] text-muted-foreground">
+                  {step.description ?? (step.optional ? t("wizard.optional") : "")}
+                </span>
+              ) : null}
+            </div>
+          );
+        })}
+      </div>
 
-      <Box sx={{ display: "flex", justifyContent: "space-between", gap: 1 }}>
+      {/* Content */}
+      <div className="min-h-[200px] pb-4">{currentStep?.content}</div>
+
+      {/* Actions */}
+      <div className="flex items-center justify-between gap-2 border-t border-border pt-4">
         <AppButton
           disabled={isFirst || loading}
           label={backLabel ?? t("wizard.back")}
@@ -113,7 +137,7 @@ export function AppStepWizard({
           onClick={() => void handleNext()}
           variant="primary"
         />
-      </Box>
-    </Box>
+      </div>
+    </div>
   );
 }

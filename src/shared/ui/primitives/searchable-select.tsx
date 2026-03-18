@@ -1,17 +1,8 @@
 "use client";
 
 import { useCallback, useDeferredValue, useMemo, useState, type ReactNode } from "react";
-import {
-  Box,
-  CircularProgress,
-  Dialog,
-  DialogContent,
-  DialogTitle,
-  List,
-  ListItemButton,
-  ListItemText,
-  Typography,
-} from "@mui/material";
+import { Dialog, DialogContent, DialogTitle } from "@mui/material";
+import { cn } from "@/shared/lib/ui/cn";
 import { AppInput } from "@/shared/ui/primitives/input";
 import { AppButton } from "@/shared/ui/primitives/button";
 import { useI18n } from "@/shared/providers/locale-provider";
@@ -40,12 +31,8 @@ interface AppSearchableSelectProps<T extends AppSearchableSelectOption> {
 
 function defaultFilter(option: AppSearchableSelectOption, query: string): boolean {
   const q = query.toLowerCase();
-  if (option.label.toLowerCase().includes(q)) {
-    return true;
-  }
-  if (option.secondary?.toLowerCase().includes(q)) {
-    return true;
-  }
+  if (option.label.toLowerCase().includes(q)) return true;
+  if (option.secondary?.toLowerCase().includes(q)) return true;
   return option.id.toLowerCase().includes(q);
 }
 
@@ -74,9 +61,7 @@ export function AppSearchableSelect<T extends AppSearchableSelectOption>({
   );
 
   const filtered = useMemo(() => {
-    if (!deferredSearch.trim()) {
-      return options;
-    }
+    if (!deferredSearch.trim()) return options;
     const filter = filterFn ?? defaultFilter;
     return options.filter((o) => filter(o, deferredSearch));
   }, [deferredSearch, filterFn, options]);
@@ -103,48 +88,58 @@ export function AppSearchableSelect<T extends AppSearchableSelectOption>({
       <Dialog
         fullWidth
         maxWidth="sm"
-        onClose={() => {
-          setOpen(false);
-          setSearch("");
-        }}
+        onClose={() => { setOpen(false); setSearch(""); }}
         open={open}
       >
-        <DialogTitle>{dialogTitle ?? t("searchSelect.title")}</DialogTitle>
+        <DialogTitle className="text-foreground">
+          {dialogTitle ?? t("searchSelect.title")}
+        </DialogTitle>
         <DialogContent>
-          <Box sx={{ mb: 1.5 }}>
+          <div className="mb-3">
             <AppInput
               onChangeValue={setSearch}
               placeholder={searchPlaceholder ?? t("searchSelect.searchPlaceholder")}
               value={search}
             />
-          </Box>
+          </div>
 
           {loading ? (
-            <Box sx={{ display: "flex", justifyContent: "center", py: 4 }}>
-              <CircularProgress size={28} />
-            </Box>
+            <div className="flex justify-center py-6">
+              <div className="h-6 w-6 animate-spin rounded-full border-2 border-muted border-t-primary" />
+            </div>
           ) : filtered.length === 0 ? (
-            <Typography color="text.secondary" sx={{ py: 3, textAlign: "center" }} variant="body2">
+            <p className="py-6 text-center text-sm text-muted-foreground">
               {emptyLabel ?? t("searchSelect.empty")}
-            </Typography>
+            </p>
           ) : (
-            <List sx={{ maxHeight: 360, overflow: "auto" }}>
+            <div className="max-h-[360px] overflow-auto">
               {filtered.map((option) => (
-                <ListItemButton
+                <button
+                  className={cn(
+                    "flex w-full items-center rounded-lg px-3 py-2 text-left text-sm transition-colors",
+                    option.disabled
+                      ? "cursor-default opacity-40"
+                      : "cursor-pointer hover:bg-muted",
+                    option.id === value && "bg-primary/10 text-primary",
+                  )}
                   disabled={option.disabled}
                   key={option.id}
                   onClick={() => handleSelect(option)}
-                  selected={option.id === value}
-                  sx={{ borderRadius: 1.25, mb: 0.25 }}
+                  type="button"
                 >
                   {renderOption ? (
                     renderOption(option)
                   ) : (
-                    <ListItemText primary={option.label} secondary={option.secondary} />
+                    <div>
+                      <span className="font-medium text-foreground">{option.label}</span>
+                      {option.secondary ? (
+                        <span className="ml-2 text-xs text-muted-foreground">{option.secondary}</span>
+                      ) : null}
+                    </div>
                   )}
-                </ListItemButton>
+                </button>
               ))}
-            </List>
+            </div>
           )}
         </DialogContent>
       </Dialog>

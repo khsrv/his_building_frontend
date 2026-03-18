@@ -1,13 +1,20 @@
-export type UserRole = "admin" | "manager" | "viewer";
+import type { UserRole, PermissionCode } from "@/shared/types/permissions";
+
+export type { UserRole };
 
 export interface SessionUser {
-  id: string;
-  email: string;
-  fullName: string;
-  roles: readonly UserRole[];
+  readonly id: string;
+  readonly email: string;
+  readonly fullName: string;
+  readonly avatarUrl: string | null;
+  readonly roles: readonly UserRole[];
+  readonly permissions: readonly PermissionCode[];
+  readonly tenantId: string;
+  readonly tenantName: string;
+  readonly tenantSlug: string;
 }
 
 export interface Session {
-  user: SessionUser;
-  expiresAtIso: string;
+  readonly user: SessionUser;
+  readonly expiresAtIso: string;
 }

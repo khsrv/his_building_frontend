@@ -1234,10 +1234,6 @@ export function AppDataTable<TData>({
 
   const rowHeight = 40;
   const columnHeaderHeight = 40;
-  const tableHeight = Math.min(
-    560,
-    Math.max(220, filteredRows.length * rowHeight + columnHeaderHeight + 72),
-  );
 
   return (
     <Box
@@ -1460,8 +1456,9 @@ export function AppDataTable<TData>({
 
       {/* ---- Data Grid ---- */}
       <Paper sx={{ p: 0.5, width: "100%", minWidth: 0, overflow: "hidden" }}>
-        <Box sx={{ height: isFullscreen ? "calc(100vh - 230px)" : tableHeight }}>
+        <Box sx={isFullscreen ? { height: "calc(100vh - 230px)" } : undefined}>
           <DataGrid
+            autoHeight={!isFullscreen}
             checkboxSelection={enableSelection}
             columnHeaderHeight={columnHeaderHeight}
             columnVisibilityModel={columnVisibilityModel}

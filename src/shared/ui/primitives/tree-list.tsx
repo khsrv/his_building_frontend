@@ -1,20 +1,15 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
-import {
-  Box,
-  Chip,
-  Collapse,
-  IconButton,
-  Typography,
-} from "@mui/material";
+import { useCallback, useMemo, useState, type ReactNode } from "react";
+import { cn } from "@/shared/lib/ui/cn";
+import { useI18n } from "@/shared/providers/locale-provider";
 
 export interface AppTreeNode {
   id: string;
   label: string;
   badge?: string | number;
-  badgeColor?: "default" | "primary" | "secondary" | "error" | "info" | "success" | "warning";
-  icon?: React.ReactNode;
+  badgeColor?: "default" | "primary" | "success" | "warning" | "danger" | "info";
+  icon?: ReactNode;
   data?: Record<string, unknown>;
   children?: readonly AppTreeNode[];
   disabled?: boolean;
@@ -24,22 +19,32 @@ interface AppTreeListProps {
   nodes: readonly AppTreeNode[];
   onNodeClick?: (node: AppTreeNode) => void;
   selectedId?: string | null;
-  defaultExpanded?: readonly string[]; // ids to expand by default
+  defaultExpanded?: readonly string[];
   expandAll?: boolean;
   className?: string;
-  indent?: number; // px per level
+  indent?: number;
 }
+
+const badgeClasses: Record<string, string> = {
+  default: "bg-muted text-muted-foreground",
+  primary: "bg-primary/15 text-primary",
+  success: "bg-success/15 text-success",
+  warning: "bg-warning/15 text-warning",
+  danger: "bg-danger/15 text-danger",
+  info: "bg-info/15 text-info",
+};
 
 function ChevronIcon({ open }: { open: boolean }) {
   return (
     <svg
+      className={cn(
+        "h-3.5 w-3.5 text-muted-foreground transition-transform duration-150",
+        open && "rotate-90",
+      )}
       fill="none"
-      height="14"
       stroke="currentColor"
       strokeWidth="2.5"
-      style={{ transform: open ? "rotate(90deg)" : "rotate(0deg)", transition: "transform 150ms ease" }}
       viewBox="0 0 24 24"
-      width="14"
     >
       <path d="M9 18l6-6-6-6" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
@@ -71,72 +76,59 @@ function TreeNodeRow({
 
   return (
     <>
-      <Box
+      <div
+        className={cn(
+          "flex select-none items-center gap-1 rounded-lg py-1.5 pr-2 transition-colors",
+          node.disabled ? "cursor-default opacity-40" : "cursor-pointer",
+          isSelected
+            ? "bg-primary/10 text-primary"
+            : !node.disabled && "hover:bg-muted",
+        )}
         onClick={() => {
-          if (!node.disabled) {
-            if (hasChildren) onToggle(node.id);
-            onNodeClick?.(node);
-          }
+          if (node.disabled) return;
+          if (hasChildren) onToggle(node.id);
+          onNodeClick?.(node);
         }}
-        sx={{
-          display: "flex",
-          alignItems: "center",
-          gap: 0.5,
-          pl: `${level * indent + (hasChildren ? 0 : 20)}px`,
-          pr: 1,
-          py: 0.625,
-          borderRadius: 1.5,
-          cursor: node.disabled ? "default" : "pointer",
-          bgcolor: isSelected ? "action.selected" : "transparent",
-          opacity: node.disabled ? 0.45 : 1,
-          "&:hover": node.disabled
-            ? undefined
-            : { bgcolor: isSelected ? "action.selected" : "action.hover" },
-          transition: "background-color 120ms ease",
-          userSelect: "none",
-        }}
+        style={{ paddingLeft: level * indent + (hasChildren ? 0 : 20) }}
       >
         {hasChildren ? (
-          <IconButton
-            disableRipple
+          <button
+            className="flex h-5 w-5 items-center justify-center"
             onClick={(e) => { e.stopPropagation(); onToggle(node.id); }}
-            size="small"
-            sx={{ p: 0.25, color: "text.secondary" }}
+            type="button"
           >
             <ChevronIcon open={isExpanded} />
-          </IconButton>
+          </button>
         ) : null}
 
         {node.icon ? (
-          <Box sx={{ color: "text.secondary", display: "flex", alignItems: "center", flexShrink: 0 }}>
-            {node.icon}
-          </Box>
+          <span className="flex shrink-0 items-center text-muted-foreground">{node.icon}</span>
         ) : null}
 
-        <Typography
-          noWrap
-          sx={{
-            flex: 1,
-            fontSize: 13,
-            fontWeight: level === 0 ? 600 : 400,
-            color: isSelected ? "primary.main" : "text.primary",
-          }}
+        <span
+          className={cn(
+            "flex-1 truncate text-sm",
+            level === 0 ? "font-semibold" : "font-normal",
+            isSelected ? "text-primary" : "text-foreground",
+          )}
         >
           {node.label}
-        </Typography>
+        </span>
 
         {node.badge !== undefined ? (
-          <Chip
-            color={node.badgeColor ?? "default"}
-            label={node.badge}
-            size="small"
-            sx={{ fontSize: 10, height: 18, minWidth: 24, flexShrink: 0 }}
-          />
+          <span
+            className={cn(
+              "inline-flex h-[18px] min-w-[24px] shrink-0 items-center justify-center rounded-full px-1.5 text-[10px] font-medium",
+              badgeClasses[node.badgeColor ?? "default"],
+            )}
+          >
+            {node.badge}
+          </span>
         ) : null}
-      </Box>
+      </div>
 
-      {hasChildren ? (
-        <Collapse in={isExpanded} timeout={160} unmountOnExit>
+      {hasChildren && isExpanded ? (
+        <div className="overflow-hidden">
           {node.children!.map((child) => (
             <TreeNodeRow
               expandedIds={expandedIds}
@@ -149,7 +141,7 @@ function TreeNodeRow({
               selectedId={selectedId}
             />
           ))}
-        </Collapse>
+        </div>
       ) : null}
     </>
   );
@@ -168,6 +160,7 @@ export function AppTreeList({
   className,
   indent = 16,
 }: AppTreeListProps) {
+  const { t } = useI18n();
   const allIds = useMemo(() => collectAllIds(nodes), [nodes]);
 
   const [expandedIds, setExpandedIds] = useState<Set<string>>(() => {
@@ -186,14 +179,14 @@ export function AppTreeList({
 
   if (nodes.length === 0) {
     return (
-      <Typography color="text.disabled" sx={{ py: 3, textAlign: "center", fontSize: 13 }}>
-        Нет данных
-      </Typography>
+      <p className="py-4 text-center text-sm text-muted-foreground">
+        {t("tree.empty")}
+      </p>
     );
   }
 
   return (
-    <Box className={className}>
+    <div className={className}>
       {nodes.map((node) => (
         <TreeNodeRow
           expandedIds={expandedIds}
@@ -206,6 +199,6 @@ export function AppTreeList({
           selectedId={selectedId}
         />
       ))}
-    </Box>
+    </div>
   );
 }

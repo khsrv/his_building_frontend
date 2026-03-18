@@ -58,8 +58,8 @@ export function AppCurrencyDisplay({
   const colorClass =
     showSign && amount !== 0
       ? amount > 0
-        ? "text-emerald-600 dark:text-emerald-400"
-        : "text-red-600 dark:text-red-400"
+        ? "text-success"
+        : "text-danger"
       : "text-foreground";
 
   return (
@@ -69,7 +69,7 @@ export function AppCurrencyDisplay({
         <span className="text-muted-foreground text-[0.8em] font-normal">{currency}</span>
       </span>
       {secondary ? (
-        <span className="text-muted-foreground text-xs">{secondary}</span>
+        <span className="text-xs text-muted-foreground">{secondary}</span>
       ) : null}
     </span>
   );

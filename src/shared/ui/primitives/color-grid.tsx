@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { Box, Chip, Paper, Popover, Stack, Tooltip, Typography } from "@mui/material";
+import { useMemo, useState, type ReactNode } from "react";
+import { Popover } from "@mui/material";
 import { cn } from "@/shared/lib/ui/cn";
+import { useI18n } from "@/shared/providers/locale-provider";
 
 export type AppColorGridCellStatus = "free" | "booked" | "sold" | "reserved" | "unavailable";
 
@@ -13,7 +14,7 @@ export interface AppColorGridCell {
   floor?: number;
   column?: number;
   tooltip?: string;
-  popoverContent?: React.ReactNode;
+  popoverContent?: ReactNode;
   data?: Record<string, unknown>;
 }
 
@@ -24,43 +25,16 @@ export interface AppColorGridRow {
 }
 
 interface StatusConfig {
-  label: string;
   bg: string;
-  border: string;
   text: string;
 }
 
-const STATUS_CONFIG: Record<AppColorGridCellStatus, StatusConfig> = {
-  free: {
-    label: "Свободна",
-    bg: "bg-emerald-100 hover:bg-emerald-200 dark:bg-emerald-900/40 dark:hover:bg-emerald-800/50",
-    border: "border-emerald-300 dark:border-emerald-700",
-    text: "text-emerald-800 dark:text-emerald-200",
-  },
-  booked: {
-    label: "Бронь",
-    bg: "bg-amber-100 hover:bg-amber-200 dark:bg-amber-900/40 dark:hover:bg-amber-800/50",
-    border: "border-amber-300 dark:border-amber-700",
-    text: "text-amber-800 dark:text-amber-200",
-  },
-  sold: {
-    label: "Продана",
-    bg: "bg-red-100 hover:bg-red-200 dark:bg-red-900/40 dark:hover:bg-red-800/50",
-    border: "border-red-300 dark:border-red-700",
-    text: "text-red-800 dark:text-red-200",
-  },
-  reserved: {
-    label: "Резерв",
-    bg: "bg-slate-100 hover:bg-slate-200 dark:bg-slate-800/60 dark:hover:bg-slate-700/60",
-    border: "border-slate-300 dark:border-slate-600",
-    text: "text-slate-600 dark:text-slate-400",
-  },
-  unavailable: {
-    label: "Недоступна",
-    bg: "bg-zinc-50 dark:bg-zinc-900/30",
-    border: "border-dashed border-zinc-300 dark:border-zinc-700",
-    text: "text-zinc-400 dark:text-zinc-600",
-  },
+const STATUS_STYLE: Record<AppColorGridCellStatus, StatusConfig> = {
+  free: { bg: "bg-success/15 hover:bg-success/25", text: "text-success" },
+  booked: { bg: "bg-warning/15 hover:bg-warning/25", text: "text-warning" },
+  sold: { bg: "bg-danger/15 hover:bg-danger/25", text: "text-danger" },
+  reserved: { bg: "bg-muted hover:bg-muted/80", text: "text-muted-foreground" },
+  unavailable: { bg: "bg-muted/40", text: "text-muted-foreground/50" },
 };
 
 interface AppColorGridProps {
@@ -79,6 +53,8 @@ const cellSizeClasses = {
   lg: "w-18 h-12 text-sm",
 };
 
+type StatusKey = "free" | "booked" | "sold" | "reserved";
+
 export function AppColorGrid({
   rows,
   onCellClick,
@@ -88,15 +64,23 @@ export function AppColorGrid({
   title,
   className,
 }: AppColorGridProps) {
+  const { t } = useI18n();
+
   const [popoverAnchor, setPopoverAnchor] = useState<{
     el: HTMLElement;
     cell: AppColorGridCell;
   } | null>(null);
 
+  const STATUS_LABELS: Record<AppColorGridCellStatus, string> = {
+    free: t("grid.status.free"),
+    booked: t("grid.status.booked"),
+    sold: t("grid.status.sold"),
+    reserved: t("grid.status.reserved"),
+    unavailable: t("grid.status.unavailable"),
+  };
+
   const filteredRows = useMemo(() => {
-    if (!filterStatuses || filterStatuses.length === 0) {
-      return rows;
-    }
+    if (!filterStatuses || filterStatuses.length === 0) return rows;
     return rows.map((row) => ({
       ...row,
       cells: row.cells.map((cell) =>
@@ -108,22 +92,14 @@ export function AppColorGrid({
   const stats = useMemo(() => {
     const all = rows.flatMap((r) => r.cells);
     const counts: Record<AppColorGridCellStatus, number> = {
-      free: 0,
-      booked: 0,
-      sold: 0,
-      reserved: 0,
-      unavailable: 0,
+      free: 0, booked: 0, sold: 0, reserved: 0, unavailable: 0,
     };
-    for (const cell of all) {
-      counts[cell.status] += 1;
-    }
+    for (const cell of all) counts[cell.status] += 1;
     return counts;
   }, [rows]);
 
   const handleCellClick = (cell: AppColorGridCell, el: HTMLElement) => {
-    if (cell.status === "unavailable") {
-      return;
-    }
+    if (cell.status === "unavailable") return;
     if (cell.popoverContent) {
       setPopoverAnchor({ el, cell });
       return;
@@ -131,69 +107,69 @@ export function AppColorGrid({
     onCellClick?.(cell);
   };
 
+  const legendStatuses: readonly StatusKey[] = ["free", "booked", "sold", "reserved"];
+
   return (
-    <Box className={className} sx={{ width: "100%", overflowX: "auto" }}>
+    <div className={cn("w-full overflow-x-auto", className)}>
       {title ? (
-        <Typography sx={{ mb: 1.5, fontWeight: 600 }} variant="subtitle1">
-          {title}
-        </Typography>
+        <p className="mb-2 text-sm font-semibold text-foreground">{title}</p>
       ) : null}
 
       {showLegend ? (
-        <Stack direction="row" flexWrap="wrap" gap={0.75} sx={{ mb: 1.5 }}>
-          {(Object.entries(STATUS_CONFIG) as Array<[AppColorGridCellStatus, StatusConfig]>)
-            .filter(([key]) => key !== "unavailable")
-            .map(([status, cfg]) => (
-              <Chip
+        <div className="mb-2 flex flex-wrap gap-2">
+          {legendStatuses.map((status) => {
+            const cfg = STATUS_STYLE[status];
+            return (
+              <span
+                className={cn(
+                  "inline-flex items-center rounded-full border border-border px-2.5 py-0.5 text-xs",
+                  cfg.text,
+                )}
                 key={status}
-                label={`${cfg.label} (${stats[status]})`}
-                size="small"
-                sx={{ fontSize: 11 }}
-                variant="outlined"
-              />
-            ))}
-        </Stack>
+              >
+                {STATUS_LABELS[status]} ({stats[status]})
+              </span>
+            );
+          })}
+        </div>
       ) : null}
 
-      <Paper sx={{ p: 1, overflow: "auto" }} variant="outlined">
-        <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
+      <div className="overflow-auto rounded-xl border border-border bg-card p-2 shadow-sm">
+        <div className="flex flex-col gap-1">
           {[...filteredRows].reverse().map((row) => (
-            <Box key={row.id} sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-              <Typography
-                sx={{ minWidth: 36, textAlign: "right", flexShrink: 0, color: "text.secondary" }}
-                variant="caption"
-              >
+            <div className="flex items-center gap-1" key={row.id}>
+              <span className="w-9 shrink-0 text-right text-xs text-muted-foreground">
                 {row.label}
-              </Typography>
-              <Box sx={{ display: "flex", gap: 0.5, flexWrap: "nowrap" }}>
+              </span>
+              <div className="flex flex-nowrap gap-1">
                 {row.cells.map((cell) => {
-                  const cfg = STATUS_CONFIG[cell.status];
+                  const cfg = STATUS_STYLE[cell.status];
                   return (
-                    <Tooltip key={cell.id} title={cell.tooltip ?? cell.label}>
-                      <button
-                        className={cn(
-                          "rounded border transition-colors cursor-pointer flex items-center justify-center flex-shrink-0 font-medium",
-                          cellSizeClasses[cellSize],
-                          cfg.bg,
-                          cfg.border,
-                          cfg.text,
-                          cell.status === "unavailable" && "cursor-default",
-                        )}
-                        onClick={(e) => handleCellClick(cell, e.currentTarget)}
-                        type="button"
-                      >
-                        {cell.label}
-                      </button>
-                    </Tooltip>
+                    <button
+                      className={cn(
+                        "flex shrink-0 items-center justify-center rounded-lg border border-border font-medium transition-colors",
+                        cellSizeClasses[cellSize],
+                        cfg.bg,
+                        cfg.text,
+                        cell.status === "unavailable"
+                          ? "cursor-default border-dashed"
+                          : "cursor-pointer",
+                      )}
+                      key={cell.id}
+                      onClick={(e) => handleCellClick(cell, e.currentTarget)}
+                      title={cell.tooltip ?? cell.label}
+                      type="button"
+                    >
+                      {cell.label}
+                    </button>
                   );
                 })}
-              </Box>
-            </Box>
+              </div>
+            </div>
           ))}
-        </Box>
-      </Paper>
+        </div>
+      </div>
 
-      {/* Popover for cell detail */}
       <Popover
         anchorEl={popoverAnchor?.el}
         anchorOrigin={{ horizontal: "center", vertical: "bottom" }}
@@ -201,10 +177,10 @@ export function AppColorGrid({
         open={Boolean(popoverAnchor)}
         transformOrigin={{ horizontal: "center", vertical: "top" }}
       >
-        <Box sx={{ p: 2, minWidth: 220 }}>
+        <div className="min-w-[220px] rounded-xl border border-border bg-card p-3 shadow-sm">
           {popoverAnchor?.cell.popoverContent}
-        </Box>
+        </div>
       </Popover>
-    </Box>
+    </div>
   );
 }

@@ -7,8 +7,8 @@ import {
   type DragEvent,
   type ReactNode,
 } from "react";
-import { Badge, Box, Paper, Stack, Typography } from "@mui/material";
 import { cn } from "@/shared/lib/ui/cn";
+import { useI18n } from "@/shared/providers/locale-provider";
 
 export interface AppKanbanCard {
   id: string;
@@ -39,9 +39,10 @@ export function AppKanbanBoard<T extends AppKanbanCard>({
   onCardMove,
   renderCard,
   onCardClick,
-  emptyLabel = "Нет карточек",
+  emptyLabel,
   className,
 }: AppKanbanBoardProps<T>) {
+  const { t } = useI18n();
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [overColumnId, setOverColumnId] = useState<string | null>(null);
   const dragFromColumnId = useRef<string | null>(null);
@@ -84,111 +85,91 @@ export function AppKanbanBoard<T extends AppKanbanCard>({
   );
 
   return (
-    <Box
-      className={className}
-      sx={{
-        display: "flex",
-        gap: 1.5,
-        overflowX: "auto",
-        pb: 1,
-        alignItems: "flex-start",
-        minHeight: 400,
-      }}
+    <div
+      className={cn(
+        "flex min-h-[400px] items-start gap-3 overflow-x-auto pb-2",
+        className,
+      )}
     >
       {columns.map((column) => {
         const columnCards = getColumnCards(column.id);
         const isOver = overColumnId === column.id;
-        const isOverLimit = column.limit !== undefined && columnCards.length >= column.limit;
+        const isOverLimit =
+          column.limit !== undefined && columnCards.length >= column.limit;
 
         return (
-          <Box
+          <div
+            className="w-[280px] min-w-[260px] max-w-[300px] shrink-0"
             key={column.id}
             onDragLeave={() => setOverColumnId(null)}
             onDragOver={(e) => handleColumnDragOver(e, column.id)}
             onDrop={(e) => handleColumnDrop(e, column.id)}
-            sx={{ minWidth: 260, maxWidth: 300, flexShrink: 0, width: 280 }}
           >
-            <Paper
-              sx={{
-                p: 1.25,
-                height: "100%",
-                minHeight: 300,
-                bgcolor: isOver ? "action.hover" : "background.paper",
-                border: "2px solid",
-                borderColor: isOver ? "primary.main" : "divider",
-                transition: "all 160ms ease",
-                borderRadius: 2,
-              }}
-              variant="outlined"
+            <div
+              className={cn(
+                "min-h-[300px] rounded-xl border-2 p-2.5 transition-all duration-150",
+                isOver
+                  ? "border-primary bg-primary/5"
+                  : "border-border bg-card",
+              )}
             >
               {/* Column header */}
-              <Stack
-                alignItems="center"
-                direction="row"
-                justifyContent="space-between"
-                sx={{ mb: 1.25 }}
-              >
-                <Stack alignItems="center" direction="row" gap={1}>
+              <div className="mb-2.5 flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
                   {column.color ? (
-                    <Box
-                      sx={{
-                        width: 10,
-                        height: 10,
-                        borderRadius: "50%",
-                        bgcolor: column.color,
-                        flexShrink: 0,
-                      }}
+                    <span
+                      className="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
+                      style={{ backgroundColor: column.color }}
                     />
                   ) : null}
-                  <Typography sx={{ fontWeight: 600, fontSize: 13 }} variant="subtitle2">
+                  <span className="text-sm font-semibold text-foreground">
                     {column.label}
-                  </Typography>
-                </Stack>
-                <Badge
-                  badgeContent={columnCards.length}
-                  color={isOverLimit ? "error" : "default"}
-                  sx={{
-                    "& .MuiBadge-badge": { fontSize: 11, height: 18, minWidth: 18 },
-                  }}
-                />
-              </Stack>
+                  </span>
+                </div>
+                <span
+                  className={cn(
+                    "inline-flex h-5 min-w-[20px] items-center justify-center rounded-full text-[11px] font-medium",
+                    isOverLimit
+                      ? "bg-danger/15 text-danger"
+                      : "bg-muted text-muted-foreground",
+                  )}
+                >
+                  {columnCards.length}
+                </span>
+              </div>
 
               {/* Cards */}
-              <Stack gap={1}>
+              <div className="space-y-2">
                 {columnCards.length === 0 ? (
-                  <Typography
-                    color="text.disabled"
-                    sx={{ py: 3, textAlign: "center", fontSize: 12 }}
-                    variant="body2"
-                  >
-                    {emptyLabel}
-                  </Typography>
+                  <p className="py-4 text-center text-xs text-muted-foreground">
+                    {emptyLabel ?? t("kanban.empty")}
+                  </p>
                 ) : (
                   columnCards.map((card) => {
                     const isDragging = card.id === draggingId;
                     return (
-                      <Box
+                      <div
                         className={cn(
                           "transition-all duration-150",
-                          isDragging && "opacity-40 scale-95",
+                          isDragging && "scale-95 opacity-40",
+                          onCardClick ? "cursor-pointer" : "cursor-grab",
                         )}
                         draggable
                         key={card.id}
                         onClick={() => !isDragging && onCardClick?.(card)}
                         onDragEnd={handleDragEnd}
                         onDragStart={(e) => handleDragStart(e, card)}
-                        sx={{ cursor: onCardClick ? "pointer" : "grab" }}
                       >
                         {renderCard(card, isDragging)}
-                      </Box>
+                      </div>
                     );
                   })
                 )}
-              </Stack>
-            </Paper>
-          </Box>
+              </div>
+            </div>
+          </div>
         );
       })}
-    </Box>
+    </div>
   );
 }

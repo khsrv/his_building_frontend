@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useRef, useState } from "react";
-import { Box, InputAdornment, MenuItem, Select, TextField } from "@mui/material";
+import { InputAdornment, MenuItem, Select, TextField } from "@mui/material";
 
 export interface AppCurrencyOption {
   code: string;
@@ -115,7 +115,7 @@ export function AppMoneyInput({
   }, [locale, secondaryAmount, secondaryCurrency]);
 
   return (
-    <Box sx={{ width: fullWidth ? "100%" : "auto" }}>
+    <div style={{ width: fullWidth ? "100%" : "auto" }}>
       <TextField
         disabled={disabled}
         error={error}
@@ -164,6 +164,6 @@ export function AppMoneyInput({
         value={displayValue}
         variant="outlined"
       />
-    </Box>
+    </div>
   );
 }

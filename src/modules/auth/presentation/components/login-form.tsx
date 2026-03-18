@@ -72,7 +72,7 @@ export function LoginForm() {
       });
 
       notifier.success(t("auth.login.success"));
-      router.replace(routes.admin);
+      router.replace(routes.dashboard);
       router.refresh();
     } catch (error) {
       const message = resolveErrorMessage(error);
@@ -125,10 +125,10 @@ export function LoginForm() {
                 fontWeight: 800,
               }}
             >
-              P
+              B
             </Box>
             <Typography variant="h5" sx={{ fontWeight: 700 }}>
-              POS.TJ
+              BuildCRM
             </Typography>
             <Typography color="text.secondary" sx={{ mt: 0.5 }}>
               {t("auth.login.title")}

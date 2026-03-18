@@ -1,10 +1,12 @@
 "use client";
 
 import { useMemo, type ReactNode } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { NAVIGATION_ITEMS, type NavItem } from "@/shared/constants/navigation";
 import { routes } from "@/shared/constants/routes";
 import { useI18n } from "@/shared/providers/locale-provider";
 import { useThemeMode } from "@/shared/providers/theme-provider";
+import { useAuth } from "@/modules/auth/presentation/hooks/use-auth";
 import type { AppSidebarItem } from "@/shared/ui/layout/app-sidebar";
 import { AppSidebar } from "@/shared/ui/layout/app-sidebar";
 import { AppTopBar, type AppTopBarAction } from "@/shared/ui/layout/app-top-bar";
@@ -16,94 +18,7 @@ interface AppShellProps {
 function BrandIcon() {
   return (
     <svg aria-hidden className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-      <path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z" />
-      <path d="M12 12l8-4.5M12 12L4 7.5M12 12v9" />
-    </svg>
-  );
-}
-
-function HomeIcon() {
-  return (
-    <svg aria-hidden className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-      <path d="M4 11l8-6l8 6v8a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1z" />
-      <path d="M9 20v-6h6v6" />
-    </svg>
-  );
-}
-
-function UsersIcon() {
-  return (
-    <svg aria-hidden className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-      <circle cx="9" cy="8" r="3.5" />
-      <circle cx="17" cy="7" r="2.5" />
-      <path d="M3.5 19a5.5 5.5 0 0 1 11 0M14.5 18.5a4 4 0 0 1 6 0" />
-    </svg>
-  );
-}
-
-function ContactIcon() {
-  return (
-    <svg aria-hidden className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-      <circle cx="12" cy="8" r="3.5" />
-      <path d="M4.5 19a7.5 7.5 0 0 1 15 0" />
-    </svg>
-  );
-}
-
-function TableIcon() {
-  return (
-    <svg aria-hidden className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-      <path d="M3 7h18M3 12h18M3 17h18M6 7v12M18 7v12" />
-    </svg>
-  );
-}
-
-function KitchenIcon() {
-  return (
-    <svg aria-hidden className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-      <path d="M5 3v9M8 3v9M5 7h3M15 3v18M12 12h6" />
-    </svg>
-  );
-}
-
-function StackIcon() {
-  return (
-    <svg aria-hidden className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-      <path d="M12 3l8 4l-8 4l-8-4zM4 11l8 4l8-4M4 15l8 4l8-4" />
-    </svg>
-  );
-}
-
-function BoxIcon() {
-  return (
-    <svg aria-hidden className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-      <path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z" />
-      <path d="M12 12l8-4.5M12 12L4 7.5M12 12v9" />
-    </svg>
-  );
-}
-
-function ArrowUpIcon() {
-  return (
-    <svg aria-hidden className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-      <path d="M12 20V6M6 12l6-6l6 6" />
-    </svg>
-  );
-}
-
-function ArrowDownIcon() {
-  return (
-    <svg aria-hidden className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-      <path d="M12 4v14M6 12l6 6l6-6" />
-    </svg>
-  );
-}
-
-function ExpenseIcon() {
-  return (
-    <svg aria-hidden className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-      <circle cx="12" cy="12" r="9" />
-      <path d="M8 12h8" />
+      <path d="M3 21h18M5 21V7l7-4 7 4v14M9 9h1M14 9h1M9 13h1M14 13h1M9 17h1M14 17h1" />
     </svg>
   );
 }
@@ -240,116 +155,64 @@ function FlagUzIcon() {
   );
 }
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function navToSidebar(items: readonly NavItem[], t: (key: never) => string): readonly AppSidebarItem[] {
+  return items.map((item) => ({
+    id: item.id,
+    label: t(item.labelKey as never),
+    ...(item.href ? { href: item.href } : {}),
+    icon: item.icon,
+    ...(item.children ? { children: navToSidebar(item.children, t) } : {}),
+  }));
+}
+
+/** Find the active nav item id by matching the current pathname against NAVIGATION_ITEMS hrefs. */
+function findActiveItemId(items: readonly NavItem[], pathname: string): string | undefined {
+  let bestMatch: { id: string; length: number } | undefined;
+
+  function walk(navItems: readonly NavItem[]): void {
+    for (const item of navItems) {
+      if (item.href !== undefined && pathname.startsWith(item.href)) {
+        if (bestMatch === undefined || item.href.length > bestMatch.length) {
+          bestMatch = { id: item.id, length: item.href.length };
+        }
+      }
+      if (item.children) {
+        walk(item.children);
+      }
+    }
+  }
+
+  walk(items);
+  return bestMatch?.id;
+}
+
+// ─── Component ───────────────────────────────────────────────────────────────
+
 export function AppShell({ children }: AppShellProps) {
   const { t, locale, setLocale } = useI18n();
   const { mode, resolvedMode, setMode } = useThemeMode();
+  const { user } = useAuth();
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const activeNav = searchParams.get("nav") ?? "home";
+  const pathname = usePathname();
 
-  const sidebarItems = useMemo<readonly AppSidebarItem[]>(() => {
-    return [
-      {
-        id: "home",
-        label: t("nav.home"),
-        href: `${routes.admin}?nav=home`,
-        icon: <HomeIcon />,
-      },
-      {
-        id: "users",
-        label: t("nav.users"),
-        icon: <UsersIcon />,
-        children: [
-          {
-            id: "users-list",
-            label: t("nav.users_list"),
-            href: `${routes.admin}?nav=users-list`,
-            icon: <UsersIcon />,
-          },
-          {
-            id: "users-roles",
-            label: t("nav.users_roles"),
-            href: `${routes.admin}?nav=users-roles`,
-            icon: <UsersIcon />,
-          },
-        ],
-      },
-      {
-        id: "contacts",
-        label: t("nav.contacts"),
-        href: `${routes.admin}?nav=contacts`,
-        icon: <ContactIcon />,
-      },
-      {
-        id: "tables",
-        label: t("nav.tables"),
-        href: `${routes.admin}?nav=tables`,
-        icon: <TableIcon />,
-      },
-      {
-        id: "kitchen",
-        label: t("nav.kitchen"),
-        href: `${routes.admin}?nav=kitchen`,
-        icon: <KitchenIcon />,
-      },
-      {
-        id: "order-status",
-        label: t("nav.order_status"),
-        href: `${routes.admin}?nav=order-status`,
-        icon: <KitchenIcon />,
-      },
-      {
-        id: "orders",
-        label: t("nav.orders"),
-        href: `${routes.admin}?nav=orders`,
-        icon: <StackIcon />,
-      },
-      {
-        id: "products",
-        label: t("nav.products"),
-        icon: <BoxIcon />,
-        children: [
-          {
-            id: "products-all",
-            label: t("nav.products_all"),
-            href: `${routes.admin}?nav=products-all`,
-            icon: <BoxIcon />,
-          },
-          {
-            id: "products-categories",
-            label: t("nav.products_categories"),
-            href: `${routes.admin}?nav=products-categories`,
-            icon: <BoxIcon />,
-          },
-        ],
-      },
-      {
-        id: "sales",
-        label: t("nav.sales"),
-        href: `${routes.admin}?nav=sales`,
-        icon: <ArrowUpIcon />,
-      },
-      {
-        id: "purchases",
-        label: t("nav.purchases"),
-        href: `${routes.admin}?nav=purchases`,
-        icon: <ArrowDownIcon />,
-      },
-      {
-        id: "expenses",
-        label: t("nav.expenses"),
-        href: `${routes.admin}?nav=expenses`,
-        icon: <ExpenseIcon />,
-      },
-    ];
-  }, [t]);
+  const activeItemId = useMemo(
+    () => findActiveItemId(NAVIGATION_ITEMS, pathname) ?? "dashboard",
+    [pathname],
+  );
+
+  const sidebarItems = useMemo<readonly AppSidebarItem[]>(
+    () => navToSidebar(NAVIGATION_ITEMS, t),
+    [t],
+  );
 
   const topBarActions = useMemo<readonly AppTopBarAction[]>(() => {
     return [
       {
         id: "workspace",
         icon: <MonitorIcon />,
-        label: "POS",
+        label: "BuildCRM",
         active: true,
         title: t("topbar.workspace"),
       },
@@ -427,9 +290,9 @@ export function AppShell({ children }: AppShellProps) {
   return (
     <div className="min-h-screen bg-background md:flex">
       <AppSidebar
-        activeItemId={activeNav}
+        activeItemId={activeItemId}
         brandIcon={<BrandIcon />}
-        brandLabel="POS.TJ"
+        brandLabel="BuildCRM"
         items={sidebarItems}
       />
 
@@ -448,9 +311,9 @@ export function AppShell({ children }: AppShellProps) {
               </button>
             }
             profile={{
-              name: "Демо",
-              subtitle: "demo",
-              avatarUrl: "https://i.pravatar.cc/100?img=12",
+              name: user?.fullName ?? "Demo",
+              subtitle: user?.roles[0] ?? "demo",
+              avatarUrl: user?.avatarUrl ?? "",
               online: true,
               menuItems: [
                 {
@@ -458,7 +321,7 @@ export function AppShell({ children }: AppShellProps) {
                   label: t("topbar.profile"),
                   icon: <ProfileIcon />,
                   tone: "primary",
-                  href: `${routes.admin}?nav=profile`,
+                  href: routes.settings,
                 },
                 {
                   id: "logout",

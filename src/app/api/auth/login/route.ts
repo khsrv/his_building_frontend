@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import type { PasswordSignInInput } from "@/modules/auth/domain/sign-in";
-import type { Session, SessionUser, UserRole } from "@/modules/auth/domain/session";
+import type { Session, SessionUser } from "@/modules/auth/domain/session";
+import type { UserRole } from "@/shared/types/permissions";
+import { resolvePermissions } from "@/shared/types/permissions";
 import { SESSION_COOKIE_KEY, SESSION_TTL_DAYS } from "@/modules/auth/infrastructure/session-cookie";
 
 interface DemoAccount {
@@ -9,26 +11,74 @@ interface DemoAccount {
   user: SessionUser;
 }
 
+// ─── Demo accounts for development ───────────────────────────────────────────
+// Replace with real backend integration in production
+
+const DEMO_TENANT = {
+  id: "t-demo-001",
+  name: "Сохтмони Дусти",
+  slug: "sohtmoni-dusti",
+} as const;
+
+function makeDemoUser(
+  id: string,
+  email: string,
+  fullName: string,
+  roles: readonly UserRole[],
+): SessionUser {
+  return {
+    id,
+    email,
+    fullName,
+    avatarUrl: null,
+    roles,
+    permissions: resolvePermissions(roles),
+    tenantId: DEMO_TENANT.id,
+    tenantName: DEMO_TENANT.name,
+    tenantSlug: DEMO_TENANT.slug,
+  };
+}
+
 const demoAccounts: readonly DemoAccount[] = [
   {
     login: "demo",
     password: "demo123",
-    user: {
-      id: "u-demo-admin",
-      email: "demo@pos.tj",
-      fullName: "Демо",
-      roles: ["admin", "manager"] as const satisfies readonly UserRole[],
-    },
+    user: makeDemoUser(
+      "u-demo-admin",
+      "admin@buildcrm.tj",
+      "Алишер Назаров",
+      ["admin_company"],
+    ),
   },
   {
     login: "manager",
     password: "manager123",
-    user: {
-      id: "u-demo-manager",
-      email: "manager@pos.tj",
-      fullName: "Manager Demo",
-      roles: ["manager"] as const satisfies readonly UserRole[],
-    },
+    user: makeDemoUser(
+      "u-demo-manager",
+      "manager@buildcrm.tj",
+      "Фаррух Рахимов",
+      ["sales_manager"],
+    ),
+  },
+  {
+    login: "director",
+    password: "director123",
+    user: makeDemoUser(
+      "u-demo-director",
+      "director@buildcrm.tj",
+      "Саид Ибрагимов",
+      ["sales_director"],
+    ),
+  },
+  {
+    login: "accountant",
+    password: "accountant123",
+    user: makeDemoUser(
+      "u-demo-accountant",
+      "accountant@buildcrm.tj",
+      "Нигина Каримова",
+      ["accountant"],
+    ),
   },
 ];
 
@@ -37,18 +87,11 @@ function normalizeLogin(value: string) {
 }
 
 function parseInput(body: unknown): PasswordSignInInput | null {
-  if (!body || typeof body !== "object") {
-    return null;
-  }
-
+  if (!body || typeof body !== "object") return null;
   const record = body as Record<string, unknown>;
   const login = typeof record.login === "string" ? record.login : "";
   const password = typeof record.password === "string" ? record.password : "";
-
-  return {
-    login,
-    password,
-  };
+  return { login, password };
 }
 
 export async function POST(request: Request) {
@@ -66,9 +109,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ code: "AUTH_INVALID_INPUT" }, { status: 400 });
   }
 
-  const account = demoAccounts.find((candidate) => {
-    return normalizeLogin(candidate.login) === normalizedLogin && candidate.password === password;
-  });
+  const account = demoAccounts.find(
+    (c) => normalizeLogin(c.login) === normalizedLogin && c.password === password,
+  );
 
   if (!account) {
     return NextResponse.json({ code: "AUTH_INVALID_CREDENTIALS" }, { status: 401 });

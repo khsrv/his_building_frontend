@@ -14,6 +14,19 @@ export class NextAuthRepository implements AuthRepository {
 
     try {
       const parsed = JSON.parse(decodeURIComponent(rawSession)) as Session;
+
+      // Validate session has required fields (old cookies may lack tenantId/permissions)
+      if (
+        !parsed.user ||
+        typeof parsed.user.id !== "string" ||
+        !parsed.user.tenantId ||
+        !Array.isArray(parsed.user.permissions)
+      ) {
+        // Invalid/outdated session — clear it
+        cookieStore.delete(SESSION_COOKIE_KEY);
+        return null;
+      }
+
       return parsed;
     } catch {
       return null;
