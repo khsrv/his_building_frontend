@@ -96,6 +96,15 @@ function MastersIcon() {
   );
 }
 
+function CalculatorIcon() {
+  return (
+    <svg aria-hidden className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+      <rect height="18" rx="2" width="16" x="4" y="3" />
+      <path d="M8 7h8M8 11h2M14 11h2M8 15h2M14 15h2M8 19h2M14 19h2" />
+    </svg>
+  );
+}
+
 function AnalyticsIcon() {
   return (
     <svg aria-hidden className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -170,6 +179,12 @@ export const NAVIGATION_ITEMS: readonly NavItem[] = [
     href: routes.payments,
     icon: <PaymentsIcon />,
     permission: "payments.read",
+  },
+  {
+    id: "calculator",
+    labelKey: "nav.calculator",
+    href: routes.calculator,
+    icon: <CalculatorIcon />,
   },
   {
     id: "finance",

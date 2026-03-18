@@ -28,6 +28,9 @@ export const routes = {
   // Cashier (deal wizard)
   cashier: "/cashier",
 
+  // Installment calculator
+  calculator: "/calculator",
+
   // Payments
   payments: "/payments",
   paymentSchedule: (dealId: string) => `/deals/${dealId}/payments` as const,

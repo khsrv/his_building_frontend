@@ -54,6 +54,7 @@ export const tgDictionary = {
   "nav.cashier": "Касса",
   "nav.deals": "Созишномаҳо",
   "nav.payments": "Пардохтҳо",
+  "nav.calculator": "Ҳисобкунак",
   "nav.finance": "Молия",
   "nav.finance_ledger": "Журнал",
   "nav.finance_accounts": "Ҳисобҳо",

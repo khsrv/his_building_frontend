@@ -54,6 +54,7 @@ export const enDictionary = {
   "nav.cashier": "Cashier",
   "nav.deals": "Deals",
   "nav.payments": "Payments",
+  "nav.calculator": "Calculator",
   "nav.finance": "Finance",
   "nav.finance_ledger": "Ledger",
   "nav.finance_accounts": "Accounts",

@@ -54,6 +54,7 @@ export const uzDictionary = {
   "nav.cashier": "Kassa",
   "nav.deals": "Bitimlar",
   "nav.payments": "To'lovlar",
+  "nav.calculator": "Kalkulyator",
   "nav.finance": "Moliya",
   "nav.finance_ledger": "Jurnal",
   "nav.finance_accounts": "Hisoblar",

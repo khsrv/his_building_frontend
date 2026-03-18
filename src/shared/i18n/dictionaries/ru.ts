@@ -54,6 +54,7 @@ export const ruDictionary = {
   "nav.cashier": "Касса",
   "nav.deals": "Сделки",
   "nav.payments": "Платежи",
+  "nav.calculator": "Калькулятор",
   "nav.finance": "Финансы",
   "nav.finance_ledger": "Журнал",
   "nav.finance_accounts": "Счета",
