@@ -1,4 +1,9 @@
 import { apiClient } from "@/shared/lib/http/api-client";
+import {
+  getResponseData,
+  getResponseItems,
+  normalizeApiKeys,
+} from "@/shared/lib/http/api-response";
 import type { Deal, ScheduleItem, CreateDealInput, DealsListParams, ReceivePaymentInput } from "@/modules/deals/domain/deal";
 import type {
   DealsListResponseDto,
@@ -11,6 +16,11 @@ import type {
   ClientSearchResponseDto,
   UnitSearchResponseDto,
   PropertiesListResponseDto,
+  DealDto,
+  ScheduleItemDto,
+  ClientSearchItemDto,
+  UnitSearchItemDto,
+  PropertyMinimalDto,
 } from "@/modules/deals/infrastructure/dto";
 import { mapDealDtoToDomain, mapScheduleItemDtoToDomain } from "@/modules/deals/infrastructure/mappers";
 
@@ -27,12 +37,13 @@ export async function fetchDealsList(params?: DealsListParams): Promise<Deal[]> 
   if (params?.unitId) query["unit_id"] = params.unitId;
 
   const res = await apiClient.get<DealsListResponseDto>("/api/v1/deals", query);
-  return (res.data.items ?? []).map(mapDealDtoToDomain);
+  const items = getResponseItems<DealDto>(normalizeApiKeys(res));
+  return items.map(mapDealDtoToDomain);
 }
 
 export async function fetchDealDetail(id: string): Promise<Deal> {
   const res = await apiClient.get<DealDetailResponseDto>(`/api/v1/deals/${id}`);
-  return mapDealDtoToDomain(res.data);
+  return mapDealDtoToDomain(getResponseData<DealDto>(normalizeApiKeys(res)));
 }
 
 export async function createDeal(input: CreateDealInput): Promise<Deal> {
@@ -51,30 +62,32 @@ export async function createDeal(input: CreateDealInput): Promise<Deal> {
   if (input.mortgageBank !== undefined) body.mortgage_bank = input.mortgageBank;
   if (input.mortgageRate !== undefined) body.mortgage_rate = input.mortgageRate;
   if (input.notes !== undefined) body.notes = input.notes;
+
   const res = await apiClient.post<DealDetailResponseDto>("/api/v1/deals", body);
-  return mapDealDtoToDomain(res.data);
+  return mapDealDtoToDomain(getResponseData<DealDto>(normalizeApiKeys(res)));
 }
 
 export async function activateDeal(id: string): Promise<Deal> {
   const res = await apiClient.post<DealDetailResponseDto>(`/api/v1/deals/${id}/activate`, {});
-  return mapDealDtoToDomain(res.data);
+  return mapDealDtoToDomain(getResponseData<DealDto>(normalizeApiKeys(res)));
 }
 
 export async function completeDeal(id: string): Promise<Deal> {
   const res = await apiClient.post<DealDetailResponseDto>(`/api/v1/deals/${id}/complete`, {});
-  return mapDealDtoToDomain(res.data);
+  return mapDealDtoToDomain(getResponseData<DealDto>(normalizeApiKeys(res)));
 }
 
 export async function cancelDeal(id: string): Promise<Deal> {
   const res = await apiClient.post<DealDetailResponseDto>(`/api/v1/deals/${id}/cancel`, {});
-  return mapDealDtoToDomain(res.data);
+  return mapDealDtoToDomain(getResponseData<DealDto>(normalizeApiKeys(res)));
 }
 
 // ─── Schedule ─────────────────────────────────────────────────────────────────
 
 export async function fetchDealSchedule(dealId: string): Promise<ScheduleItem[]> {
   const res = await apiClient.get<ScheduleResponseDto>(`/api/v1/deals/${dealId}/schedule`);
-  return (res.data.items ?? []).map(mapScheduleItemDtoToDomain);
+  const items = getResponseItems<ScheduleItemDto>(normalizeApiKeys(res));
+  return items.map(mapScheduleItemDtoToDomain);
 }
 
 // ─── Payments ─────────────────────────────────────────────────────────────────
@@ -92,25 +105,31 @@ export interface Payment {
   confirmedAt: string | null;
 }
 
-export async function fetchDealPayments(dealId: string): Promise<Payment[]> {
-  const res = await apiClient.get<{ data: { items: PaymentDto[] } }>("/api/v1/payments", { deal_id: dealId });
-  return (res.data.items ?? []).map((item) => ({
+function mapPaymentDto(item: PaymentDto): Payment {
+  return {
     id: item.id,
     dealId: item.deal_id,
-    scheduleItemId: item.schedule_item_id,
-    amount: item.amount,
-    currency: item.currency,
+    scheduleItemId: item.schedule_item_id ?? null,
+    amount: Number(item.amount ?? 0),
+    currency: String(item.currency ?? "USD"),
     paymentMethod: item.payment_method,
     status: item.status,
-    notes: item.notes,
+    notes: item.notes ?? null,
     createdAt: item.created_at,
-    confirmedAt: item.confirmed_at,
-  }));
+    confirmedAt: item.confirmed_at ?? null,
+  };
+}
+
+export async function fetchDealPayments(dealId: string): Promise<Payment[]> {
+  const res = await apiClient.get<{ data: { items: PaymentDto[] } }>("/api/v1/payments", { deal_id: dealId });
+  const items = getResponseItems<PaymentDto>(normalizeApiKeys(res));
+  return items.map(mapPaymentDto);
 }
 
 export async function receivePayment(input: ReceivePaymentInput): Promise<void> {
   const body: ReceivePaymentRequestDto = {
     deal_id: input.dealId,
+    client_id: input.clientId,
     amount: input.amount,
     currency: input.currency,
     payment_method: input.paymentMethod,
@@ -131,7 +150,8 @@ export interface ClientSearchResult {
 
 export async function searchClients(search: string): Promise<ClientSearchResult[]> {
   const res = await apiClient.get<ClientSearchResponseDto>("/api/v1/clients", { search, limit: 20 });
-  return (res.data.items ?? []).map((item) => ({
+  const items = getResponseItems<ClientSearchItemDto>(normalizeApiKeys(res));
+  return items.map((item) => ({
     id: item.id,
     fullName: item.full_name,
     phone: item.phone,
@@ -156,7 +176,8 @@ export async function fetchAvailableUnits(propertyId: string): Promise<UnitSearc
     status: "available",
     limit: 100,
   });
-  return (res.data.items ?? []).map((item) => ({
+  const items = getResponseItems<UnitSearchItemDto>(normalizeApiKeys(res));
+  return items.map((item) => ({
     id: item.id,
     unitNumber: item.unit_number,
     propertyId: item.property_id,
@@ -176,7 +197,8 @@ export interface PropertyMinimal {
 
 export async function fetchPropertiesMinimal(): Promise<PropertyMinimal[]> {
   const res = await apiClient.get<PropertiesListResponseDto>("/api/v1/properties", { limit: 100 });
-  return (res.data.items ?? []).map((item) => ({
+  const items = getResponseItems<PropertyMinimalDto>(normalizeApiKeys(res));
+  return items.map((item) => ({
     id: item.id,
     name: item.name,
   }));

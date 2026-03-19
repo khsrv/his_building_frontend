@@ -2,7 +2,7 @@ import { ShimmerBox } from "@/shared/ui";
 
 export default function BuildingUnitsLoading() {
   return (
-    <div className="space-y-6 p-6 animate-in fade-in duration-200">
+    <div className="space-y-6 p-4 md:p-6 animate-in fade-in duration-200">
       <div className="space-y-2">
         <ShimmerBox className="h-4 w-36" />
         <ShimmerBox className="h-8 w-48" />

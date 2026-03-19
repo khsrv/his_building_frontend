@@ -194,8 +194,11 @@ export function CreateDealDrawer({ open, onClose }: CreateDealDrawerProps) {
     onClose();
   }, [onClose]);
 
+  const [submitError, setSubmitError] = useState<string | null>(null);
+
   const handleSubmit = async () => {
     if (!validateStep2()) return;
+    setSubmitError(null);
     const input: Parameters<typeof createDeal>[0] = {
       clientId: form.clientId,
       unitId: form.unitId,
@@ -211,9 +214,13 @@ export function CreateDealDrawer({ open, onClose }: CreateDealDrawerProps) {
     if (form.mortgageBank) input.mortgageBank = form.mortgageBank;
     if (form.mortgageRate) input.mortgageRate = parseFloat(form.mortgageRate);
     if (form.notes) input.notes = form.notes;
-    const deal = await createDeal(input);
-    handleClose();
-    router.push(routes.dealDetail(deal.id));
+    try {
+      const deal = await createDeal(input);
+      handleClose();
+      router.push(routes.dealDetail(deal.id));
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : "Ошибка создания сделки");
+    }
   };
 
   // ─── Step content ──────────────────────────────────────────────────────────
@@ -305,7 +312,7 @@ export function CreateDealDrawer({ open, onClose }: CreateDealDrawerProps) {
         />
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div className="space-y-1">
           <AppInput
             label="Общая сумма"
@@ -412,6 +419,11 @@ export function CreateDealDrawer({ open, onClose }: CreateDealDrawerProps) {
 
   const step3Content = (
     <div className="space-y-4 rounded-lg border border-border bg-muted/30 p-5">
+      {submitError ? (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+          {submitError}
+        </div>
+      ) : null}
       <h3 className="text-base font-semibold text-foreground">Итого по сделке</h3>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div>

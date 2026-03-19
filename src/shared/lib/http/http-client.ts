@@ -26,6 +26,8 @@ interface RefreshTokenData {
   accessTokenExpiresAt: string;
 }
 
+const NETWORK_ERROR_MESSAGE = "Нет подключения к интернету. Проверьте сеть и попробуйте снова.";
+
 // ─── Dev logger (disabled in production) ─────────────────────────────────────
 
 const IS_DEV = process.env.NODE_ENV === "development";
@@ -53,6 +55,40 @@ function logResponse(method: string, url: string, status: number, data: unknown)
   console.groupEnd();
 }
 
+function isLikelyNetworkError(error: unknown): boolean {
+  if (error instanceof AppError) {
+    return error.code === "NETWORK";
+  }
+
+  if (error instanceof Error) {
+    const message = error.message.toLowerCase();
+    if (error.name === "TypeError" || error.name === "AbortError") {
+      return true;
+    }
+    if (message.includes("failed to fetch") || message.includes("network") || message.includes("fetch")) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function mapFetchFailure(error: unknown): AppError {
+  if (error instanceof AppError) {
+    return error;
+  }
+
+  if (isLikelyNetworkError(error)) {
+    return new AppError("NETWORK", NETWORK_ERROR_MESSAGE, undefined, error);
+  }
+
+  if (error instanceof Error) {
+    return new AppError("UNKNOWN", error.message || "Request failed", undefined, error);
+  }
+
+  return new AppError("UNKNOWN", "Request failed");
+}
+
 // ─── Core request ─────────────────────────────────────────────────────────────
 
 async function doRequest<T>(
@@ -69,15 +105,20 @@ async function doRequest<T>(
   }
   logRequest(method, url, parsedBody);
 
-  const response = await fetch(url, {
-    ...requestInit,
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...headers,
-    },
-    cache: "no-store",
-  });
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      ...requestInit,
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...headers,
+      },
+      cache: "no-store",
+    });
+  } catch (error) {
+    throw mapFetchFailure(error);
+  }
 
   if (!response.ok) {
     const body = await response
@@ -114,13 +155,27 @@ async function refreshAccessToken(): Promise<string> {
   _refreshPromise = (async () => {
     try {
       // Refresh token is stored in httpOnly cookie — sent automatically
-      const res = await fetch("/api/auth/refresh", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-      });
+      let res: Response;
+      try {
+        res = await fetch("/api/auth/refresh", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+        });
+      } catch (error) {
+        throw mapFetchFailure(error);
+      }
 
       if (!res.ok) {
-        throw new AppError("UNAUTHORIZED", "Session expired", 401, {});
+        if (res.status === 401) {
+          throw new AppError("UNAUTHORIZED", "Session expired", 401, {});
+        }
+        const body = await res
+          .json()
+          .catch(() => ({ message: "Failed to refresh session" })) as {
+            message?: string;
+            code?: string;
+          };
+        throw new AppError("UNKNOWN", body.message ?? "Failed to refresh session", res.status, body);
       }
 
       const data = (await res.json()) as { data: RefreshTokenData };
@@ -150,12 +205,14 @@ export async function httpRequest<T>(
   if (tokenStorage.isAccessTokenExpired()) {
     try {
       await refreshAccessToken();
-    } catch {
-      tokenStorage.clearAll();
-      if (typeof window !== "undefined") {
-        window.location.href = "/login";
+    } catch (error) {
+      if (error instanceof AppError && error.code === "UNAUTHORIZED") {
+        tokenStorage.clearAll();
+        if (typeof window !== "undefined") {
+          window.location.href = "/login";
+        }
       }
-      throw new AppError("UNAUTHORIZED", "Session expired", 401, {});
+      throw mapFetchFailure(error);
     }
   }
 
@@ -169,13 +226,18 @@ export async function httpRequest<T>(
       try {
         const newToken = await refreshAccessToken();
         return await doRequest<T>(path, { ...options, token: newToken });
-      } catch {
-        tokenStorage.clearAll();
-        if (typeof window !== "undefined") {
-          window.location.href = "/login";
+      } catch (refreshError) {
+        const mappedRefreshError = mapFetchFailure(refreshError);
+        if (mappedRefreshError.code === "UNAUTHORIZED") {
+          tokenStorage.clearAll();
+          if (typeof window !== "undefined") {
+            window.location.href = "/login";
+          }
+          throw mappedRefreshError;
         }
+        throw mappedRefreshError;
       }
     }
-    throw err;
+    throw mapFetchFailure(err);
   }
 }

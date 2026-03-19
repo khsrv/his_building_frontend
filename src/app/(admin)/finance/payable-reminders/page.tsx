@@ -79,7 +79,11 @@ const CURRENCY_OPTIONS = [
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function isOverdue(reminder: PayableReminder): boolean {
-  return reminder.status === "pending" && new Date(reminder.dueDate) < new Date();
+  const dueTime = Date.parse(reminder.dueDate);
+  if (!Number.isFinite(dueTime)) {
+    return false;
+  }
+  return reminder.status === "pending" && dueTime < Date.now();
 }
 
 function formatMoney(amount: number, currency: string): string {
@@ -135,7 +139,9 @@ export default function PayableRemindersPage() {
     const aOverdue = isOverdue(a) ? 0 : 1;
     const bOverdue = isOverdue(b) ? 0 : 1;
     if (aOverdue !== bOverdue) return aOverdue - bOverdue;
-    return a.dueDate.localeCompare(b.dueDate);
+    const aDue = typeof a.dueDate === "string" ? a.dueDate : "";
+    const bDue = typeof b.dueDate === "string" ? b.dueDate : "";
+    return aDue.localeCompare(bDue);
   });
 
   const overdueCount = (reminders ?? []).filter(isOverdue).length;
@@ -199,7 +205,7 @@ export default function PayableRemindersPage() {
           {
             id: "mark-paid",
             label: "Оплачено",
-            onClick: () => markPaidMutation.mutate(row.id),
+            onClick: () => markPaidMutation.mutate({ id: row.id, amount: row.amount }),
           },
           {
             id: "cancel",
@@ -254,7 +260,7 @@ export default function PayableRemindersPage() {
     createMutation.isPending;
 
   return (
-    <main className="space-y-6 p-6">
+    <main className="space-y-6 p-4 md:p-6">
       <AppPageHeader
         title="Напоминалки по платежам"
         {...(overdueCount > 0

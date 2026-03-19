@@ -84,6 +84,7 @@ export interface DealsListParams {
 
 export interface ReceivePaymentInput {
   dealId: string;
+  clientId: string;
   scheduleItemId?: string | undefined;
   amount: number;
   currency: string;

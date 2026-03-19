@@ -128,7 +128,7 @@ export default function PipelinePage() {
 
   if (isError) {
     return (
-      <main className="p-6">
+      <main className="p-4 md:p-6">
         <AppStatePanel
           tone="error"
           title="Ошибка загрузки"
@@ -141,7 +141,7 @@ export default function PipelinePage() {
   }
 
   return (
-    <main className="space-y-4 p-6">
+    <main className="space-y-4 p-4 md:p-6">
       <AppPageHeader
         title="Воронка продаж"
         subtitle="Канбан-доска по этапам"

@@ -119,7 +119,7 @@ export default function CalculatorPage() {
   const result = useMemo(() => calculate(input), [input]);
 
   return (
-    <main className="space-y-6 p-6">
+    <main className="space-y-6 p-4 md:p-6">
       <AppPageHeader
         title="Калькулятор рассрочки"
         subtitle="Рассчитайте график платежей для клиента"
@@ -131,7 +131,7 @@ export default function CalculatorPage() {
 
       <div className="grid gap-6 lg:grid-cols-2">
         {/* ─── Input form ─── */}
-        <div className="space-y-5 rounded-xl border border-border bg-card p-6">
+        <div className="space-y-5 rounded-xl border border-border bg-card p-4 md:p-6">
           <h2 className="text-base font-semibold">Параметры</h2>
 
           {/* Area */}
@@ -249,7 +249,7 @@ export default function CalculatorPage() {
           {result ? (
             <>
               {/* Summary cards */}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <SummaryCard label="Общая стоимость" value={fmtMoney(result.totalPrice, input.currency)} />
                 <SummaryCard label="Предоплата" value={fmtMoney(result.downPayment, input.currency)} accent="blue" />
                 <SummaryCard label="Сумма рассрочки" value={fmtMoney(result.financeAmount, input.currency)} accent="amber" />

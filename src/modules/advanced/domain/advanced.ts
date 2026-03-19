@@ -48,6 +48,15 @@ export interface Invoice {
   readonly createdAt: string;
 }
 
+export interface UnitPriceHistoryItem {
+  readonly id: string;
+  readonly unitId: string;
+  readonly oldPrice: number;
+  readonly newPrice: number;
+  readonly reason: string;
+  readonly createdAt: string;
+}
+
 // ─── Input types for mutations ──────────────────────────────────────────────
 
 export interface CreatePricingRuleInput {

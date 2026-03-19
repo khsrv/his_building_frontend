@@ -141,7 +141,7 @@ export default function OverduePaymentsPage() {
     data && data.length > 0 ? (data[0]?.currency ?? "USD") : "USD";
 
   return (
-    <main className="space-y-6 p-6">
+    <main className="space-y-6 p-4 md:p-6">
       <AppPageHeader
         title="Просроченные платежи"
         breadcrumbs={[

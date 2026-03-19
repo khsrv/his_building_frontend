@@ -205,7 +205,7 @@ export default function SettingsTemplatesPage() {
   }
 
   return (
-    <main className="space-y-6 p-6">
+    <main className="space-y-6 p-4 md:p-6">
       <AppPageHeader
         title="Шаблоны договоров"
         {...(templates ? { subtitle: `${templates.length} шаблонов` } : {})}

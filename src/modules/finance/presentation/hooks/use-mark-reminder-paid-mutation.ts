@@ -8,7 +8,7 @@ export function useMarkReminderPaidMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (id: string) => markPayableReminderPaid(id),
+    mutationFn: (input: { id: string; amount: number }) => markPayableReminderPaid(input),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: financeKeys.payableReminders() });
     },

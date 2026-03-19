@@ -3,6 +3,7 @@ export const advancedKeys = {
 
   // Pricing rules
   pricingRules: (propertyId?: string) => ["advanced", "pricing-rules", propertyId] as const,
+  unitPriceHistory: (unitId?: string) => ["advanced", "unit-price-history", unitId] as const,
 
   // Brokers
   brokers: () => ["advanced", "brokers"] as const,

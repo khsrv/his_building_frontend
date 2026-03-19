@@ -82,7 +82,7 @@ export default function MastersPage() {
 
   if (isError) {
     return (
-      <main className="p-6">
+      <main className="p-4 md:p-6">
         <AppStatePanel
           tone="error"
           title="Ошибка загрузки"
@@ -95,7 +95,7 @@ export default function MastersPage() {
   }
 
   return (
-    <main className="space-y-6 p-6">
+    <main className="space-y-6 p-4 md:p-6">
       <AppCrudPageScaffold
         header={
           <AppPageHeader

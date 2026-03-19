@@ -11,9 +11,10 @@ import {
 } from "@/shared/ui";
 import { routes } from "@/shared/constants/routes";
 import { useSuppliersListQuery } from "@/modules/warehouse/presentation/hooks/use-suppliers-list-query";
+import { useSupplierBalancesQuery } from "@/modules/warehouse/presentation/hooks/use-supplier-balances-query";
 import { CreateSupplierDrawer } from "@/modules/warehouse/presentation/components/create-supplier-drawer";
 import { SupplierDetailDialog } from "@/modules/warehouse/presentation/components/supplier-detail-dialog";
-import type { Supplier } from "@/modules/warehouse/domain/warehouse";
+import type { Supplier, SupplierBalance } from "@/modules/warehouse/domain/warehouse";
 
 const columns: readonly AppDataTableColumn<Supplier>[] = [
   {
@@ -48,6 +49,37 @@ const columns: readonly AppDataTableColumn<Supplier>[] = [
   },
 ];
 
+const balanceColumns: readonly AppDataTableColumn<SupplierBalance>[] = [
+  {
+    id: "supplierName",
+    header: "Поставщик",
+    cell: (row) => row.supplierName,
+    sortAccessor: (row) => row.supplierName,
+    searchAccessor: (row) => row.supplierName,
+  },
+  {
+    id: "totalPurchases",
+    header: "Закупки",
+    cell: (row) => row.totalPurchases.toLocaleString("ru-RU"),
+    sortAccessor: (row) => row.totalPurchases,
+    align: "right",
+  },
+  {
+    id: "totalPaid",
+    header: "Оплачено",
+    cell: (row) => row.totalPaid.toLocaleString("ru-RU"),
+    sortAccessor: (row) => row.totalPaid,
+    align: "right",
+  },
+  {
+    id: "balance",
+    header: "Остаток долга",
+    cell: (row) => row.balance.toLocaleString("ru-RU"),
+    sortAccessor: (row) => row.balance,
+    align: "right",
+  },
+];
+
 export default function WarehouseSuppliersPage() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
@@ -56,12 +88,14 @@ export default function WarehouseSuppliersPage() {
     page: 1,
     limit: 100,
   });
+  const balancesQuery = useSupplierBalancesQuery();
 
   const suppliers = data?.items ?? [];
+  const balances = balancesQuery.data ?? [];
 
   if (isError) {
     return (
-      <main className="p-6">
+      <main className="p-4 md:p-6">
         <AppStatePanel
           tone="error"
           title="Ошибка загрузки"
@@ -74,7 +108,7 @@ export default function WarehouseSuppliersPage() {
   }
 
   return (
-    <main className="space-y-6 p-6">
+    <main className="space-y-6 p-4 md:p-6">
       <AppCrudPageScaffold
         header={
           <AppPageHeader
@@ -96,16 +130,36 @@ export default function WarehouseSuppliersPage() {
           />
         }
         content={
-          <AppDataTable<Supplier>
-            data={suppliers}
-            columns={columns}
-            rowKey={(row) => row.id}
-            title="Поставщики"
-            searchPlaceholder="Поиск по названию, телефону, email..."
-            enableExport
-            enableSettings
-            onRowClick={(row) => setSelectedSupplier(row)}
-          />
+          <div className="space-y-6">
+            <AppDataTable<Supplier>
+              data={suppliers}
+              columns={columns}
+              rowKey={(row) => row.id}
+              title="Поставщики"
+              searchPlaceholder="Поиск по названию, телефону, email..."
+              enableExport
+              enableSettings
+              onRowClick={(row) => setSelectedSupplier(row)}
+            />
+
+            {balancesQuery.isError ? (
+              <AppStatePanel
+                tone="error"
+                title="Ошибка загрузки сводных балансов"
+                description="Не удалось загрузить данные endpoint /api/v1/supplier-balances"
+              />
+            ) : (
+              <AppDataTable<SupplierBalance>
+                data={balances}
+                columns={balanceColumns}
+                rowKey={(row) => row.supplierId}
+                title="Сводные балансы поставщиков"
+                searchPlaceholder="Поиск по поставщику..."
+                enableSettings={false}
+                enableExport
+              />
+            )}
+          </div>
         }
       />
 

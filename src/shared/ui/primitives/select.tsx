@@ -56,11 +56,31 @@ export function AppSelect<T extends string = string>({
         value={currentValue}
         variant="outlined"
         sx={{
+          "& .MuiOutlinedInput-root": {
+            minHeight: 40,
+          },
           "& .MuiSelect-select": {
             display: "flex",
             alignItems: "center",
-            minHeight: "0 !important",
-            py: 1.1,
+            minHeight: "40px !important",
+            boxSizing: "border-box",
+            py: "0 !important",
+            lineHeight: 1.25,
+          },
+          "& .MuiSelect-icon": {
+            top: "50%",
+            transform: "translateY(-50%)",
+            marginTop: 0,
+          },
+          "& .MuiInputLabel-root": {
+            top: "50%",
+            transform: "translate(14px, -50%) scale(1)",
+            transformOrigin: "left center",
+            lineHeight: 1.25,
+          },
+          "& .MuiInputLabel-root.MuiInputLabel-shrink": {
+            top: 0,
+            transform: "translate(14px, -9px) scale(0.75)",
           },
         }}
         {...(rest as Record<string, unknown>)}

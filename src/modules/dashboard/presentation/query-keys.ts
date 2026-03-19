@@ -8,4 +8,6 @@ export const dashboardKeys = {
   properties: () => [...dashboardKeys.all, "properties"] as const,
   propertyAnalytics: (propertyId: string) =>
     [...dashboardKeys.all, "property-analytics", propertyId] as const,
+  exportSummary: (format: string, propertyId?: string) =>
+    [...dashboardKeys.all, "export", format, propertyId ?? "all"] as const,
 };

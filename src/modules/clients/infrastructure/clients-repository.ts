@@ -1,4 +1,10 @@
 import { apiClient } from "@/shared/lib/http/api-client";
+import {
+  getResponseData,
+  getResponseItems,
+  getResponsePagination,
+  normalizeApiKeys,
+} from "@/shared/lib/http/api-response";
 import type {
   Client,
   Interaction,
@@ -19,7 +25,8 @@ interface ClientDto {
   id: string;
   full_name: string;
   phone: string;
-  extra_phone: string | null;
+  phone_additional?: string | null;
+  extra_phone?: string | null;
   whatsapp: string | null;
   telegram: string | null;
   email: string | null;
@@ -27,7 +34,9 @@ interface ClientDto {
   source: string;
   pipeline_stage_id: string | null;
   pipeline_stage_name: string | null;
-  manager_id: string | null;
+  assigned_manager_id?: string | null;
+  manager_id?: string | null;
+  assigned_manager_name?: string | null;
   manager_name: string | null;
   notes: string | null;
   created_at: string;
@@ -37,10 +46,12 @@ interface ClientDto {
 interface InteractionDto {
   id: string;
   client_id: string;
-  type: string;
-  notes: string;
-  next_contact_date: string | null;
-  created_by_name: string;
+  interaction_type?: string;
+  type?: string;
+  description?: string;
+  notes?: string;
+  next_contact_date?: string | null;
+  created_by_name?: string;
   created_at: string;
 }
 
@@ -48,16 +59,24 @@ interface PipelineStageDto {
   id: string;
   name: string;
   color: string;
-  order: number;
-  clients_count: number;
+  order?: number;
+  sort_order?: number;
+  clients_count?: number;
 }
 
 interface PipelineBoardStageDto {
   id: string;
   name: string;
   color: string;
-  order: number;
+  order?: number;
+  sort_order?: number;
   clients: ClientDto[];
+}
+
+interface PipelineBoardColumnDto {
+  stage?: PipelineBoardStageDto;
+  clients: ClientDto[];
+  count?: number;
 }
 
 interface ClientsListResponseDto {
@@ -81,7 +100,8 @@ interface PipelineStagesResponseDto {
 
 interface PipelineBoardResponseDto {
   data: {
-    stages: PipelineBoardStageDto[];
+    stages?: PipelineBoardStageDto[];
+    columns?: PipelineBoardColumnDto[];
   };
 }
 
@@ -107,29 +127,31 @@ function mapClientDto(dto: ClientDto): Client {
     id: dto.id,
     fullName: dto.full_name,
     phone: dto.phone,
-    extraPhone: dto.extra_phone,
+    extraPhone: dto.phone_additional ?? dto.extra_phone ?? null,
     whatsapp: dto.whatsapp,
     telegram: dto.telegram,
     email: dto.email,
     address: dto.address,
     source: isClientSource(dto.source) ? dto.source : "other",
     pipelineStageId: dto.pipeline_stage_id,
-    pipelineStageName: dto.pipeline_stage_name,
-    managerId: dto.manager_id,
-    managerName: dto.manager_name,
+    pipelineStageName: dto.pipeline_stage_name ?? null,
+    managerId: dto.assigned_manager_id ?? dto.manager_id ?? null,
+    managerName: dto.assigned_manager_name ?? dto.manager_name ?? null,
     notes: dto.notes,
     createdAt: dto.created_at,
   };
 }
 
 function mapInteractionDto(dto: InteractionDto): Interaction {
+  const rawType = dto.interaction_type ?? dto.type ?? "other";
+  const description = dto.description ?? dto.notes ?? "";
   return {
     id: dto.id,
     clientId: dto.client_id,
-    type: isInteractionType(dto.type) ? dto.type : "other",
-    notes: dto.notes,
-    nextContactDate: dto.next_contact_date,
-    createdByName: dto.created_by_name,
+    type: isInteractionType(rawType) ? rawType : "other",
+    notes: description,
+    nextContactDate: dto.next_contact_date ?? null,
+    createdByName: dto.created_by_name ?? "",
     createdAt: dto.created_at,
   };
 }
@@ -139,8 +161,8 @@ function mapPipelineStageDto(dto: PipelineStageDto): PipelineStage {
     id: dto.id,
     name: dto.name,
     color: dto.color,
-    order: dto.order,
-    clientsCount: dto.clients_count,
+    order: dto.sort_order ?? dto.order ?? 0,
+    clientsCount: dto.clients_count ?? 0,
   };
 }
 
@@ -149,9 +171,26 @@ function mapPipelineBoardStageDto(dto: PipelineBoardStageDto): PipelineBoardStag
     id: dto.id,
     name: dto.name,
     color: dto.color,
-    order: dto.order,
+    order: dto.sort_order ?? dto.order ?? 0,
     clients: dto.clients.map(mapClientDto),
   };
+}
+
+function mapPipelineBoardColumnDto(dto: PipelineBoardColumnDto): PipelineBoardStage {
+  const stage = dto.stage;
+  if (stage) {
+    return mapPipelineBoardStageDto({
+      ...stage,
+      clients: dto.clients,
+    });
+  }
+  return mapPipelineBoardStageDto({
+    id: "",
+    name: "",
+    color: "#94a3b8",
+    order: 0,
+    clients: dto.clients,
+  });
 }
 
 // ─── Repository functions ──────────────────────────────────────────────────────
@@ -174,17 +213,20 @@ export async function fetchClientsList(params?: ClientsListParams): Promise<Clie
   if (params?.pipelineStageId) query["pipeline_stage_id"] = params.pipelineStageId;
 
   const res = await apiClient.get<ClientsListResponseDto>("/api/v1/clients", query);
+  const normalized = normalizeApiKeys(res);
+  const items = getResponseItems<ClientDto>(normalized);
+  const pagination = getResponsePagination(normalized);
   return {
-    items: (res.data.items ?? []).filter((item) => Boolean(item?.id)).map(mapClientDto),
-    total: res.data.pagination.total,
-    page: res.data.pagination.page,
-    limit: res.data.pagination.limit,
+    items: items.filter((item) => Boolean(item?.id)).map(mapClientDto),
+    total: pagination?.total ?? items.length,
+    page: pagination?.page ?? (params?.page ?? 1),
+    limit: pagination?.limit ?? (params?.limit ?? 20),
   };
 }
 
 export async function fetchClientDetail(id: string): Promise<Client> {
   const res = await apiClient.get<ClientDetailResponseDto>(`/api/v1/clients/${id}`);
-  return mapClientDto(res.data);
+  return mapClientDto(getResponseData<ClientDto>(res));
 }
 
 export async function createClient(input: CreateClientInput): Promise<Client> {
@@ -193,35 +235,35 @@ export async function createClient(input: CreateClientInput): Promise<Client> {
     phone: input.phone,
     source: input.source,
   };
-  if (input.extraPhone !== undefined) body["extra_phone"] = input.extraPhone;
+  if (input.extraPhone !== undefined) body["phone_additional"] = input.extraPhone;
   if (input.whatsapp !== undefined) body["whatsapp"] = input.whatsapp;
   if (input.telegram !== undefined) body["telegram"] = input.telegram;
   if (input.email !== undefined) body["email"] = input.email;
   if (input.address !== undefined) body["address"] = input.address;
   if (input.pipelineStageId !== undefined) body["pipeline_stage_id"] = input.pipelineStageId;
-  if (input.managerId !== undefined) body["manager_id"] = input.managerId;
+  if (input.managerId !== undefined) body["assigned_manager_id"] = input.managerId;
   if (input.notes !== undefined) body["notes"] = input.notes;
 
   const res = await apiClient.post<ClientDetailResponseDto>("/api/v1/clients", body);
-  return mapClientDto(res.data);
+  return mapClientDto(getResponseData<ClientDto>(res));
 }
 
 export async function updateClient(id: string, input: UpdateClientInput): Promise<Client> {
   const body: Record<string, unknown> = {};
   if (input.fullName !== undefined) body["full_name"] = input.fullName;
   if (input.phone !== undefined) body["phone"] = input.phone;
-  if (input.extraPhone !== undefined) body["extra_phone"] = input.extraPhone;
+  if (input.extraPhone !== undefined) body["phone_additional"] = input.extraPhone;
   if (input.whatsapp !== undefined) body["whatsapp"] = input.whatsapp;
   if (input.telegram !== undefined) body["telegram"] = input.telegram;
   if (input.email !== undefined) body["email"] = input.email;
   if (input.address !== undefined) body["address"] = input.address;
   if (input.source !== undefined) body["source"] = input.source;
   if (input.pipelineStageId !== undefined) body["pipeline_stage_id"] = input.pipelineStageId;
-  if (input.managerId !== undefined) body["manager_id"] = input.managerId;
+  if (input.managerId !== undefined) body["assigned_manager_id"] = input.managerId;
   if (input.notes !== undefined) body["notes"] = input.notes;
 
   const res = await apiClient.patch<ClientDetailResponseDto>(`/api/v1/clients/${id}`, body);
-  return mapClientDto(res.data);
+  return mapClientDto(getResponseData<ClientDto>(res));
 }
 
 export async function deleteClient(id: string): Promise<void> {
@@ -232,7 +274,7 @@ export async function fetchClientInteractions(clientId: string): Promise<Interac
   const res = await apiClient.get<InteractionsListResponseDto>(
     `/api/v1/clients/${clientId}/interactions`,
   );
-  const items = Array.isArray(res.data) ? res.data : (res.data.items ?? []);
+  const items = getResponseItems<InteractionDto>(normalizeApiKeys(res));
   return items.filter((item) => Boolean(item?.id)).map(mapInteractionDto);
 }
 
@@ -241,8 +283,8 @@ export async function addClientInteraction(
   input: AddInteractionInput,
 ): Promise<Interaction> {
   const body: Record<string, unknown> = {
-    type: input.type,
-    notes: input.notes,
+    interaction_type: input.type,
+    description: input.notes,
   };
   if (input.nextContactDate !== undefined) body["next_contact_date"] = input.nextContactDate;
 
@@ -250,12 +292,12 @@ export async function addClientInteraction(
     `/api/v1/clients/${clientId}/interactions`,
     body,
   );
-  return mapInteractionDto(res.data);
+  return mapInteractionDto(getResponseData<InteractionDto>(res));
 }
 
 export async function fetchPipelineStages(): Promise<PipelineStage[]> {
   const res = await apiClient.get<PipelineStagesResponseDto>("/api/v1/pipeline-stages");
-  const items = Array.isArray(res.data) ? res.data : (res.data.items ?? []);
+  const items = getResponseItems<PipelineStageDto>(normalizeApiKeys(res));
   return items.filter((item) => Boolean(item?.id)).map(mapPipelineStageDto);
 }
 
@@ -265,7 +307,18 @@ export async function fetchPipelineBoard(params?: PipelineBoardParams): Promise<
   if (params?.source) query["source"] = params.source;
 
   const res = await apiClient.get<PipelineBoardResponseDto>("/api/v1/pipeline/board", query);
-  return (res.data.stages ?? []).filter((item) => Boolean(item?.id)).map(mapPipelineBoardStageDto);
+  const normalized = normalizeApiKeys(res);
+  const columns = getResponseItems<PipelineBoardColumnDto | PipelineBoardStageDto>(normalized, [
+    "columns",
+    "stages",
+  ]);
+  return columns
+    .map((item) =>
+      "stage" in (item as PipelineBoardColumnDto)
+        ? mapPipelineBoardColumnDto(item as PipelineBoardColumnDto)
+        : mapPipelineBoardStageDto(item as PipelineBoardStageDto),
+    )
+    .filter((item) => Boolean(item.id));
 }
 
 export async function moveClientStage(clientId: string, stageId: string): Promise<void> {
@@ -275,7 +328,7 @@ export async function moveClientStage(clientId: string, stageId: string): Promis
 // ─── Assign manager ──────────────────────────────────────────────────────────
 
 export async function assignManager(clientId: string, managerId: string): Promise<void> {
-  await apiClient.patch(`/api/v1/clients/${clientId}`, { manager_id: managerId });
+  await apiClient.patch(`/api/v1/clients/${clientId}/manager`, { manager_id: managerId });
 }
 
 // ─── Pipeline stage CRUD ─────────────────────────────────────────────────────
@@ -301,10 +354,10 @@ interface PipelineStageDetailDto {
   name: string;
   slug: string;
   color: string;
-  sort_order: number;
-  is_final: boolean;
-  is_default: boolean;
-  clients_count: number;
+  sort_order?: number;
+  is_final?: boolean;
+  is_default?: boolean;
+  clients_count?: number;
   created_at: string;
 }
 
@@ -326,17 +379,17 @@ function mapPipelineStageDetailDto(dto: PipelineStageDetailDto): PipelineStageDe
     name: dto.name,
     slug: dto.slug,
     color: dto.color,
-    sortOrder: dto.sort_order,
-    isFinal: dto.is_final,
-    isDefault: dto.is_default,
-    clientsCount: dto.clients_count,
+    sortOrder: dto.sort_order ?? 0,
+    isFinal: dto.is_final ?? false,
+    isDefault: dto.is_default ?? false,
+    clientsCount: dto.clients_count ?? 0,
     createdAt: dto.created_at,
   };
 }
 
 export async function fetchPipelineStagesDetail(): Promise<PipelineStageDetail[]> {
   const res = await apiClient.get<{ data: PipelineStageDetailDto[] | { items: PipelineStageDetailDto[]; pagination?: unknown } }>("/api/v1/pipeline-stages");
-  const items = Array.isArray(res.data) ? res.data : (res.data.items ?? []);
+  const items = getResponseItems<PipelineStageDetailDto>(normalizeApiKeys(res));
   return items.filter((item) => Boolean(item?.id)).map(mapPipelineStageDetailDto);
 }
 
@@ -351,7 +404,7 @@ export async function createPipelineStage(input: CreatePipelineStageInput): Prom
   if (input.isDefault !== undefined) body["is_default"] = input.isDefault;
 
   const res = await apiClient.post<{ data: PipelineStageDetailDto }>("/api/v1/pipeline-stages", body);
-  return mapPipelineStageDetailDto(res.data);
+  return mapPipelineStageDetailDto(getResponseData<PipelineStageDetailDto>(res));
 }
 
 export async function updatePipelineStage(
@@ -368,7 +421,7 @@ export async function updatePipelineStage(
     `/api/v1/pipeline-stages/${id}`,
     body,
   );
-  return mapPipelineStageDetailDto(res.data);
+  return mapPipelineStageDetailDto(getResponseData<PipelineStageDetailDto>(res));
 }
 
 export async function deletePipelineStage(id: string): Promise<void> {

@@ -17,11 +17,11 @@ export function AppProviders({ children }: AppProvidersProps) {
     <ThemeProvider>
       <LocaleProvider>
         <MuiProvider>
-          <QueryProvider>
-            <NotifierProvider>
+          <NotifierProvider>
+            <QueryProvider>
               <ToastProvider>{children}</ToastProvider>
-            </NotifierProvider>
-          </QueryProvider>
+            </QueryProvider>
+          </NotifierProvider>
         </MuiProvider>
       </LocaleProvider>
     </ThemeProvider>

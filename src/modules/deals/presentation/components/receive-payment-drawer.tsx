@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { AppDrawerForm, AppInput, AppSelect } from "@/shared/ui";
 import { useReceivePaymentMutation } from "@/modules/deals/presentation/hooks/use-receive-payment-mutation";
+import { useAccountsQuery } from "@/modules/finance/presentation/hooks/use-accounts-query";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -24,6 +25,7 @@ const CURRENCY_OPTIONS: readonly { value: string; label: string }[] = [
 interface FormErrors {
   amount?: string;
   paymentMethod?: string;
+  accountId?: string;
 }
 
 // ─── Props ────────────────────────────────────────────────────────────────────
@@ -31,6 +33,7 @@ interface FormErrors {
 interface ReceivePaymentDrawerProps {
   open: boolean;
   dealId: string;
+  clientId: string;
   currency: string;
   scheduleItemId?: string;
   onClose: () => void;
@@ -41,15 +44,23 @@ interface ReceivePaymentDrawerProps {
 export function ReceivePaymentDrawer({
   open,
   dealId,
+  clientId,
   currency,
   scheduleItemId,
   onClose,
 }: ReceivePaymentDrawerProps) {
   const { mutateAsync: receivePayment, isPending } = useReceivePaymentMutation(dealId);
+  const { data: accounts } = useAccountsQuery();
+
+  const accountOptions: { value: string; label: string }[] = (accounts ?? []).map((acc) => ({
+    value: acc.id,
+    label: `${acc.name} (${acc.currency})`,
+  }));
 
   const [amount, setAmount] = useState("");
   const [selectedCurrency, setSelectedCurrency] = useState(currency);
   const [paymentMethod, setPaymentMethod] = useState<"cash" | "bank_transfer" | "mobile">("cash");
+  const [accountId, setAccountId] = useState("");
   const [notes, setNotes] = useState("");
   const [errors, setErrors] = useState<FormErrors>({});
 
@@ -57,6 +68,7 @@ export function ReceivePaymentDrawer({
     setAmount("");
     setSelectedCurrency(currency);
     setPaymentMethod("cash");
+    setAccountId("");
     setNotes("");
     setErrors({});
     onClose();
@@ -71,6 +83,9 @@ export function ReceivePaymentDrawer({
     if (!paymentMethod) {
       nextErrors.paymentMethod = "Выберите способ оплаты";
     }
+    if (!accountId) {
+      nextErrors.accountId = "Выберите счёт";
+    }
     setErrors(nextErrors);
     return Object.keys(nextErrors).length === 0;
   };
@@ -79,9 +94,11 @@ export function ReceivePaymentDrawer({
     if (!validate()) return;
     const input: Parameters<typeof receivePayment>[0] = {
       dealId,
+      clientId,
       amount: parseFloat(amount),
       currency: selectedCurrency,
       paymentMethod,
+      accountId,
     };
     if (scheduleItemId) input.scheduleItemId = scheduleItemId;
     if (notes) input.notes = notes;
@@ -101,7 +118,7 @@ export function ReceivePaymentDrawer({
       isSaving={isPending}
     >
       <div className="space-y-4">
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <AppInput
             label="Сумма"
             type="number"
@@ -127,6 +144,15 @@ export function ReceivePaymentDrawer({
             setPaymentMethod(e.target.value as "cash" | "bank_transfer" | "mobile")
           }
           {...(errors.paymentMethod ? { errorText: errors.paymentMethod } : {})}
+        />
+
+        <AppSelect
+          id="recv-account"
+          label="Счёт"
+          options={accountOptions}
+          value={accountId}
+          onChange={(e) => setAccountId(e.target.value)}
+          {...(errors.accountId ? { errorText: errors.accountId } : {})}
         />
 
         <AppInput

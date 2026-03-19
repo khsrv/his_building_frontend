@@ -137,21 +137,9 @@ export default function DealsPage() {
   const completedCount = data.filter((d) => d.status === "completed").length;
   const cancelledCount = data.filter((d) => d.status === "cancelled").length;
 
-  if (error) {
-    return (
-      <main className="p-6">
-        <AppStatePanel
-          tone="error"
-          title="Ошибка загрузки сделок"
-          description={error instanceof Error ? error.message : "Попробуйте обновить страницу"}
-        />
-      </main>
-    );
-  }
-
   return (
     <>
-      <main className="space-y-6 p-6">
+      <main className="space-y-6 p-4 md:p-6">
         <AppCrudPageScaffold
           header={
             <AppPageHeader
@@ -183,16 +171,24 @@ export default function DealsPage() {
             />
           }
           content={
-            <AppDataTable<Deal>
-              data={data}
-              columns={columns}
-              rowKey={(row) => row.id}
-              title="Сделки"
-              searchPlaceholder="Поиск по номеру, клиенту, квартире..."
-              enableExport
-              enableSettings
-              onRowClick={(row) => router.push(routes.dealDetail(row.id))}
-            />
+            error ? (
+              <AppStatePanel
+                tone="error"
+                title="Ошибка загрузки сделок"
+                description={error instanceof Error ? error.message : "Попробуйте обновить страницу"}
+              />
+            ) : (
+              <AppDataTable<Deal>
+                data={data}
+                columns={columns}
+                rowKey={(row) => row.id}
+                title="Сделки"
+                searchPlaceholder="Поиск по номеру, клиенту, квартире..."
+                enableExport
+                enableSettings
+                onRowClick={(row) => router.push(routes.dealDetail(row.id))}
+              />
+            )
           }
         />
       </main>

@@ -123,6 +123,7 @@ export interface CreateDealRequestDto {
 
 export interface ReceivePaymentRequestDto {
   deal_id: string;
+  client_id: string;
   schedule_item_id?: string | undefined;
   amount: number;
   currency: string;

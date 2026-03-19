@@ -21,6 +21,11 @@ import {
 } from "@/shared/ui";
 import { routes } from "@/shared/constants/routes";
 import { apiClient } from "@/shared/lib/http/api-client";
+import {
+  getResponseData,
+  getResponseItems,
+  normalizeApiKeys,
+} from "@/shared/lib/http/api-response";
 import type { UserRole } from "@/shared/types/permissions";
 import type {
   SessionDto,
@@ -346,7 +351,16 @@ function SessionsSection() {
       const response = await apiClient.get<SessionsResponseDto>(
         "/api/v1/auth/sessions",
       );
-      return response.data;
+      const normalized = normalizeApiKeys(response);
+      const items = getResponseItems<SessionDto>(normalized);
+      return items.map((session) => ({
+        id: session.id,
+        user_agent: session.user_agent ?? "",
+        ip_address: session.ip_address ?? "",
+        created_at: session.created_at ?? "",
+        last_used_at: session.last_used_at ?? session.expires_at ?? session.created_at ?? "",
+        ...(session.expires_at ? { expires_at: session.expires_at } : {}),
+      }));
     },
   });
 
@@ -362,7 +376,7 @@ function SessionsSection() {
     mutationFn: async () => {
       const list = sessions ?? [];
       await Promise.all(
-        list.map((s: SessionDto) => apiClient.delete(`/api/v1/auth/sessions/${s.id}`)),
+        list.map((s) => apiClient.delete(`/api/v1/auth/sessions/${s.id}`)),
       );
     },
     onSuccess: () => {
@@ -503,7 +517,7 @@ export default function ProfilePage() {
       const response = await apiClient.get<UserProfileResponseDto>(
         "/api/v1/users/me",
       );
-      return response.data;
+      return getResponseData<UserProfileDto>(normalizeApiKeys(response));
     },
     staleTime: 60_000,
   });
@@ -511,7 +525,7 @@ export default function ProfilePage() {
   const showSuccess = (msg: string) => setSuccessMessage(msg);
 
   return (
-    <main className="space-y-6 p-6">
+    <main className="space-y-6 p-4 md:p-6">
       <AppPageHeader
         title="Профиль"
         breadcrumbs={[

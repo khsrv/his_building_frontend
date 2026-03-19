@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import type { ReactNode } from "react";
 import {
   AppPageHeader,
   AppButton,
   AppInput,
+  AppSelect,
   AppStatCard,
   AppStatusBadge,
   AppPaymentTimeline,
@@ -37,6 +38,8 @@ import { useRejectPaymentMutation } from "@/modules/deals/presentation/hooks/use
 import { ReceivePaymentDrawer } from "@/modules/deals/presentation/components/receive-payment-drawer";
 import type { ScheduleItem, ScheduleItemStatus, DealStatus, DealPaymentType } from "@/modules/deals/domain/deal";
 import type { Payment } from "@/modules/deals/infrastructure/repository";
+import { useContractTemplatesQuery } from "@/modules/contracts/presentation/hooks/use-contract-templates-query";
+import { useGenerateContractMutation } from "@/modules/contracts/presentation/hooks/use-generate-contract-mutation";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -107,6 +110,10 @@ export default function DealDetailPage() {
   const [editPlannedAmount, setEditPlannedAmount] = useState("");
   const [confirmPaymentId, setConfirmPaymentId] = useState<string | null>(null);
   const [rejectPaymentId, setRejectPaymentId] = useState<string | null>(null);
+  const [contractDialogOpen, setContractDialogOpen] = useState(false);
+  const [selectedTemplateId, setSelectedTemplateId] = useState("");
+  const [generatedContractHtml, setGeneratedContractHtml] = useState<string | null>(null);
+  const [contractError, setContractError] = useState<string | null>(null);
 
   const { data: deal, isLoading: dealLoading, error: dealError } = useEnrichedDealDetailQuery(id);
   const { data: schedule = [], isLoading: scheduleLoading } = useDealScheduleQuery(id);
@@ -118,10 +125,16 @@ export default function DealDetailPage() {
   const updateScheduleMutation = useUpdateScheduleItemMutation(id);
   const confirmPaymentMutation = useConfirmPaymentMutation(id);
   const rejectPaymentMutation = useRejectPaymentMutation(id);
+  const contractTemplatesQuery = useContractTemplatesQuery();
+  const generateContractMutation = useGenerateContractMutation();
+  const defaultTemplateId = useMemo(() => {
+    const templates = contractTemplatesQuery.data ?? [];
+    return (templates.find((template) => template.isActive) ?? templates[0])?.id ?? "";
+  }, [contractTemplatesQuery.data]);
 
   if (dealLoading) {
     return (
-      <div className="space-y-6 p-6">
+      <div className="space-y-6 p-4 md:p-6">
         <ShimmerBox className="h-16 w-full rounded-xl" />
         <ShimmerBox className="h-40 w-full rounded-xl" />
         <ShimmerBox className="h-80 w-full rounded-xl" />
@@ -131,7 +144,7 @@ export default function DealDetailPage() {
 
   if (dealError || !deal) {
     return (
-      <div className="p-6">
+      <div className="p-4 md:p-6">
         <AppStatePanel
           tone="error"
           title="Ошибка загрузки сделки"
@@ -168,7 +181,7 @@ export default function DealDetailPage() {
   // ─── Tab content ───────────────────────────────────────────────────────────
 
   const infoTabContent = (
-    <div className="rounded-xl border border-border bg-card p-6 shadow-sm">
+    <div className="rounded-xl border border-border bg-card p-4 md:p-6 shadow-sm">
       <h2 className="mb-4 text-lg font-semibold text-foreground">Информация о сделке</h2>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <div>
@@ -354,7 +367,7 @@ export default function DealDetailPage() {
 
   return (
     <>
-      <div className="space-y-6 p-6">
+      <div className="space-y-6 p-4 md:p-6">
         <AppPageHeader
           title={deal.dealNumber}
           breadcrumbs={[
@@ -388,6 +401,17 @@ export default function DealDetailPage() {
                   onClick={() => cancel(deal.id)}
                 />
               ) : null}
+              {!isCancelled ? (
+                <AppButton
+                  label="Сформировать договор"
+                  variant="outline"
+                  onClick={() => {
+                    setContractError(null);
+                    setGeneratedContractHtml(null);
+                    setContractDialogOpen(true);
+                  }}
+                />
+              ) : null}
             </div>
           }
         />
@@ -415,6 +439,7 @@ export default function DealDetailPage() {
       <ReceivePaymentDrawer
         open={paymentDrawerOpen}
         dealId={deal.id}
+        clientId={deal.clientId}
         currency={deal.currency}
         onClose={() => setPaymentDrawerOpen(false)}
       />
@@ -422,7 +447,7 @@ export default function DealDetailPage() {
       {/* Edit schedule item dialog */}
       {editScheduleItem ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4">
-          <div className="w-full max-w-md rounded-xl border border-border bg-card p-6 shadow-xl">
+          <div className="w-full max-w-md rounded-xl border border-border bg-card p-4 md:p-6 shadow-xl">
             <h3 className="mb-4 text-lg font-semibold text-foreground">
               Редактировать платёж #{editScheduleItem.paymentNumber}
             </h3>
@@ -442,7 +467,7 @@ export default function DealDetailPage() {
                 onChange={(e) => setEditPlannedAmount(e.target.value)}
               />
             </div>
-            <div className="mt-4 grid grid-cols-2 gap-2">
+            <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-2">
               <AppButton
                 label="Отмена"
                 variant="outline"
@@ -504,6 +529,110 @@ export default function DealDetailPage() {
         }}
         onClose={() => setRejectPaymentId(null)}
       />
+
+      {/* Generate contract dialog */}
+      {contractDialogOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4">
+          <div className="w-full max-w-4xl rounded-xl border border-border bg-card p-4 md:p-6 shadow-xl">
+            <h3 className="mb-4 text-lg font-semibold text-foreground">Генерация договора</h3>
+
+            <div className="grid gap-3 sm:grid-cols-[1fr_auto_auto]">
+              <AppSelect
+                id="contract-template-select"
+                label="Шаблон договора"
+                value={selectedTemplateId || defaultTemplateId}
+                options={[
+                  { label: "Автовыбор шаблона", value: "" },
+                  ...((contractTemplatesQuery.data ?? []).map((template) => ({
+                    label: template.name,
+                    value: template.id,
+                  }))),
+                ]}
+                onChange={(event) => setSelectedTemplateId(event.target.value)}
+              />
+              <div className="pt-6">
+                <AppButton
+                  label={generateContractMutation.isPending ? "Генерация..." : "Сгенерировать"}
+                  variant="primary"
+                  isLoading={generateContractMutation.isPending}
+                  onClick={() => {
+                    setContractError(null);
+                    const templateId = selectedTemplateId || defaultTemplateId;
+                    const contractInput = templateId
+                      ? { dealId: deal.id, templateId }
+                      : { dealId: deal.id };
+                    generateContractMutation.mutate(
+                      contractInput,
+                      {
+                        onSuccess: (result) => {
+                          setGeneratedContractHtml(result.html);
+                        },
+                        onError: (error) => {
+                          setContractError(
+                            error instanceof Error
+                              ? error.message
+                              : "Не удалось сгенерировать договор",
+                          );
+                        },
+                      },
+                    );
+                  }}
+                />
+              </div>
+              <div className="pt-6">
+                <AppButton
+                  label="Закрыть"
+                  variant="outline"
+                  onClick={() => setContractDialogOpen(false)}
+                />
+              </div>
+            </div>
+
+            {contractError ? (
+              <div className="mt-4">
+                <AppStatePanel
+                  tone="error"
+                  title="Ошибка генерации договора"
+                  description={contractError}
+                />
+              </div>
+            ) : null}
+
+            {generatedContractHtml ? (
+              <div className="mt-4 space-y-2">
+                <div className="flex justify-end">
+                  <AppButton
+                    label="Открыть в новом окне"
+                    variant="outline"
+                    onClick={() => {
+                      const win = window.open("", "_blank");
+                      if (!win) {
+                        return;
+                      }
+                      win.document.open();
+                      win.document.write(generatedContractHtml);
+                      win.document.close();
+                    }}
+                  />
+                </div>
+                <iframe
+                  title="Предпросмотр договора"
+                  className="h-[60vh] w-full rounded-lg border border-border bg-white"
+                  srcDoc={generatedContractHtml}
+                />
+              </div>
+            ) : (
+              <div className="mt-4">
+                <AppStatePanel
+                  tone="empty"
+                  title="Предпросмотр договора"
+                  description="Выберите шаблон и нажмите «Сгенерировать», чтобы увидеть готовый договор."
+                />
+              </div>
+            )}
+          </div>
+        </div>
+      ) : null}
     </>
   );
 }

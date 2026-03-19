@@ -5,13 +5,19 @@ import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import type { ReactNode } from "react";
 import { useState } from "react";
 import { createQueryClient } from "@/shared/lib/query/query-client";
+import { useNotifier } from "@/shared/providers/notifier-provider";
 
 interface QueryProviderProps {
   children: ReactNode;
 }
 
 export function QueryProvider({ children }: QueryProviderProps) {
-  const [queryClient] = useState(() => createQueryClient());
+  const notifier = useNotifier();
+  const [queryClient] = useState(() =>
+    createQueryClient({
+      notifier,
+    }),
+  );
 
   return (
     <QueryClientProvider client={queryClient}>

@@ -134,7 +134,7 @@ export default function PropertyAnalyticsPage() {
 
   if (query.isLoading) {
     return (
-      <main className="space-y-4 p-6">
+      <main className="space-y-4 p-4 md:p-6">
         <ShimmerBox className="h-16" />
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
           {Array.from({ length: 4 }).map((_, i) => (
@@ -148,7 +148,7 @@ export default function PropertyAnalyticsPage() {
 
   if (query.isError || !data) {
     return (
-      <main className="space-y-6 p-6">
+      <main className="space-y-6 p-4 md:p-6">
         <AppPageHeader
           title="Аналитика объекта"
           breadcrumbs={[
@@ -166,7 +166,7 @@ export default function PropertyAnalyticsPage() {
   }
 
   return (
-    <main className="space-y-6 p-6">
+    <main className="space-y-6 p-4 md:p-6">
       <AppPageHeader
         title={data.propertyName}
         subtitle="Аналитика объекта"

@@ -1,4 +1,10 @@
 import { apiClient } from "@/shared/lib/http/api-client";
+import {
+  getResponseData,
+  getResponseItems,
+  getResponsePagination,
+  normalizeApiKeys,
+} from "@/shared/lib/http/api-response";
 import type {
   Master,
   WorkOrder,
@@ -11,40 +17,40 @@ import type {
   WorkOrdersListParams,
 } from "@/modules/masters/domain/master";
 
-// ─── DTOs (PascalCase — matches backend API) ────────────────────────────────
+// ─── DTOs (snake_case — matches backend API) ────────────────────────────────
 
 interface MasterDto {
-  ID: string;
-  TenantID: string;
-  FullName: string;
-  Phone: string | null;
-  Specialization: string | null;
-  CompanyName: string | null;
-  Notes: string | null;
-  IsActive: boolean;
-  CreatedAt: string;
-  UpdatedAt: string;
-  DeletedAt: string | null;
+  id: string;
+  tenant_id: string;
+  full_name: string;
+  phone: string | null;
+  specialization: string | null;
+  company_name: string | null;
+  notes: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
 }
 
 interface WorkOrderDto {
-  ID: string;
-  TenantID: string;
-  MasterID: string;
-  PropertyID: string;
-  Title: string;
-  Description: string;
-  PlannedAmount: number;
-  ActualAmount: number | null;
-  Currency: string;
-  Status: string;
-  StartedAt: string | null;
-  CompletedAt: string | null;
-  AcceptedAt: string | null;
-  AcceptedBy: string | null;
-  Notes: string | null;
-  CreatedAt: string;
-  UpdatedAt: string;
+  id: string;
+  tenant_id: string;
+  master_id: string;
+  property_id: string | null;
+  title: string;
+  description: string;
+  planned_amount: number;
+  actual_amount: number | null;
+  currency: string;
+  status: string;
+  started_at: string | null;
+  completed_at: string | null;
+  accepted_at: string | null;
+  accepted_by: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 interface PaginatedResponseDto<T> {
@@ -72,42 +78,42 @@ function toWorkOrderStatus(value: string): WorkOrderStatus {
 
 function mapMasterDto(dto: MasterDto): Master {
   return {
-    id: dto.ID,
-    name: dto.FullName,
-    type: dto.CompanyName ? "brigade" : "individual",
-    phone: dto.Phone,
-    specialization: dto.Specialization,
-    companyName: dto.CompanyName,
-    notes: dto.Notes,
-    isActive: dto.IsActive,
+    id: dto.id,
+    name: dto.full_name,
+    type: dto.company_name ? "brigade" : "individual",
+    phone: dto.phone || null,
+    specialization: dto.specialization || null,
+    companyName: dto.company_name || null,
+    notes: dto.notes || null,
+    isActive: dto.is_active,
     dailyRate: null,
-    createdAt: dto.CreatedAt,
-    updatedAt: dto.UpdatedAt,
+    createdAt: dto.created_at,
+    updatedAt: dto.updated_at,
   };
 }
 
 function mapWorkOrderDto(dto: WorkOrderDto): WorkOrder {
   return {
-    id: dto.ID,
-    masterId: dto.MasterID,
+    id: dto.id,
+    masterId: dto.master_id,
     masterName: "",
-    propertyId: dto.PropertyID,
+    propertyId: dto.property_id ?? "",
     propertyName: "",
-    title: dto.Title,
-    description: dto.Description,
-    status: toWorkOrderStatus(dto.Status),
-    plannedAmount: dto.PlannedAmount,
-    actualAmount: dto.ActualAmount,
-    currency: dto.Currency,
-    startedAt: dto.StartedAt,
-    completedAt: dto.CompletedAt,
-    acceptedAt: dto.AcceptedAt,
-    acceptedBy: dto.AcceptedBy,
-    notes: dto.Notes,
-    plannedStartDate: dto.StartedAt ?? dto.CreatedAt,
-    plannedEndDate: dto.CompletedAt,
-    createdAt: dto.CreatedAt,
-    updatedAt: dto.UpdatedAt,
+    title: dto.title,
+    description: dto.description,
+    status: toWorkOrderStatus(dto.status),
+    plannedAmount: dto.planned_amount,
+    actualAmount: dto.actual_amount,
+    currency: dto.currency,
+    startedAt: dto.started_at,
+    completedAt: dto.completed_at,
+    acceptedAt: dto.accepted_at,
+    acceptedBy: dto.accepted_by,
+    notes: dto.notes,
+    plannedStartDate: dto.started_at ?? dto.created_at,
+    plannedEndDate: dto.completed_at,
+    createdAt: dto.created_at,
+    updatedAt: dto.updated_at,
   };
 }
 
@@ -139,27 +145,28 @@ export async function fetchMastersList(
   if (params?.search) query["search"] = params.search;
 
   const res = await apiClient.get<PaginatedResponseDto<MasterDto>>("/api/v1/masters", query);
-  const payload = res.data;
-  const items = (payload.items ?? []).filter((item): item is MasterDto => Boolean(item?.ID));
+  const normalized = normalizeApiKeys(res);
+  const items = getResponseItems<MasterDto>(normalized).filter((item): item is MasterDto => Boolean(item?.id));
+  const pagination = getResponsePagination(normalized);
   return {
     items: items.map(mapMasterDto),
-    total: payload.pagination?.total ?? 0,
-    page: payload.pagination?.page ?? 1,
-    limit: payload.pagination?.limit ?? 20,
+    total: pagination?.total ?? items.length,
+    page: pagination?.page ?? (params?.page ?? 1),
+    limit: pagination?.limit ?? (params?.limit ?? 20),
   };
 }
 
 export async function createMaster(input: CreateMasterInput): Promise<Master> {
   const body: Record<string, unknown> = {
-    FullName: input.fullName,
+    full_name: input.fullName,
   };
-  if (input.phone !== undefined) body["Phone"] = input.phone;
-  if (input.specialization !== undefined) body["Specialization"] = input.specialization;
-  if (input.companyName !== undefined) body["CompanyName"] = input.companyName;
-  if (input.notes !== undefined) body["Notes"] = input.notes;
+  if (input.phone !== undefined) body["phone"] = input.phone;
+  if (input.specialization !== undefined) body["specialization"] = input.specialization;
+  if (input.companyName !== undefined) body["company_name"] = input.companyName;
+  if (input.notes !== undefined) body["notes"] = input.notes;
 
   const res = await apiClient.post<SingleResponseDto<MasterDto>>("/api/v1/masters", body);
-  return mapMasterDto(res.data);
+  return mapMasterDto(getResponseData<MasterDto>(normalizeApiKeys(res)));
 }
 
 export async function updateMaster(
@@ -167,17 +174,17 @@ export async function updateMaster(
   input: UpdateMasterInput,
 ): Promise<Master> {
   const body: Record<string, unknown> = {};
-  if (input.fullName !== undefined) body["FullName"] = input.fullName;
-  if (input.phone !== undefined) body["Phone"] = input.phone;
-  if (input.specialization !== undefined) body["Specialization"] = input.specialization;
-  if (input.companyName !== undefined) body["CompanyName"] = input.companyName;
-  if (input.notes !== undefined) body["Notes"] = input.notes;
+  if (input.fullName !== undefined) body["full_name"] = input.fullName;
+  if (input.phone !== undefined) body["phone"] = input.phone;
+  if (input.specialization !== undefined) body["specialization"] = input.specialization;
+  if (input.companyName !== undefined) body["company_name"] = input.companyName;
+  if (input.notes !== undefined) body["notes"] = input.notes;
 
   const res = await apiClient.patch<SingleResponseDto<MasterDto>>(
     `/api/v1/masters/${id}`,
     body,
   );
-  return mapMasterDto(res.data);
+  return mapMasterDto(getResponseData<MasterDto>(normalizeApiKeys(res)));
 }
 
 export async function deleteMaster(id: string): Promise<void> {
@@ -196,33 +203,34 @@ export async function fetchWorkOrdersList(
   if (params?.propertyId) query["property_id"] = params.propertyId;
 
   const res = await apiClient.get<PaginatedResponseDto<WorkOrderDto>>("/api/v1/work-orders", query);
-  const payload = res.data;
-  const items = (payload.items ?? []).filter((item): item is WorkOrderDto => Boolean(item?.ID));
+  const normalized = normalizeApiKeys(res);
+  const items = getResponseItems<WorkOrderDto>(normalized).filter(
+    (item): item is WorkOrderDto => Boolean(item?.id),
+  );
+  const pagination = getResponsePagination(normalized);
   return {
     items: items.map(mapWorkOrderDto),
-    total: payload.pagination?.total ?? 0,
-    page: payload.pagination?.page ?? 1,
-    limit: payload.pagination?.limit ?? 20,
+    total: pagination?.total ?? items.length,
+    page: pagination?.page ?? (params?.page ?? 1),
+    limit: pagination?.limit ?? (params?.limit ?? 20),
   };
 }
 
 export async function createWorkOrder(input: CreateWorkOrderInput): Promise<WorkOrder> {
   const body: Record<string, unknown> = {
-    MasterID: input.masterId,
-    PropertyID: input.propertyId,
-    Title: input.title,
-    PlannedAmount: input.plannedAmount,
+    master_id: input.masterId,
+    title: input.title,
+    planned_amount: input.plannedAmount,
+    currency: input.currency ?? "USD",
   };
-  if (input.description !== undefined) body["Description"] = input.description;
-  if (input.currency !== undefined) body["Currency"] = input.currency;
-  if (input.startedAt !== undefined) body["StartedAt"] = input.startedAt;
-  if (input.completedAt !== undefined) body["CompletedAt"] = input.completedAt;
+  if (input.description !== undefined) body["description"] = input.description;
+  if (input.propertyId !== undefined) body["property_id"] = input.propertyId;
 
   const res = await apiClient.post<SingleResponseDto<WorkOrderDto>>(
     "/api/v1/work-orders",
     body,
   );
-  return mapWorkOrderDto(res.data);
+  return mapWorkOrderDto(getResponseData<WorkOrderDto>(normalizeApiKeys(res)));
 }
 
 export async function startWorkOrder(id: string): Promise<WorkOrder> {
@@ -230,7 +238,7 @@ export async function startWorkOrder(id: string): Promise<WorkOrder> {
     `/api/v1/work-orders/${id}/start`,
     {},
   );
-  return mapWorkOrderDto(res.data);
+  return mapWorkOrderDto(getResponseData<WorkOrderDto>(normalizeApiKeys(res)));
 }
 
 export async function completeWorkOrder(
@@ -238,15 +246,15 @@ export async function completeWorkOrder(
   input: CompleteWorkOrderInput,
 ): Promise<WorkOrder> {
   const body: Record<string, unknown> = {
-    ActualAmount: input.actualAmount,
+    actual_amount: input.actualAmount,
   };
-  if (input.notes !== undefined) body["Notes"] = input.notes;
+  if (input.notes !== undefined) body["notes"] = input.notes;
 
   const res = await apiClient.post<SingleResponseDto<WorkOrderDto>>(
     `/api/v1/work-orders/${id}/complete`,
     body,
   );
-  return mapWorkOrderDto(res.data);
+  return mapWorkOrderDto(getResponseData<WorkOrderDto>(normalizeApiKeys(res)));
 }
 
 export async function acceptWorkOrder(id: string): Promise<WorkOrder> {
@@ -254,5 +262,5 @@ export async function acceptWorkOrder(id: string): Promise<WorkOrder> {
     `/api/v1/work-orders/${id}/accept`,
     {},
   );
-  return mapWorkOrderDto(res.data);
+  return mapWorkOrderDto(getResponseData<WorkOrderDto>(normalizeApiKeys(res)));
 }

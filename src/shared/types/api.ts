@@ -85,7 +85,7 @@ export type BackendPayableReminderStatus = "pending" | "paid" | "cancelled";
 export type BackendPayeeType = "supplier" | "contractor" | "master" | "other";
 
 /** Account types for finance */
-export type BackendAccountType = "cash" | "bank_account" | "card";
+export type BackendAccountType = "bank_account" | "cash_register" | "mobile_wallet";
 
 /** Payment method */
 export type BackendPaymentMethod = "cash" | "bank_transfer" | "mobile";

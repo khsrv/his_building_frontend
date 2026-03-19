@@ -49,9 +49,26 @@ export function AppDrawerForm({
 
         <Divider />
 
-        <Stack direction="row" justifyContent="flex-end" spacing={1.5} sx={{ px: 2, py: 1.5 }}>
-          <AppButton label={cancelLabel} onClick={onClose} variant="secondary" />
-          <AppButton disabled={saveDisabled} isLoading={isSaving} label={saveLabel} onClick={onSave} variant="primary" />
+        <Stack
+          direction={{ xs: "column-reverse", sm: "row" }}
+          justifyContent="flex-end"
+          spacing={1.5}
+          sx={{ px: 2, py: 1.5 }}
+        >
+          <AppButton
+            label={cancelLabel}
+            onClick={onClose}
+            variant="secondary"
+            className="w-full sm:w-auto"
+          />
+          <AppButton
+            disabled={saveDisabled}
+            isLoading={isSaving}
+            label={saveLabel}
+            onClick={onSave}
+            variant="primary"
+            className="w-full sm:w-auto"
+          />
         </Stack>
       </Box>
     </Drawer>

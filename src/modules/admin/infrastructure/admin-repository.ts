@@ -1,4 +1,12 @@
 import { apiClient } from "@/shared/lib/http/api-client";
+import {
+  getResponseData,
+  getResponseItems,
+  getResponsePagination,
+  getResponseRecord,
+  getResponseStringMap,
+  normalizeApiKeys,
+} from "@/shared/lib/http/api-response";
 import type { ApiResponse, ApiPaginatedResponse } from "@/shared/types/api";
 import type {
   AdminUser,
@@ -129,11 +137,14 @@ export async function listUsers(
     "/api/v1/admin/users",
     query,
   );
+  const normalized = normalizeApiKeys(res);
+  const items = getResponseItems<UserDto>(normalized);
+  const pagination = getResponsePagination(normalized);
   return {
-    items: (res.data.items ?? []).filter((item) => Boolean(item?.id)).map(mapUserDto),
-    total: res.data.pagination.total,
-    page: res.data.pagination.page,
-    limit: res.data.pagination.limit,
+    items: items.filter((item) => Boolean(item?.id)).map(mapUserDto),
+    total: pagination?.total ?? items.length,
+    page: pagination?.page ?? (params?.page ?? 1),
+    limit: pagination?.limit ?? (params?.limit ?? 20),
   };
 }
 
@@ -145,12 +156,12 @@ export async function createUser(input: CreateUserInput): Promise<AdminUser> {
     role: input.role,
   };
   const res = await apiClient.post<{ data: UserDto }>("/api/v1/admin/users", body);
-  return mapUserDto(res.data);
+  return mapUserDto(getResponseData<UserDto>(normalizeApiKeys(res)));
 }
 
 export async function getUserById(id: string): Promise<AdminUser> {
   const res = await apiClient.get<ApiResponse<UserDto>>(`/api/v1/admin/users/${id}`);
-  return mapUserDto(res.data);
+  return mapUserDto(getResponseData<UserDto>(normalizeApiKeys(res)));
 }
 
 export async function updateUserRole(
@@ -161,7 +172,8 @@ export async function updateUserRole(
     `/api/v1/admin/users/${id}/role`,
     { role: input.role },
   );
-  return { status: res.status };
+  const data = getResponseRecord(normalizeApiKeys(res));
+  return { status: String(data?.status ?? "ok") };
 }
 
 export async function toggleCanLogin(
@@ -172,7 +184,8 @@ export async function toggleCanLogin(
     `/api/v1/admin/users/${id}/can-login`,
     { can_login: input.canLogin },
   );
-  return { status: res.status };
+  const data = getResponseRecord(normalizeApiKeys(res));
+  return { status: String(data?.status ?? "ok") };
 }
 
 // ─── Tenants ──────────────────────────────────────────────────────────────────
@@ -191,11 +204,14 @@ export async function listTenants(
     "/api/v1/super-admin/tenants",
     query,
   );
+  const normalized = normalizeApiKeys(res);
+  const items = getResponseItems<TenantDto>(normalized);
+  const pagination = getResponsePagination(normalized);
   return {
-    items: (res.data.items ?? []).filter((item) => Boolean(item?.id)).map(mapTenantDto),
-    total: res.data.pagination.total,
-    page: res.data.pagination.page,
-    limit: res.data.pagination.limit,
+    items: items.filter((item) => Boolean(item?.id)).map(mapTenantDto),
+    total: pagination?.total ?? items.length,
+    page: pagination?.page ?? (params?.page ?? 1),
+    limit: pagination?.limit ?? (params?.limit ?? 20),
   };
 }
 
@@ -208,14 +224,14 @@ export async function createTenant(input: CreateTenantInput): Promise<Tenant> {
     "/api/v1/super-admin/tenants",
     body,
   );
-  return mapTenantDto(res.data);
+  return mapTenantDto(getResponseData<TenantDto>(normalizeApiKeys(res)));
 }
 
 export async function getTenantById(id: string): Promise<Tenant> {
   const res = await apiClient.get<ApiResponse<TenantDto>>(
     `/api/v1/super-admin/tenants/${id}`,
   );
-  return mapTenantDto(res.data);
+  return mapTenantDto(getResponseData<TenantDto>(normalizeApiKeys(res)));
 }
 
 export async function updateTenant(
@@ -235,7 +251,7 @@ export async function updateTenant(
     `/api/v1/super-admin/tenants/${id}`,
     body,
   );
-  return mapTenantDto(res.data);
+  return mapTenantDto(getResponseData<TenantDto>(normalizeApiKeys(res)));
 }
 
 export async function activateTenant(id: string): Promise<{ status: string }> {
@@ -243,7 +259,8 @@ export async function activateTenant(id: string): Promise<{ status: string }> {
     `/api/v1/super-admin/tenants/${id}/activate`,
     {},
   );
-  return { status: res.status };
+  const data = getResponseRecord(normalizeApiKeys(res));
+  return { status: String(data?.status ?? "ok") };
 }
 
 export async function deactivateTenant(id: string): Promise<{ status: string }> {
@@ -251,7 +268,8 @@ export async function deactivateTenant(id: string): Promise<{ status: string }> 
     `/api/v1/super-admin/tenants/${id}/deactivate`,
     {},
   );
-  return { status: res.status };
+  const data = getResponseRecord(normalizeApiKeys(res));
+  return { status: String(data?.status ?? "ok") };
 }
 
 export async function setSubscription(
@@ -266,15 +284,21 @@ export async function setSubscription(
     `/api/v1/super-admin/tenants/${id}/subscription`,
     body,
   );
-  return mapTenantDto(res.data);
+  return mapTenantDto(getResponseData<TenantDto>(normalizeApiKeys(res)));
 }
 
 // ─── Settings ─────────────────────────────────────────────────────────────────
 
 export async function listSettings(): Promise<CompanySetting[]> {
-  const res = await apiClient.get<{ data: SettingDto[] | { items: SettingDto[]; pagination?: unknown } }>("/api/v1/settings");
-  const items = Array.isArray(res.data) ? res.data : (res.data.items ?? []);
-  return items.filter((item) => Boolean(item?.key)).map(mapSettingDto);
+  const res = await apiClient.get<{ data: SettingDto[] | { items: SettingDto[]; pagination?: unknown } | Record<string, string> }>("/api/v1/settings");
+  const normalized = normalizeApiKeys(res);
+  const items = getResponseItems<SettingDto>(normalized);
+  if (items.length > 0) {
+    return items.filter((item) => Boolean(item?.key)).map(mapSettingDto);
+  }
+
+  const settingMap = getResponseStringMap(normalized);
+  return Object.entries(settingMap).map(([key, value]) => ({ key, value }));
 }
 
 export async function setSetting(
@@ -284,5 +308,6 @@ export async function setSetting(
     key: input.key,
     value: input.value,
   });
-  return { status: res.status };
+  const data = getResponseRecord(normalizeApiKeys(res));
+  return { status: String(data?.status ?? "ok") };
 }

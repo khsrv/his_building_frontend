@@ -180,7 +180,7 @@ export default function LandPlotDetailPage() {
 
   if (plotQuery.isLoading) {
     return (
-      <div className="space-y-4 p-6">
+      <div className="space-y-4 p-4 md:p-6">
         <ShimmerBox className="h-16" />
         <ShimmerBox className="h-64" />
       </div>
@@ -189,7 +189,7 @@ export default function LandPlotDetailPage() {
 
   if (plotQuery.isError || !plot) {
     return (
-      <div className="p-6">
+      <div className="p-4 md:p-6">
         <AppStatePanel tone="error" title="Ошибка" description="Не удалось загрузить данные участка" />
       </div>
     );
@@ -222,7 +222,7 @@ export default function LandPlotDetailPage() {
   );
 
   return (
-    <main className="space-y-6 p-6">
+    <main className="space-y-6 p-4 md:p-6">
       <AppPageHeader
         title={`Участок — ${plot.address}`}
         breadcrumbs={[
@@ -236,7 +236,7 @@ export default function LandPlotDetailPage() {
       />
 
       {/* Info card */}
-      <div className="rounded-xl border border-border bg-card p-6 shadow-sm">
+      <div className="rounded-xl border border-border bg-card p-4 md:p-6 shadow-sm">
         <h2 className="mb-4 text-lg font-semibold text-foreground">Информация об участке</h2>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <InfoRow label="Адрес" value={plot.address} />

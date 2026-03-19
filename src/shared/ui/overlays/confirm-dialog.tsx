@@ -43,12 +43,13 @@ export function ConfirmDialog({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-2">
-            <AppButton label={cancelText} onClick={onClose} variant="outline" />
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <AppButton label={cancelText} onClick={onClose} variant="outline" className="w-full" />
             <AppButton
               label={confirmText}
               onClick={onConfirm}
               variant={destructive ? "destructive" : "primary"}
+              className="w-full"
             />
           </div>
         </div>

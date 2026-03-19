@@ -21,8 +21,9 @@ import {
 } from "@/shared/ui";
 import { useSupplierBalanceQuery } from "@/modules/warehouse/presentation/hooks/use-supplier-balance-query";
 import { useSupplierPaymentsQuery } from "@/modules/warehouse/presentation/hooks/use-supplier-payments-query";
+import { useSupplierStatementQuery } from "@/modules/warehouse/presentation/hooks/use-supplier-statement-query";
 import { SupplierPaymentDrawer } from "@/modules/warehouse/presentation/components/supplier-payment-drawer";
-import type { SupplierPayment } from "@/modules/warehouse/domain/warehouse";
+import type { SupplierPayment, SupplierStatementItem } from "@/modules/warehouse/domain/warehouse";
 
 const PAYMENT_COLUMNS: readonly AppDataTableColumn<SupplierPayment>[] = [
   {
@@ -50,6 +51,41 @@ const PAYMENT_COLUMNS: readonly AppDataTableColumn<SupplierPayment>[] = [
   },
 ];
 
+const STATEMENT_COLUMNS: readonly AppDataTableColumn<SupplierStatementItem>[] = [
+  {
+    id: "date",
+    header: "Дата",
+    cell: (row) => new Date(row.date).toLocaleDateString("ru-RU"),
+    sortAccessor: (row) => row.date,
+  },
+  {
+    id: "type",
+    header: "Тип",
+    cell: (row) => row.type,
+    sortAccessor: (row) => row.type,
+  },
+  {
+    id: "description",
+    header: "Описание",
+    cell: (row) => row.description,
+    searchAccessor: (row) => row.description,
+  },
+  {
+    id: "amount",
+    header: "Сумма",
+    cell: (row) => row.amount.toLocaleString("ru-RU"),
+    sortAccessor: (row) => row.amount,
+    align: "right",
+  },
+  {
+    id: "runningDebt",
+    header: "Текущий долг",
+    cell: (row) => row.runningDebt.toLocaleString("ru-RU"),
+    sortAccessor: (row) => row.runningDebt,
+    align: "right",
+  },
+];
+
 interface SupplierDetailDialogProps {
   open: boolean;
   supplierId: string;
@@ -67,9 +103,11 @@ export function SupplierDetailDialog({
 
   const balanceQuery = useSupplierBalanceQuery(supplierId);
   const paymentsQuery = useSupplierPaymentsQuery(supplierId);
+  const statementQuery = useSupplierStatementQuery(supplierId);
 
   const balance = balanceQuery.data;
   const payments = paymentsQuery.data ?? [];
+  const statement = statementQuery.data ?? [];
 
   return (
     <>
@@ -122,22 +160,22 @@ export function SupplierDetailDialog({
                   items={[
                     {
                       title: "Всего закупок",
-                      value: balance.totalPurchases.toLocaleString("ru-RU"),
+                      value: (balance.totalPurchases ?? 0).toLocaleString("ru-RU"),
                     },
                     {
                       title: "Оплачено",
-                      value: balance.totalPaid.toLocaleString("ru-RU"),
+                      value: (balance.totalPaid ?? 0).toLocaleString("ru-RU"),
                       deltaTone: "success",
                     },
                     {
                       title: "Долг",
-                      value: balance.balance.toLocaleString("ru-RU"),
-                      deltaTone: balance.balance > 0 ? "danger" : "success",
-                      delta: balance.balance > 0 ? "Есть долг" : "Расчёт закрыт",
+                      value: (balance.balance ?? 0).toLocaleString("ru-RU"),
+                      deltaTone: (balance.balance ?? 0) > 0 ? "danger" : "success",
+                      delta: (balance.balance ?? 0) > 0 ? "Есть долг" : "Расчёт закрыт",
                     },
                   ]}
                 />
-                {balance.balance > 0 ? (
+                {(balance.balance ?? 0) > 0 ? (
                   <Box sx={{ mt: 2 }}>
                     <AppButton
                       label="Оплатить"
@@ -185,6 +223,36 @@ export function SupplierDetailDialog({
                   columns={PAYMENT_COLUMNS}
                   rowKey={(row) => row.id}
                   title="Платежи"
+                  initialPageSize={5}
+                  enableExport={false}
+                  enableSettings={false}
+                />
+              )}
+            </Box>
+
+            <Divider />
+
+            <Box>
+              <Typography sx={{ mb: 1 }} variant="subtitle1">
+                Выписка по поставщику
+              </Typography>
+              {statementQuery.isLoading ? (
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                  <CircularProgress size={20} />
+                  <Typography variant="body2">Загрузка выписки...</Typography>
+                </Box>
+              ) : statementQuery.isError ? (
+                <AppStatePanel
+                  tone="error"
+                  title="Ошибка загрузки выписки"
+                  description="Не удалось загрузить выписку по поставщику"
+                />
+              ) : (
+                <AppDataTable<SupplierStatementItem>
+                  data={statement}
+                  columns={STATEMENT_COLUMNS}
+                  rowKey={(row) => `${row.date}-${row.type}-${row.description}-${row.amount}`}
+                  title="Выписка"
                   initialPageSize={5}
                   enableExport={false}
                   enableSettings={false}

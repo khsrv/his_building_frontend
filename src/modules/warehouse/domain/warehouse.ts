@@ -46,6 +46,14 @@ export interface SupplierPayment {
   readonly createdByName: string;
 }
 
+export interface SupplierStatementItem {
+  readonly date: string;
+  readonly type: string;
+  readonly description: string;
+  readonly amount: number;
+  readonly runningDebt: number;
+}
+
 // ─── Material ─────────────────────────────────────────────────────────────────
 
 export interface Material {

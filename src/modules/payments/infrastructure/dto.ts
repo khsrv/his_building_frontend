@@ -21,7 +21,8 @@ export interface UpcomingPaymentDto {
   deal_number: string;
   planned_amount: number;
   paid_amount: number;
-  remaining_amount: number;
+  remaining_amount?: number;
+  remaining?: number;
   status: string;
   currency: string;
 }
@@ -35,19 +36,30 @@ export interface UpcomingPaymentsResponseDto {
 // ─── Overdue Payments DTOs ────────────────────────────────────────────────────
 
 export interface OverduePaymentDto {
-  id: string;
-  due_date: string;
-  days_overdue: number;
-  client_name: string;
-  client_phone: string;
-  unit_number: string;
-  property_name: string;
-  deal_id: string;
-  deal_number: string;
-  planned_amount: number;
-  paid_amount: number;
-  remaining_amount: number;
-  currency: string;
+  id?: string;
+  due_date?: string;
+  days_overdue?: number;
+  client_name?: string;
+  client_phone?: string;
+  unit_number?: string;
+  property_name?: string;
+  deal_id?: string;
+  deal_number?: string;
+  planned_amount?: number;
+  paid_amount?: number;
+  remaining_amount?: number;
+  remaining?: number;
+  currency?: string;
+  schedule_item?: {
+    id?: string;
+    deal_id?: string;
+    due_date?: string;
+    planned_amount?: number;
+    paid_amount?: number;
+    remaining_amount?: number;
+    remaining?: number;
+    currency?: string;
+  };
 }
 
 export interface OverduePaymentsResponseDto {
@@ -89,6 +101,7 @@ export interface SessionDto {
   ip_address: string;
   created_at: string;
   last_used_at: string;
+  expires_at?: string;
 }
 
 export interface SessionsResponseDto {

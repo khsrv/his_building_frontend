@@ -138,7 +138,7 @@ export default function FinancePage() {
   const recentTransactions = (transactions ?? []).slice(0, 5);
 
   return (
-    <main className="space-y-6 p-6">
+    <main className="space-y-6 p-4 md:p-6">
       <AppPageHeader
         title="Финансы"
         subtitle="Обзор финансовых показателей"

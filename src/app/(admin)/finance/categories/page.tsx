@@ -34,7 +34,7 @@ export default function ExpenseCategoriesPage() {
   const createMutation = useCreateExpenseCategoryMutation();
   const deleteMutation = useDeleteExpenseCategoryMutation();
 
-  const categories = categoriesQuery.data ?? [];
+  const categories = (categoriesQuery.data ?? []).filter((c) => Boolean(c.id));
 
   // Parent options for the select
   const parentOptions = useMemo(() => {
@@ -110,7 +110,7 @@ export default function ExpenseCategoriesPage() {
   ];
 
   return (
-    <main className="space-y-6 p-6">
+    <main className="space-y-6 p-4 md:p-6">
       <AppPageHeader
         title="Категории расходов"
         subtitle="Управление категориями для классификации расходов"

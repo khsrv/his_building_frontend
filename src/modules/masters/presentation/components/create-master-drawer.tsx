@@ -31,7 +31,7 @@ const INITIAL_FORM: FormState = {
   dailyRate: "",
 };
 
-type FormErrors = Partial<Record<"name", string>>;
+type FormErrors = Partial<Record<"name" | "phone" | "specialization", string>>;
 
 interface CreateMasterDrawerProps {
   open: boolean;
@@ -50,10 +50,10 @@ export function CreateMasterDrawer({
 
   const set = (key: keyof FormState) => (value: string) => {
     setForm((prev) => ({ ...prev, [key]: value }));
-    if (key === "name") {
+    if (key === "name" || key === "phone" || key === "specialization") {
       setErrors((prev) => {
         const next = { ...prev };
-        delete next.name;
+        delete next[key];
         return next;
       });
     }
@@ -67,6 +67,8 @@ export function CreateMasterDrawer({
   const validate = (): boolean => {
     const next: FormErrors = {};
     if (!form.name.trim()) next.name = "Имя обязательно";
+    if (!form.phone.trim()) next.phone = "Телефон обязателен";
+    if (!form.specialization.trim()) next.specialization = "Специализация обязательна";
     setErrors(next);
     return Object.keys(next).length === 0;
   };
@@ -79,13 +81,11 @@ export function CreateMasterDrawer({
   const handleSave = () => {
     if (!validate()) return;
 
-    const dailyRateNum = parseFloat(form.dailyRate);
-
     mutation.mutate(
       {
         fullName: form.name.trim(),
-        phone: form.phone.trim() || undefined,
-        specialization: form.specialization.trim() || undefined,
+        phone: form.phone.trim(),
+        specialization: form.specialization.trim(),
         companyName: form.type === "brigade" ? (form.name.trim() || undefined) : undefined,
       },
       {
@@ -127,14 +127,16 @@ export function CreateMasterDrawer({
           }}
         />
         <AppInput
-          label="Телефон"
+          label="Телефон *"
           value={form.phone}
           onChangeValue={set("phone")}
+          {...(errors.phone ? { errorText: errors.phone } : {})}
         />
         <AppInput
-          label="Специализация"
+          label="Специализация *"
           value={form.specialization}
           onChangeValue={set("specialization")}
+          {...(errors.specialization ? { errorText: errors.specialization } : {})}
         />
         <AppInput
           label="Ставка в день"

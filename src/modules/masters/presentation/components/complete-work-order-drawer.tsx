@@ -53,8 +53,8 @@ export function CompleteWorkOrderDrawer({
   const validate = (): boolean => {
     const next: FormErrors = {};
     const amount = parseFloat(form.actualAmount);
-    if (!form.actualAmount || isNaN(amount) || amount < 0) {
-      next.actualAmount = "Введите корректную фактическую сумму";
+    if (!form.actualAmount || isNaN(amount) || amount <= 0) {
+      next.actualAmount = "Фактическая сумма должна быть больше 0";
     }
     setErrors(next);
     return Object.keys(next).length === 0;

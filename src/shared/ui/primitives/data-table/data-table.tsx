@@ -1282,6 +1282,19 @@ export function AppDataTable<TData>({
 
   const rowHeight = 40;
   const columnHeaderHeight = 40;
+  const mobileMinGridWidth = useMemo(() => {
+    const totalConfiguredWidth = gridColumns.reduce((sum, column) => {
+      if (typeof column.width === "number" && Number.isFinite(column.width)) {
+        return sum + column.width;
+      }
+      if (typeof column.minWidth === "number" && Number.isFinite(column.minWidth)) {
+        return sum + column.minWidth;
+      }
+      return sum + 140;
+    }, 0);
+
+    return Math.max(520, Math.min(totalConfiguredWidth, 1400));
+  }, [gridColumns]);
 
   return (
     <Box
@@ -1367,7 +1380,13 @@ export function AppDataTable<TData>({
           );
         })}
 
-        <Stack direction="row" flexWrap="wrap" gap={0.5} ml={{ md: "auto" }}>
+        <Stack
+          direction="row"
+          flexWrap="wrap"
+          gap={0.5}
+          ml={{ md: "auto" }}
+          sx={{ width: { xs: "100%", md: "auto" }, justifyContent: { xs: "flex-start", md: "flex-end" } }}
+        >
           {hasFilters ? (
             <>
               <AppButton
@@ -1455,7 +1474,14 @@ export function AppDataTable<TData>({
           </Tooltip>
 
           {addAction ? (
-            <AppButton label={addAction.label} onClick={addAction.onClick} variant="primary" />
+            <Box sx={{ width: { xs: "100%", sm: "auto" } }}>
+              <AppButton
+                label={addAction.label}
+                onClick={addAction.onClick}
+                variant="primary"
+                fullWidth
+              />
+            </Box>
           ) : null}
         </Stack>
       </Stack>
@@ -1503,8 +1529,13 @@ export function AppDataTable<TData>({
       ) : null}
 
       {/* ---- Data Grid ---- */}
-      <Paper sx={{ p: 0.5, width: "100%", minWidth: 0, overflow: "hidden" }}>
-        <Box sx={isFullscreen ? { height: "calc(100vh - 230px)" } : undefined}>
+      <Paper sx={{ p: 0.5, width: "100%", minWidth: 0, overflow: "hidden", overflowX: "auto" }}>
+        <Box
+          sx={{
+            ...(isFullscreen ? { height: "calc(100vh - 230px)" } : null),
+            minWidth: { xs: `${mobileMinGridWidth}px`, md: 0 },
+          }}
+        >
           <DataGrid
             autoHeight={!isFullscreen}
             checkboxSelection={enableSelection}
@@ -1558,6 +1589,7 @@ export function AppDataTable<TData>({
             sortModel={sortModel}
             sortingMode="server"
             sx={{
+              minWidth: { xs: `${mobileMinGridWidth}px`, md: 0 },
               border: 0,
               "& .MuiDataGrid-columnHeaders": {
                 position: "sticky",

@@ -105,8 +105,8 @@ export default function CurrenciesPage() {
   const ratesQuery = useExchangeRatesQuery();
   const createRateMutation = useCreateExchangeRateMutation();
 
-  const currencies = currenciesQuery.data ?? [];
-  const rates = ratesQuery.data ?? [];
+  const currencies = (currenciesQuery.data ?? []).filter((c) => Boolean(c.id));
+  const rates = (ratesQuery.data ?? []).filter((r) => Boolean(r.id));
 
   // Currency options for rate form
   const currencyOptions = useMemo(
@@ -208,7 +208,7 @@ export default function CurrenciesPage() {
   );
 
   return (
-    <main className="space-y-6 p-6">
+    <main className="space-y-6 p-4 md:p-6">
       <AppPageHeader
         title="Валюты и курсы"
         subtitle="Управление валютами и курсами обмена"

@@ -12,6 +12,8 @@ export const warehouseKeys = {
     ["warehouse", "suppliers", "list", params] as const,
   supplierBalance: (id: string) => ["warehouse", "suppliers", id, "balance"] as const,
   supplierPayments: (id: string) => ["warehouse", "suppliers", id, "payments"] as const,
+  supplierStatement: (id: string) => ["warehouse", "suppliers", id, "statement"] as const,
+  supplierBalances: () => ["warehouse", "suppliers", "balances"] as const,
 
   materials: () => ["warehouse", "materials"] as const,
   materialsList: (params?: MaterialsListParams) =>

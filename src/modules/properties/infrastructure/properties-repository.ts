@@ -1,8 +1,12 @@
 import { apiClient } from "@/shared/lib/http/api-client";
-import type {
-  ApiPaginatedResponse,
-  ApiResponse,
-} from "@/shared/types/api";
+import { AppError } from "@/shared/lib/errors/app-error";
+import {
+  getResponseData,
+  getResponseItems,
+  getResponsePagination,
+  isApiRecord,
+  normalizeApiKeys,
+} from "@/shared/lib/http/api-response";
 import { mapUnitStatus, type BackendUnitStatus } from "@/shared/types/api";
 import type {
   Property,
@@ -30,32 +34,32 @@ import type { PropertyStatus } from "@/modules/properties/domain/property";
 
 interface PropertyDto {
   id: string;
-  tenant_id: string;
+  tenant_id?: string;
   name: string;
-  address: string;
-  city: string;
+  address?: string;
+  city?: string;
   district?: string | null;
   description?: string | null;
   property_type?: string | null;
-  status: string;
-  currency: string;
-  total_units: number;
-  sold_units: number;
-  realization_percent: number;
-  construction_start_date: string | null;
-  construction_end_date: string | null;
-  created_at: string;
-  updated_at: string;
+  status?: string;
+  currency?: string;
+  total_units?: number;
+  sold_units?: number;
+  realization_percent?: number;
+  construction_start_date?: string | null;
+  construction_end_date?: string | null;
+  created_at?: string;
+  updated_at?: string;
 }
 
 interface BlockDto {
   id: string;
   property_id: string;
   name: string;
-  floors_count: number;
-  underground_floors: number;
-  sort_order: number;
-  created_at: string;
+  floors_count?: number;
+  underground_floors?: number;
+  sort_order?: number;
+  created_at?: string;
 }
 
 interface ChessUnitDto {
@@ -72,18 +76,18 @@ interface ChessUnitDto {
 
 interface ChessFloorDto {
   floor_number: number;
-  units: ChessUnitDto[];
+  units?: ChessUnitDto[];
 }
 
 interface ChessBlockDto {
   block_id: string;
   block_name: string;
   floors_count: number;
-  floors: ChessFloorDto[];
+  floors?: ChessFloorDto[];
 }
 
 interface ChessBoardDto {
-  blocks: ChessBlockDto[];
+  blocks?: ChessBlockDto[];
 }
 
 // ─── Mappers ──────────────────────────────────────────────────────────────────
@@ -98,19 +102,20 @@ function isPropertyStatus(value: string): value is PropertyStatus {
 }
 
 function mapPropertyDto(dto: PropertyDto): Property {
+  const rawStatus = dto.status ?? "";
   return {
     id: dto.id,
-    name: dto.name,
-    address: dto.address,
-    city: dto.city,
-    status: isPropertyStatus(dto.status) ? dto.status : "planning",
-    currency: dto.currency,
-    totalUnits: dto.total_units,
-    soldUnits: dto.sold_units,
-    realizationPercent: dto.realization_percent,
-    constructionStartDate: dto.construction_start_date,
-    constructionEndDate: dto.construction_end_date,
-    createdAt: dto.created_at,
+    name: dto.name ?? "",
+    address: dto.address ?? "",
+    city: dto.city ?? "",
+    status: isPropertyStatus(rawStatus) ? rawStatus : "planning",
+    currency: dto.currency ?? "USD",
+    totalUnits: Number(dto.total_units ?? 0),
+    soldUnits: Number(dto.sold_units ?? 0),
+    realizationPercent: Number(dto.realization_percent ?? 0),
+    constructionStartDate: dto.construction_start_date ?? null,
+    constructionEndDate: dto.construction_end_date ?? null,
+    createdAt: dto.created_at ?? "",
   };
 }
 
@@ -118,8 +123,8 @@ function mapBlockDto(dto: BlockDto): PropertyBlock {
   return {
     id: dto.id,
     propertyId: dto.property_id,
-    name: dto.name,
-    floorsCount: dto.floors_count,
+    name: dto.name ?? "",
+    floorsCount: Number(dto.floors_count ?? 0),
   };
 }
 
@@ -139,8 +144,8 @@ function mapChessUnitDto(dto: ChessUnitDto): ChessUnit {
 
 function mapChessFloorDto(dto: ChessFloorDto): ChessFloor {
   return {
-    floorNumber: dto.floor_number,
-    units: dto.units.map(mapChessUnitDto),
+    floorNumber: Number(dto.floor_number ?? 0),
+    units: (dto.units ?? []).map(mapChessUnitDto),
   };
 }
 
@@ -148,14 +153,14 @@ function mapChessBlockDto(dto: ChessBlockDto): ChessBlock {
   return {
     id: dto.block_id,
     name: dto.block_name,
-    floorsCount: dto.floors_count,
-    floors: dto.floors.map(mapChessFloorDto),
+    floorsCount: Number(dto.floors_count ?? 0),
+    floors: (dto.floors ?? []).map(mapChessFloorDto),
   };
 }
 
 function mapChessBoardDto(dto: ChessBoardDto): ChessBoard {
   return {
-    blocks: dto.blocks.map(mapChessBlockDto),
+    blocks: (dto.blocks ?? []).map(mapChessBlockDto),
   };
 }
 
@@ -170,31 +175,28 @@ export async function fetchPropertiesList(
   if (params.search) query["search"] = params.search;
   if (params.status) query["status"] = params.status;
 
-  const response = await apiClient.get<ApiPaginatedResponse<PropertyDto>>(
-    "/api/v1/properties",
-    query,
-  );
+  const response = await apiClient.get<unknown>("/api/v1/properties", query);
+  const normalized = normalizeApiKeys(response);
+  const items = getResponseItems<PropertyDto>(normalized).filter((item) => Boolean(item?.id));
+  const pagination = getResponsePagination(normalized);
 
   return {
-    items: (response.data.items ?? []).filter((item) => Boolean(item?.id)).map(mapPropertyDto),
-    total: response.data.pagination.total,
-    page: response.data.pagination.page,
-    limit: response.data.pagination.limit,
+    items: items.map(mapPropertyDto),
+    total: pagination?.total ?? items.length,
+    page: pagination?.page ?? (params.page ?? 1),
+    limit: pagination?.limit ?? (params.limit ?? 20),
   };
 }
 
 export async function fetchPropertyDetail(id: string): Promise<Property> {
-  const response = await apiClient.get<ApiResponse<PropertyDto>>(
-    `/api/v1/properties/${id}`,
-  );
-  return mapPropertyDto(response.data);
+  const response = await apiClient.get<unknown>(`/api/v1/properties/${id}`);
+  return mapPropertyDto(getResponseData<PropertyDto>(normalizeApiKeys(response)));
 }
 
 export async function fetchPropertyBlocks(propertyId: string): Promise<readonly PropertyBlock[]> {
-  const response = await apiClient.get<ApiResponse<BlockDto[]>>(
-    `/api/v1/properties/${propertyId}/blocks`,
-  );
-  return response.data.map(mapBlockDto);
+  const response = await apiClient.get<unknown>(`/api/v1/properties/${propertyId}/blocks`);
+  const items = getResponseItems<BlockDto>(normalizeApiKeys(response));
+  return items.map(mapBlockDto);
 }
 
 export async function fetchChessBoard(
@@ -207,11 +209,15 @@ export async function fetchChessBoard(
   if (filters?.priceMin !== undefined) query["price_min"] = filters.priceMin;
   if (filters?.priceMax !== undefined) query["price_max"] = filters.priceMax;
 
-  const response = await apiClient.get<ApiResponse<ChessBoardDto>>(
-    `/api/v1/properties/${propertyId}/chessboard`,
-    query,
-  );
-  return mapChessBoardDto(response.data);
+  const response = await apiClient.get<unknown>(`/api/v1/properties/${propertyId}/chessboard`, query);
+  const normalized = normalizeApiKeys(response);
+  const data = getResponseData<unknown>(normalized);
+
+  if (isApiRecord(data) && Array.isArray(data["blocks"])) {
+    return mapChessBoardDto({ blocks: data["blocks"] as ChessBlockDto[] });
+  }
+
+  return mapChessBoardDto(data as ChessBoardDto);
 }
 
 // ─── Unit status actions ──────────────────────────────────────────────────────
@@ -222,7 +228,7 @@ export async function updateUnitStatus(
   unitId: string,
   action: UnitAction,
 ): Promise<void> {
-  await apiClient.patch<ApiResponse<unknown>>(
+  await apiClient.patch(
     `/api/v1/units/${unitId}/status`,
     { action },
   );
@@ -254,7 +260,7 @@ interface UnitDto {
 interface FloorDto {
   id: string;
   floor_number: number;
-  units_count: number;
+  units_count?: number;
 }
 
 function isUnitStatus(value: string): value is UnitStatus {
@@ -274,7 +280,7 @@ function mapUnitDto(dto: UnitDto): Unit {
     floorId: dto.floor_id,
     unitNumber: dto.unit_number,
     unitType: dto.unit_type,
-    floorNumber: dto.floor_number,
+    floorNumber: Number(dto.floor_number ?? 0),
     rooms: dto.rooms,
     totalArea: dto.total_area,
     livingArea: dto.living_area,
@@ -292,8 +298,8 @@ function mapUnitDto(dto: UnitDto): Unit {
 function mapFloorDto(dto: FloorDto): FloorInfo {
   return {
     id: dto.id,
-    floorNumber: dto.floor_number,
-    unitsCount: dto.units_count,
+    floorNumber: Number(dto.floor_number ?? 0),
+    unitsCount: Number(dto.units_count ?? 0),
   };
 }
 
@@ -312,8 +318,8 @@ export async function createProperty(input: CreatePropertyInput): Promise<Proper
   if (input.constructionStartDate !== undefined) body["construction_start_date"] = input.constructionStartDate;
   if (input.constructionEndDate !== undefined) body["construction_end_date"] = input.constructionEndDate;
 
-  const response = await apiClient.post<ApiResponse<PropertyDto>>("/api/v1/properties", body);
-  return mapPropertyDto(response.data);
+  const response = await apiClient.post<unknown>("/api/v1/properties", body);
+  return mapPropertyDto(getResponseData<PropertyDto>(normalizeApiKeys(response)));
 }
 
 export async function updateProperty(id: string, input: UpdatePropertyInput): Promise<Property> {
@@ -325,8 +331,8 @@ export async function updateProperty(id: string, input: UpdatePropertyInput): Pr
   if (input.description !== undefined) body["description"] = input.description;
   if (input.status !== undefined) body["status"] = input.status;
 
-  const response = await apiClient.patch<ApiResponse<PropertyDto>>(`/api/v1/properties/${id}`, body);
-  return mapPropertyDto(response.data);
+  const response = await apiClient.patch<unknown>(`/api/v1/properties/${id}`, body);
+  return mapPropertyDto(getResponseData<PropertyDto>(normalizeApiKeys(response)));
 }
 
 export async function deleteProperty(id: string): Promise<void> {
@@ -342,11 +348,19 @@ export async function createBlock(propertyId: string, input: CreateBlockInput): 
   };
   if (input.undergroundFloors !== undefined) body["underground_floors"] = input.undergroundFloors;
 
-  const response = await apiClient.post<ApiResponse<BlockDto>>(
+  const response = await apiClient.post<unknown>(
     `/api/v1/properties/${propertyId}/blocks`,
     body,
   );
-  return mapBlockDto(response.data);
+
+  const normalized = normalizeApiKeys(response);
+  const data = getResponseData<unknown>(normalized);
+
+  if (isApiRecord(data) && isApiRecord(data["block"])) {
+    return mapBlockDto(data["block"] as unknown as BlockDto);
+  }
+
+  return mapBlockDto(data as unknown as BlockDto);
 }
 
 export async function updateBlock(
@@ -358,11 +372,11 @@ export async function updateBlock(
   if (input.name !== undefined) body["name"] = input.name;
   if (input.sortOrder !== undefined) body["sort_order"] = input.sortOrder;
 
-  const response = await apiClient.patch<ApiResponse<BlockDto>>(
+  const response = await apiClient.patch<unknown>(
     `/api/v1/properties/${propertyId}/blocks/${blockId}`,
     body,
   );
-  return mapBlockDto(response.data);
+  return mapBlockDto(getResponseData<BlockDto>(normalizeApiKeys(response)));
 }
 
 export async function deleteBlock(propertyId: string, blockId: string): Promise<void> {
@@ -372,10 +386,53 @@ export async function deleteBlock(propertyId: string, blockId: string): Promise<
 // ─── Floors ──────────────────────────────────────────────────────────────────
 
 export async function fetchFloors(propertyId: string, blockId: string): Promise<FloorInfo[]> {
-  const response = await apiClient.get<ApiResponse<FloorDto[]>>(
+  const response = await apiClient.get<unknown>(`/api/v1/properties/${propertyId}/blocks/${blockId}/floors`);
+  const items = getResponseItems<FloorDto>(normalizeApiKeys(response));
+  return items.map(mapFloorDto);
+}
+
+// ─── Floor create response DTO ───────────────────────────────────────────────
+
+interface CreateFloorResponseDto {
+  id: string;
+  block_id: string;
+  floor_number: number;
+  sort_order?: number;
+}
+
+export async function createFloor(
+  propertyId: string,
+  blockId: string,
+  floorNumber: number,
+): Promise<FloorInfo> {
+  const response = await apiClient.post<unknown>(
     `/api/v1/properties/${propertyId}/blocks/${blockId}/floors`,
+    { floor_number: floorNumber },
   );
-  return response.data.map(mapFloorDto);
+  const data = getResponseData<CreateFloorResponseDto>(normalizeApiKeys(response));
+  return {
+    id: data.id,
+    floorNumber: Number(data.floor_number ?? floorNumber),
+    unitsCount: 0,
+  };
+}
+
+export async function deleteFloor(
+  propertyId: string,
+  blockId: string,
+  floorId: string,
+): Promise<void> {
+  try {
+    await apiClient.delete(`/api/v1/properties/${propertyId}/blocks/${blockId}/floors/${floorId}`);
+  } catch (error: unknown) {
+    if (
+      error instanceof AppError &&
+      error.status === 409
+    ) {
+      throw new AppError("VALIDATION", "Сначала удалите квартиры с этого этажа", 409);
+    }
+    throw error;
+  }
 }
 
 // ─── Units CRUD ──────────────────────────────────────────────────────────────
@@ -394,12 +451,16 @@ export async function fetchUnitsList(
   if (params.priceMin !== undefined) query["price_min"] = params.priceMin;
   if (params.priceMax !== undefined) query["price_max"] = params.priceMax;
 
-  const response = await apiClient.get<ApiPaginatedResponse<UnitDto>>("/api/v1/units", query);
+  const response = await apiClient.get<unknown>("/api/v1/units", query);
+  const normalized = normalizeApiKeys(response);
+  const items = getResponseItems<UnitDto>(normalized).filter((item) => Boolean(item?.id));
+  const pagination = getResponsePagination(normalized);
+
   return {
-    items: (response.data.items ?? []).filter((item) => Boolean(item?.id)).map(mapUnitDto),
-    total: response.data.pagination.total,
-    page: response.data.pagination.page,
-    limit: response.data.pagination.limit,
+    items: items.map(mapUnitDto),
+    total: pagination?.total ?? items.length,
+    page: pagination?.page ?? (params.page ?? 1),
+    limit: pagination?.limit ?? (params.limit ?? 20),
   };
 }
 
@@ -421,8 +482,8 @@ export async function createUnit(input: CreateUnitInput): Promise<Unit> {
   if (input.finishing !== undefined) body["finishing"] = input.finishing;
   if (input.description !== undefined) body["description"] = input.description;
 
-  const response = await apiClient.post<ApiResponse<UnitDto>>("/api/v1/units", body);
-  return mapUnitDto(response.data);
+  const response = await apiClient.post<unknown>("/api/v1/units", body);
+  return mapUnitDto(getResponseData<UnitDto>(normalizeApiKeys(response)));
 }
 
 export async function bulkCreateUnits(
@@ -442,8 +503,20 @@ export async function bulkCreateUnits(
   if (input.basePrice !== undefined) body["base_price"] = input.basePrice;
   if (input.prefix !== undefined) body["prefix"] = input.prefix;
 
-  const response = await apiClient.post<ApiResponse<{ count: number }>>("/api/v1/units/bulk", body);
-  return { count: response.data.count };
+  const response = await apiClient.post<unknown>("/api/v1/units/bulk", body);
+  const normalized = normalizeApiKeys(response);
+  const data = getResponseData<unknown>(normalized);
+  const items = getResponseItems<UnitDto>(normalized);
+
+  if (!isApiRecord(data)) {
+    return { count: items.length };
+  }
+
+  const countRaw = data["count"] ?? data["created"] ?? items.length;
+  const count = Number(countRaw);
+  return {
+    count: Number.isFinite(count) ? count : items.length,
+  };
 }
 
 export async function updateUnit(id: string, input: UpdateUnitInput): Promise<Unit> {
@@ -458,8 +531,8 @@ export async function updateUnit(id: string, input: UpdateUnitInput): Promise<Un
   if (input.finishing !== undefined) body["finishing"] = input.finishing;
   if (input.description !== undefined) body["description"] = input.description;
 
-  const response = await apiClient.patch<ApiResponse<UnitDto>>(`/api/v1/units/${id}`, body);
-  return mapUnitDto(response.data);
+  const response = await apiClient.patch<unknown>(`/api/v1/units/${id}`, body);
+  return mapUnitDto(getResponseData<UnitDto>(normalizeApiKeys(response)));
 }
 
 export async function deleteUnit(id: string): Promise<void> {

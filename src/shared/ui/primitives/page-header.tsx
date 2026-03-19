@@ -36,7 +36,10 @@ export function AppPageHeader({
   return (
     <header className={cn("space-y-3", className)}>
       {breadcrumbs.length > 0 ? (
-        <nav aria-label="Breadcrumb" className="flex flex-wrap items-center gap-1.5 text-sm text-muted-foreground">
+        <nav
+          aria-label="Breadcrumb"
+          className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground sm:text-sm"
+        >
           {breadcrumbs.map((crumb, index) => (
             <span className="inline-flex items-center gap-1.5" key={crumb.id}>
               {index > 0 ? <ChevronRightIcon /> : null}
@@ -52,14 +55,20 @@ export function AppPageHeader({
         </nav>
       ) : null}
 
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="space-y-1">
-          <h1 className="text-2xl font-semibold leading-tight text-foreground">{title}</h1>
+      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+        <div className="min-w-0 space-y-1">
+          <h1 className="break-words text-xl font-semibold leading-tight text-foreground sm:text-2xl">
+            {title}
+          </h1>
           {subtitle ? <p className="text-sm text-muted-foreground">{subtitle}</p> : null}
           {meta ? <div className="flex flex-wrap items-center gap-2 pt-1">{meta}</div> : null}
         </div>
 
-        {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
+        {actions ? (
+          <div className="flex w-full flex-wrap items-center gap-2 md:w-auto md:justify-end">
+            {actions}
+          </div>
+        ) : null}
       </div>
     </header>
   );

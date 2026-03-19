@@ -10,7 +10,7 @@ export function useDeleteUnitMutation() {
   return useMutation({
     mutationFn: (id: string) => deleteUnit(id),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: propertyKeys.units() });
+      void queryClient.invalidateQueries({ queryKey: propertyKeys.unitsAll() });
     },
   });
 }

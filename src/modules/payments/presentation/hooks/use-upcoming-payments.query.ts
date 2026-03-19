@@ -2,7 +2,8 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/shared/lib/http/api-client";
-import type { UpcomingPaymentsResponseDto } from "@/modules/payments/infrastructure/dto";
+import { getResponseItems, normalizeApiKeys } from "@/shared/lib/http/api-response";
+import type { UpcomingPaymentDto, UpcomingPaymentsResponseDto } from "@/modules/payments/infrastructure/dto";
 import { mapUpcomingPaymentDto } from "@/modules/payments/infrastructure/mappers";
 import { paymentsQueryKeys } from "@/modules/payments/presentation/query-keys";
 
@@ -34,7 +35,8 @@ export function useUpcomingPaymentsQuery(params: UpcomingPaymentsParams) {
         "/api/v1/schedule/upcoming",
         query,
       );
-      return (response.data.items ?? []).filter((item) => Boolean(item?.id)).map(mapUpcomingPaymentDto);
+      const items = getResponseItems<UpcomingPaymentDto>(normalizeApiKeys(response));
+      return items.filter((item) => Boolean(item?.id)).map(mapUpcomingPaymentDto);
     },
     staleTime: 2 * 60 * 1000,
   });

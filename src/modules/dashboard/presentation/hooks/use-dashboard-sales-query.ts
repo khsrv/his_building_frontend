@@ -2,6 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/shared/lib/http/api-client";
+import { getResponseData, normalizeApiKeys } from "@/shared/lib/http/api-response";
 import type { DashboardSales } from "@/modules/dashboard/domain/dashboard";
 import type { DashboardSalesDto } from "@/modules/dashboard/infrastructure/dashboard-dto";
 import { mapSalesDtoToDomain } from "@/modules/dashboard/infrastructure/dashboard-dto";
@@ -19,7 +20,9 @@ export function useDashboardSalesQuery(from: string, to: string, propertyId?: st
         "/api/v1/dashboard/sales",
         query,
       );
-      return mapSalesDtoToDomain(response.data);
+      return mapSalesDtoToDomain(
+        getResponseData<DashboardSalesDto>(normalizeApiKeys(response)),
+      );
     },
   });
 }

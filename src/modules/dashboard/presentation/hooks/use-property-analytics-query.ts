@@ -2,6 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/shared/lib/http/api-client";
+import { getResponseData, normalizeApiKeys } from "@/shared/lib/http/api-response";
 import type { PropertyAnalytics } from "@/modules/dashboard/domain/dashboard";
 import type { PropertyAnalyticsDto } from "@/modules/dashboard/infrastructure/dashboard-dto";
 import { mapPropertyAnalyticsDtoToDomain } from "@/modules/dashboard/infrastructure/dashboard-dto";
@@ -14,7 +15,9 @@ export function usePropertyAnalyticsQuery(propertyId: string) {
       const response = await apiClient.get<{ data: PropertyAnalyticsDto }>(
         `/api/v1/dashboard/properties/${propertyId}`,
       );
-      return mapPropertyAnalyticsDtoToDomain(response.data);
+      return mapPropertyAnalyticsDtoToDomain(
+        getResponseData<PropertyAnalyticsDto>(normalizeApiKeys(response)),
+      );
     },
     enabled: propertyId.length > 0,
   });

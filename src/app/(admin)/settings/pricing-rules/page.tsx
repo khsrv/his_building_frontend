@@ -147,7 +147,7 @@ export default function PricingRulesPage() {
   ];
 
   return (
-    <main className="space-y-6 p-6">
+    <main className="space-y-6 p-4 md:p-6">
       <AppPageHeader
         title="Правила ценообразования"
         subtitle="Настройка правил корректировки цен"

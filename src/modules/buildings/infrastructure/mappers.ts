@@ -5,6 +5,6 @@ export function mapBuildingsDtoToDomain(dto: BuildingsItemDto): BuildingsItem {
   return {
     id: dto.id,
     name: dto.name,
-    createdAtIso: dto.created_at,
+    createdAtIso: dto.created_at ?? "",
   };
 }

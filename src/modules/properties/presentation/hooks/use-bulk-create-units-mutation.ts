@@ -11,7 +11,7 @@ export function useBulkCreateUnitsMutation(propertyId: string) {
   return useMutation({
     mutationFn: (input: BulkCreateUnitsInput) => bulkCreateUnits(input),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: propertyKeys.units() });
+      void queryClient.invalidateQueries({ queryKey: propertyKeys.unitsAll() });
       void queryClient.invalidateQueries({ queryKey: propertyKeys.chessboard(propertyId) });
     },
   });

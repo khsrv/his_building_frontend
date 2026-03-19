@@ -2,7 +2,17 @@
 
 import { useState } from "react";
 import { useParams } from "next/navigation";
-import { TextField } from "@mui/material";
+import {
+  Box,
+  CircularProgress,
+  Dialog,
+  DialogContent,
+  DialogTitle,
+  IconButton,
+  Stack,
+  TextField,
+  Typography,
+} from "@mui/material";
 import {
   AppButton,
   AppCrudPageScaffold,
@@ -28,6 +38,8 @@ import { useCreateUnitMutation } from "@/modules/properties/presentation/hooks/u
 import { useUpdateUnitMutation } from "@/modules/properties/presentation/hooks/use-update-unit-mutation";
 import { useDeleteUnitMutation } from "@/modules/properties/presentation/hooks/use-delete-unit-mutation";
 import { useFloorsQuery } from "@/modules/properties/presentation/hooks/use-floors-query";
+import { useUnitPriceHistoryQuery } from "@/modules/advanced/presentation/hooks/use-unit-price-history-query";
+import type { UnitPriceHistoryItem } from "@/modules/advanced/domain/advanced";
 import type {
   Unit,
   UnitStatus,
@@ -50,6 +62,35 @@ const UNIT_STATUS_TONE: Record<UnitStatus, AppStatusTone> = {
   reserved: "muted",
   sold: "danger",
 };
+
+const PRICE_HISTORY_COLUMNS: readonly AppDataTableColumn<UnitPriceHistoryItem>[] = [
+  {
+    id: "createdAt",
+    header: "Дата",
+    cell: (row) => new Date(row.createdAt).toLocaleDateString("ru-RU"),
+    sortAccessor: (row) => row.createdAt,
+  },
+  {
+    id: "oldPrice",
+    header: "Старая цена",
+    cell: (row) => row.oldPrice.toLocaleString("ru-RU"),
+    sortAccessor: (row) => row.oldPrice,
+    align: "right",
+  },
+  {
+    id: "newPrice",
+    header: "Новая цена",
+    cell: (row) => row.newPrice.toLocaleString("ru-RU"),
+    sortAccessor: (row) => row.newPrice,
+    align: "right",
+  },
+  {
+    id: "reason",
+    header: "Причина",
+    cell: (row) => row.reason || "—",
+    searchAccessor: (row) => row.reason,
+  },
+];
 
 // ─── Unit form state ─────────────────────────────────────────────────────────
 
@@ -121,6 +162,7 @@ export default function BuildingUnitsPage() {
   const [editingUnit, setEditingUnit] = useState<Unit | null>(null);
   const [unitForm, setUnitForm] = useState<UnitFormState>(EMPTY_UNIT_FORM);
   const [deleteTarget, setDeleteTarget] = useState<Unit | null>(null);
+  const [historyTarget, setHistoryTarget] = useState<Unit | null>(null);
 
   // ─── Floor query ───────────────────────────────────────────────────
   const floorsQuery = useFloorsQuery(propertyId, unitForm.blockId);
@@ -128,6 +170,8 @@ export default function BuildingUnitsPage() {
 
   // ─── Update unit mutation ──────────────────────────────────────────
   const updateUnitMutation = useUpdateUnitMutation(editingUnit?.id ?? "");
+  const priceHistoryQuery = useUnitPriceHistoryQuery(historyTarget?.id);
+  const priceHistory = priceHistoryQuery.data ?? [];
 
   // ─── Handlers ──────────────────────────────────────────────────────
 
@@ -289,6 +333,11 @@ export default function BuildingUnitsPage() {
             id: "main",
             items: [
               {
+                id: "price-history",
+                label: "История цены",
+                onClick: () => setHistoryTarget(row),
+              },
+              {
                 id: "edit",
                 label: "Редактировать",
                 onClick: () => handleOpenEdit(row),
@@ -317,7 +366,7 @@ export default function BuildingUnitsPage() {
 
   if (propertyQuery.isLoading) {
     return (
-      <div className="space-y-6 p-6">
+      <div className="space-y-6 p-4 md:p-6">
         <ShimmerBox className="h-8 w-60" />
         <ShimmerBox className="h-64 w-full rounded-xl" />
       </div>
@@ -326,7 +375,7 @@ export default function BuildingUnitsPage() {
 
   if (propertyQuery.isError || !property) {
     return (
-      <div className="p-6">
+      <div className="p-4 md:p-6">
         <AppStatePanel
           tone="error"
           title="Ошибка загрузки"
@@ -339,7 +388,7 @@ export default function BuildingUnitsPage() {
   // ─── Render ────────────────────────────────────────────────────────
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6 p-4 md:p-6">
       <AppCrudPageScaffold
         header={
           <AppPageHeader
@@ -541,6 +590,67 @@ export default function BuildingUnitsPage() {
         onConfirm={handleDelete}
         onClose={() => setDeleteTarget(null)}
       />
+
+      <Dialog
+        fullWidth
+        maxWidth="md"
+        open={historyTarget !== null}
+        onClose={() => setHistoryTarget(null)}
+      >
+        <DialogTitle>
+          <Stack direction="row" justifyContent="space-between" alignItems="center">
+            <Typography variant="h6">
+              История цены: {historyTarget?.unitNumber ?? ""}
+            </Typography>
+            <IconButton
+              aria-label="Закрыть"
+              onClick={() => setHistoryTarget(null)}
+              size="small"
+            >
+              <svg
+                aria-hidden
+                fill="none"
+                height="20"
+                stroke="currentColor"
+                strokeWidth="2"
+                viewBox="0 0 24 24"
+                width="20"
+              >
+                <path d="M18 6L6 18M6 6l12 12" />
+              </svg>
+            </IconButton>
+          </Stack>
+        </DialogTitle>
+        <DialogContent>
+          {priceHistoryQuery.isLoading ? (
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+              <CircularProgress size={20} />
+              <Typography variant="body2">Загрузка истории цены...</Typography>
+            </Box>
+          ) : priceHistoryQuery.isError ? (
+            <AppStatePanel
+              tone="error"
+              title="Ошибка загрузки"
+              description="Не удалось загрузить историю изменения цены."
+            />
+          ) : priceHistory.length === 0 ? (
+            <AppStatePanel
+              tone="empty"
+              title="Нет изменений цены"
+              description="По этой квартире еще нет записей в истории изменения цены."
+            />
+          ) : (
+            <AppDataTable<UnitPriceHistoryItem>
+              data={priceHistory}
+              columns={PRICE_HISTORY_COLUMNS}
+              rowKey={(row) => row.id}
+              title="История изменения цены"
+              enableSettings={false}
+              enableExport={false}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -52,6 +52,7 @@ export function AppInput({
   const debounceRef = useRef<number | null>(null);
 
   const currentValue = isControlled ? value : innerValue;
+  const shouldShrink = rest.type === "date" || rest.type === "datetime-local" || rest.type === "time";
 
   useEffect(() => {
     if (!onDebouncedChange) {
@@ -109,6 +110,7 @@ export function AppInput({
           startAdornment: prefix ? <InputAdornment position="start">{prefix}</InputAdornment> : undefined,
           endAdornment: suffix ? <InputAdornment position="end">{suffix}</InputAdornment> : undefined,
         },
+        ...(shouldShrink ? { inputLabel: { shrink: true } } : {}),
       }}
       size="small"
       value={currentValue}

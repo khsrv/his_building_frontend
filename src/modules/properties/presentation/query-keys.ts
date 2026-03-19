@@ -9,6 +9,7 @@ export const propertyKeys = {
   blocks: (id: string) => [...propertyKeys.all, id, "blocks"] as const,
   chessboard: (id: string, filters?: ChessBoardFilters) =>
     [...propertyKeys.all, id, "chessboard", filters ?? {}] as const,
+  unitsAll: () => [...propertyKeys.all, "units"] as const,
   units: (params?: object) => [...propertyKeys.all, "units", params] as const,
   unit: (id: string) => [...propertyKeys.all, "units", id] as const,
   floors: (propertyId: string, blockId: string) =>

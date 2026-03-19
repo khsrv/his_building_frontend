@@ -1,9 +1,11 @@
 import { apiClient } from "@/shared/lib/http/api-client";
+import { getResponseData, getResponseItems, normalizeApiKeys } from "@/shared/lib/http/api-response";
 import type {
   PricingRule,
   Broker,
   BrokerDeal,
   Invoice,
+  UnitPriceHistoryItem,
   CreatePricingRuleInput,
   CreateBrokerInput,
   AssignBrokerDealInput,
@@ -40,10 +42,11 @@ interface BrokerDealDto {
   id: string;
   broker_id: string;
   deal_id: string;
-  deal_number: string;
-  client_name: string;
+  deal_number?: string;
+  client_name?: string;
   commission_pct: number;
-  deal_amount: number;
+  deal_amount?: number;
+  commission_amount?: number;
   created_at: string;
 }
 
@@ -53,9 +56,20 @@ interface InvoiceDto {
   amount: number;
   currency: string;
   status: string;
-  period_start: string;
-  period_end: string;
+  period_start?: string;
+  period_end?: string;
+  period_from?: string;
+  period_to?: string;
   paid_at: string | null;
+  created_at: string;
+}
+
+interface UnitPriceHistoryDto {
+  id: string;
+  unit_id: string;
+  old_price: number;
+  new_price: number;
+  reason: string;
   created_at: string;
 }
 
@@ -95,10 +109,10 @@ function mapBrokerDealDto(dto: BrokerDealDto): BrokerDeal {
     id: dto.id,
     brokerId: dto.broker_id,
     dealId: dto.deal_id,
-    dealNumber: dto.deal_number,
-    clientName: dto.client_name,
+    dealNumber: dto.deal_number ?? "",
+    clientName: dto.client_name ?? "",
     commissionPct: dto.commission_pct,
-    dealAmount: dto.deal_amount,
+    dealAmount: dto.deal_amount ?? dto.commission_amount ?? 0,
     createdAt: dto.created_at,
   };
 }
@@ -110,9 +124,20 @@ function mapInvoiceDto(dto: InvoiceDto): Invoice {
     amount: dto.amount,
     currency: dto.currency,
     status: dto.status,
-    periodStart: dto.period_start,
-    periodEnd: dto.period_end,
+    periodStart: dto.period_start ?? dto.period_from ?? "",
+    periodEnd: dto.period_end ?? dto.period_to ?? "",
     paidAt: dto.paid_at,
+    createdAt: dto.created_at,
+  };
+}
+
+function mapUnitPriceHistoryDto(dto: UnitPriceHistoryDto): UnitPriceHistoryItem {
+  return {
+    id: dto.id,
+    unitId: dto.unit_id,
+    oldPrice: Number(dto.old_price ?? 0),
+    newPrice: Number(dto.new_price ?? 0),
+    reason: dto.reason ?? "",
     createdAt: dto.created_at,
   };
 }
@@ -120,12 +145,10 @@ function mapInvoiceDto(dto: InvoiceDto): Invoice {
 // ─── Pricing Rules ────────────────────────────────────────────────────────────
 
 export async function fetchPricingRules(propertyId: string): Promise<PricingRule[]> {
-  const query: Record<string, string | number | boolean | undefined | null> = {
-    property_id: propertyId,
-  };
-
-  const res = await apiClient.get<{ data: PricingRuleDto[] | { items: PricingRuleDto[]; pagination?: unknown } }>("/api/v1/pricing-rules", query);
-  const items = Array.isArray(res.data) ? res.data : (res.data.items ?? []);
+  const res = await apiClient.get<{ data: PricingRuleDto[] | { items: PricingRuleDto[]; pagination?: unknown } }>(
+    `/api/v1/pricing-rules/property/${propertyId}`,
+  );
+  const items = getResponseItems<PricingRuleDto>(normalizeApiKeys(res));
   return items.filter((item) => Boolean(item?.id)).map(mapPricingRuleDto);
 }
 
@@ -142,18 +165,26 @@ export async function createPricingRule(input: CreatePricingRuleInput): Promise<
   if (input.validTo !== undefined) body["valid_to"] = input.validTo;
 
   const res = await apiClient.post<{ data: PricingRuleDto }>("/api/v1/pricing-rules", body);
-  return mapPricingRuleDto(res.data);
+  return mapPricingRuleDto(getResponseData<PricingRuleDto>(normalizeApiKeys(res)));
 }
 
 export async function deletePricingRule(id: string): Promise<void> {
   await apiClient.delete(`/api/v1/pricing-rules/${id}`);
 }
 
+export async function fetchUnitPriceHistory(unitId: string): Promise<UnitPriceHistoryItem[]> {
+  const res = await apiClient.get<{ data: UnitPriceHistoryDto[] | { items: UnitPriceHistoryDto[]; pagination?: unknown } }>(
+    `/api/v1/units/${unitId}/price-history`,
+  );
+  const items = getResponseItems<UnitPriceHistoryDto>(normalizeApiKeys(res));
+  return items.filter((item) => Boolean(item?.id)).map(mapUnitPriceHistoryDto);
+}
+
 // ─── Brokers ──────────────────────────────────────────────────────────────────
 
 export async function fetchBrokers(): Promise<Broker[]> {
   const res = await apiClient.get<{ data: BrokerDto[] | { items: BrokerDto[]; pagination?: unknown } }>("/api/v1/brokers");
-  const items = Array.isArray(res.data) ? res.data : (res.data.items ?? []);
+  const items = getResponseItems<BrokerDto>(normalizeApiKeys(res));
   return items.filter((item) => Boolean(item?.id)).map(mapBrokerDto);
 }
 
@@ -169,7 +200,7 @@ export async function createBroker(input: CreateBrokerInput): Promise<Broker> {
   if (input.notes !== undefined) body["notes"] = input.notes;
 
   const res = await apiClient.post<{ data: BrokerDto }>("/api/v1/brokers", body);
-  return mapBrokerDto(res.data);
+  return mapBrokerDto(getResponseData<BrokerDto>(normalizeApiKeys(res)));
 }
 
 export async function deleteBroker(id: string): Promise<void> {
@@ -178,7 +209,7 @@ export async function deleteBroker(id: string): Promise<void> {
 
 export async function fetchBrokerDeals(brokerId: string): Promise<BrokerDeal[]> {
   const res = await apiClient.get<{ data: BrokerDealDto[] | { items: BrokerDealDto[]; pagination?: unknown } }>(`/api/v1/brokers/${brokerId}/deals`);
-  const items = Array.isArray(res.data) ? res.data : (res.data.items ?? []);
+  const items = getResponseItems<BrokerDealDto>(normalizeApiKeys(res));
   return items.filter((item) => Boolean(item?.id)).map(mapBrokerDealDto);
 }
 
@@ -191,7 +222,7 @@ export async function assignBrokerDeal(input: AssignBrokerDealInput): Promise<Br
   if (input.dealAmount !== undefined) body["deal_amount"] = input.dealAmount;
 
   const res = await apiClient.post<{ data: BrokerDealDto }>("/api/v1/broker-deals", body);
-  return mapBrokerDealDto(res.data);
+  return mapBrokerDealDto(getResponseData<BrokerDealDto>(normalizeApiKeys(res)));
 }
 
 // ─── Invoices ─────────────────────────────────────────────────────────────────
@@ -201,7 +232,7 @@ export async function fetchInvoices(status?: string): Promise<Invoice[]> {
   if (status) query["status"] = status;
 
   const res = await apiClient.get<{ data: InvoiceDto[] | { items: InvoiceDto[]; pagination?: unknown } }>("/api/v1/invoices", query);
-  const items = Array.isArray(res.data) ? res.data : (res.data.items ?? []);
+  const items = getResponseItems<InvoiceDto>(normalizeApiKeys(res));
   return items.filter((item) => Boolean(item?.id)).map(mapInvoiceDto);
 }
 

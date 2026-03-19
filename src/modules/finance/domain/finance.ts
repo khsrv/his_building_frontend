@@ -1,6 +1,6 @@
 // ─── Finance Domain Types ─────────────────────────────────────────────────────
 
-export type AccountType = "cash" | "bank_account" | "card";
+export type AccountType = "bank_account" | "cash_register" | "mobile_wallet";
 export type TransactionType = "income" | "expense" | "transfer";
 export type PayeeType = "supplier" | "contractor" | "master" | "other";
 export type ReminderStatus = "pending" | "paid" | "cancelled";
@@ -66,6 +66,16 @@ export interface ReceivablesReport {
     readonly overdueAmount: number;
     readonly nextPaymentDate: string | null;
   }[];
+}
+
+export interface PropertyCostRow {
+  readonly categoryName: string;
+  readonly totalAmount: number;
+}
+
+export interface PropertyCostReport {
+  readonly items: readonly PropertyCostRow[];
+  readonly totalAmount: number;
 }
 
 export interface PayableReminder {

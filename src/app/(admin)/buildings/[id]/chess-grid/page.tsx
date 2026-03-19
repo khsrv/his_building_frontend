@@ -384,7 +384,7 @@ export default function ChessGridPage() {
             {selectedUnit ? (
               <Stack spacing={2}>
                 {/* Unit info grid */}
-                <div className="grid grid-cols-2 gap-3 rounded-xl border border-border bg-muted/30 p-4 text-sm">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 rounded-xl border border-border bg-muted/30 p-4 text-sm">
                   <div>
                     <p className="text-xs text-muted-foreground">Номер</p>
                     <p className="font-semibold">{selectedUnit.unitNumber}</p>

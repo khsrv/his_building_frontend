@@ -173,7 +173,7 @@ export default function BrokersPage() {
   ];
 
   return (
-    <main className="space-y-6 p-6">
+    <main className="space-y-6 p-4 md:p-6">
       <AppPageHeader
         title="Брокеры"
         subtitle="Управление брокерами и их сделками"

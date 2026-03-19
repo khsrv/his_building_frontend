@@ -48,9 +48,9 @@ import type { Account } from "@/modules/finance/domain/finance";
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const ACCOUNT_TYPE_OPTIONS = [
-  { value: "cash" as AccountType, label: "Касса" },
   { value: "bank_account" as AccountType, label: "Банковский счёт" },
-  { value: "card" as AccountType, label: "Карта" },
+  { value: "cash_register" as AccountType, label: "Касса" },
+  { value: "mobile_wallet" as AccountType, label: "Мобильный кошелёк" },
 ] as const;
 
 const CURRENCY_OPTIONS = [
@@ -60,7 +60,7 @@ const CURRENCY_OPTIONS = [
 ] as const;
 
 function accountTypeIcon(type: AccountType) {
-  if (type === "cash") return <CashIcon />;
+  if (type === "cash_register") return <CashIcon />;
   if (type === "bank_account") return <BankIcon />;
   return <MobileIcon />;
 }
@@ -195,7 +195,7 @@ export default function FinanceAccountsPage() {
   }
 
   return (
-    <main className="space-y-6 p-6">
+    <main className="space-y-6 p-4 md:p-6">
       <AppPageHeader
         title="Счета"
         {...(accounts ? { subtitle: `${accounts.length} счетов` } : {})}

@@ -91,11 +91,11 @@ interface PropertyFormState {
 
 const EMPTY_FORM: PropertyFormState = {
   name: "",
-  propertyType: "residential",
+  propertyType: "residential_complex",
   address: "",
   city: "",
   district: "",
-  currency: "TJS",
+  currency: "USD",
   constructionStartDate: "",
   constructionEndDate: "",
   description: "",
@@ -136,7 +136,7 @@ export default function BuildingsPage() {
     setEditingProperty(property);
     setForm({
       name: property.name,
-      propertyType: "residential",
+      propertyType: "residential_complex",
       address: property.address,
       city: property.city,
       district: "",
@@ -296,7 +296,7 @@ export default function BuildingsPage() {
 
   if (isChessView) {
     return (
-      <main className="space-y-6 p-6">
+      <main className="space-y-6 p-4 md:p-6">
         <AppPageHeader
           title="Шахматка объектов"
           subtitle="Визуализация квартир по всем объектам"
@@ -380,7 +380,7 @@ export default function BuildingsPage() {
   // ─── List view ──────────────────────────────────────────────────────
 
   return (
-    <main className="space-y-6 p-6">
+    <main className="space-y-6 p-4 md:p-6">
       <AppCrudPageScaffold
         header={
           <AppPageHeader
@@ -466,7 +466,7 @@ export default function BuildingsPage() {
             value={form.propertyType}
             onChange={(e) => setField("propertyType", e.target.value)}
             options={[
-              { label: "Жилой", value: "residential" },
+              { label: "Жилой комплекс", value: "residential_complex" },
               { label: "Коммерческий", value: "commercial" },
               { label: "Смешанный", value: "mixed" },
             ]}

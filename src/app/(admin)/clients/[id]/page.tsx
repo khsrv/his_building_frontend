@@ -283,7 +283,7 @@ function InfoTab({ clientId }: InfoTabProps) {
       {/* Manager assignment dialog */}
       {managerDialogOpen ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4">
-          <div className="w-full max-w-md rounded-xl border border-border bg-card p-6 shadow-xl">
+          <div className="w-full max-w-md rounded-xl border border-border bg-card p-4 md:p-6 shadow-xl">
             <h3 className="mb-4 text-lg font-semibold text-foreground">Назначить менеджера</h3>
             <AppSelect
               id="assign-manager"
@@ -292,7 +292,7 @@ function InfoTab({ clientId }: InfoTabProps) {
               value={selectedManagerId}
               onChange={(e) => setSelectedManagerId(e.target.value)}
             />
-            <div className="mt-4 grid grid-cols-2 gap-2">
+            <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-2">
               <AppButton
                 label="Отмена"
                 variant="outline"
@@ -414,7 +414,7 @@ export default function ClientDetailPage() {
   const { data: client, isLoading } = useClientDetailQuery(id);
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6 p-4 md:p-6">
       <AppPageHeader
         title={isLoading ? "Загрузка..." : (client?.fullName ?? "Клиент")}
         breadcrumbs={[

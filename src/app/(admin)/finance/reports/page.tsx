@@ -10,6 +10,7 @@ import {
   AppInput,
   AppKpiGrid,
   AppPageHeader,
+  AppSelect,
   AppStatePanel,
   AppTabs,
 } from "@/shared/ui";
@@ -17,7 +18,9 @@ import { routes } from "@/shared/constants/routes";
 import { useIncomeExpenseReportQuery } from "@/modules/finance/presentation/hooks/use-income-expense-report-query";
 import { useCashFlowReportQuery } from "@/modules/finance/presentation/hooks/use-cash-flow-report-query";
 import { useReceivablesReportQuery } from "@/modules/finance/presentation/hooks/use-receivables-report-query";
-import type { IncomeExpenseReportParams } from "@/modules/finance/domain/finance";
+import { usePropertyCostReportQuery } from "@/modules/finance/presentation/hooks/use-property-cost-report-query";
+import { usePropertiesListQuery } from "@/modules/properties/presentation/hooks/use-properties-list-query";
+import type { IncomeExpenseReportParams, PropertyCostRow } from "@/modules/finance/domain/finance";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -87,6 +90,23 @@ const receivablesColumns: readonly AppDataTableColumn<ReceivableRow>[] = [
     header: "След. платёж",
     cell: (row) => row.nextPaymentDate ?? "—",
     sortAccessor: (row) => row.nextPaymentDate ?? "",
+  },
+];
+
+const propertyCostColumns: readonly AppDataTableColumn<PropertyCostRow>[] = [
+  {
+    id: "categoryName",
+    header: "Категория",
+    cell: (row) => row.categoryName,
+    searchAccessor: (row) => row.categoryName,
+    sortAccessor: (row) => row.categoryName,
+  },
+  {
+    id: "totalAmount",
+    header: "Сумма",
+    cell: (row) => formatMoney(row.totalAmount),
+    sortAccessor: (row) => row.totalAmount,
+    align: "right",
   },
 ];
 
@@ -300,11 +320,82 @@ function ReceivablesTab() {
   );
 }
 
+function PropertyCostTab() {
+  const [propertyId, setPropertyId] = useState("");
+  const propertiesQuery = usePropertiesListQuery({ page: 1, limit: 200 });
+  const reportQuery = usePropertyCostReportQuery(propertyId || undefined);
+
+  const propertyOptions = [
+    { value: "", label: "Выберите объект" },
+    ...(propertiesQuery.data?.items ?? []).map((property) => ({
+      value: property.id,
+      label: property.name,
+    })),
+  ];
+
+  return (
+    <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
+      <Box sx={{ maxWidth: 360 }}>
+        <AppSelect
+          id="property-cost-property-select"
+          label="Объект"
+          value={propertyId}
+          options={propertyOptions}
+          onChange={(event: { target: { value: string } }) => setPropertyId(event.target.value)}
+        />
+      </Box>
+
+      {!propertyId ? (
+        <AppStatePanel
+          tone="empty"
+          title="Выберите объект"
+          description="Для просмотра себестоимости сначала выберите объект."
+        />
+      ) : reportQuery.isError ? (
+        <AppStatePanel
+          tone="error"
+          title="Ошибка загрузки"
+          description="Не удалось загрузить отчёт по себестоимости объекта."
+        />
+      ) : reportQuery.isLoading ? (
+        <AppStatePanel tone="empty" title="Загрузка..." description="Загружаем данные отчёта." />
+      ) : (
+        <>
+          <AppKpiGrid
+            columns={2}
+            items={[
+              {
+                title: "Итоговая себестоимость",
+                value: `${formatMoney(reportQuery.data?.totalAmount ?? 0)} сум`,
+                deltaTone: "warning",
+              },
+              {
+                title: "Категорий",
+                value: `${reportQuery.data?.items.length ?? 0}`,
+                deltaTone: "info",
+              },
+            ]}
+          />
+
+          <AppDataTable<PropertyCostRow>
+            data={[...(reportQuery.data?.items ?? [])]}
+            columns={propertyCostColumns}
+            rowKey={(row) => row.categoryName}
+            title="Себестоимость по категориям"
+            enableSettings={false}
+            searchPlaceholder="Поиск по категории..."
+          />
+        </>
+      )}
+    </Box>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function FinanceReportsPage() {
   return (
-    <main className="space-y-6 p-6">
+    <main className="space-y-6 p-4 md:p-6">
       <AppPageHeader
         title="Отчёты"
         breadcrumbs={[
@@ -319,6 +410,7 @@ export default function FinanceReportsPage() {
           { id: "income-expense", title: "Доходы/Расходы", content: <IncomeExpenseTab /> },
           { id: "cash-flow", title: "Движение денег", content: <CashFlowTab /> },
           { id: "receivables", title: "Дебиторка", content: <ReceivablesTab /> },
+          { id: "property-cost", title: "Себестоимость", content: <PropertyCostTab /> },
         ]}
       />
     </main>

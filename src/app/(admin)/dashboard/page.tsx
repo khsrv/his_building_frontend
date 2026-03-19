@@ -3,6 +3,7 @@
 import { useState, useMemo } from "react";
 import Link from "next/link";
 import {
+  AppButton,
   AppPageHeader,
   AppKpiGrid,
   AppChartWidget,
@@ -21,6 +22,7 @@ import { useDashboardSummaryQuery } from "@/modules/dashboard/presentation/hooks
 import { useDashboardSalesQuery } from "@/modules/dashboard/presentation/hooks/use-dashboard-sales-query";
 import { useDashboardManagerKpiQuery } from "@/modules/dashboard/presentation/hooks/use-dashboard-manager-kpi-query";
 import { useDashboardPropertiesQuery } from "@/modules/dashboard/presentation/hooks/use-dashboard-properties-query";
+import { useDashboardExportMutation } from "@/modules/dashboard/presentation/hooks/use-dashboard-export-mutation";
 
 // ─── Date helpers ─────────────────────────────────────────────────────────────
 
@@ -155,6 +157,7 @@ function KpiSkeleton() {
 
 export default function DashboardPage() {
   const [selectedPropertyId, setSelectedPropertyId] = useState<string>("");
+  const [exportNote, setExportNote] = useState<string | null>(null);
 
   const dateFrom = useMemo(() => getSixMonthsAgo(), []);
   const dateTo = useMemo(() => formatDate(new Date()), []);
@@ -165,6 +168,7 @@ export default function DashboardPage() {
   const summaryQuery = useDashboardSummaryQuery(activePropertyId);
   const salesQuery = useDashboardSalesQuery(dateFrom, dateTo, activePropertyId);
   const managerKpiQuery = useDashboardManagerKpiQuery();
+  const exportMutation = useDashboardExportMutation();
 
   // ─── Property filter options ──────────────────────────────────────────────
 
@@ -295,7 +299,7 @@ export default function DashboardPage() {
   const managerKpiData: readonly ManagerKpiItem[] = managerKpiQuery.data ?? [];
 
   return (
-    <main className="space-y-6 p-6">
+    <main className="space-y-6 p-4 md:p-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <AppPageHeader
           title="Панель управления"
@@ -312,6 +316,26 @@ export default function DashboardPage() {
               onChange={(e) => setSelectedPropertyId(e.target.value)}
             />
           </div>
+          <AppButton
+            label={exportMutation.isPending ? "Экспорт..." : "Экспорт"}
+            variant="outline"
+            onClick={() => {
+              const exportInput = activePropertyId
+                ? { format: "json" as const, propertyId: activePropertyId }
+                : { format: "json" as const };
+              exportMutation.mutate(
+                exportInput,
+                {
+                  onSuccess: (result) => {
+                    setExportNote(result.note || "Экспорт выполнен");
+                  },
+                  onError: () => {
+                    setExportNote("Не удалось выполнить экспорт");
+                  },
+                },
+              );
+            }}
+          />
           {activePropertyId ? (
             <Link
               href={routes.dashboardPropertyAnalytics(activePropertyId)}
@@ -322,6 +346,14 @@ export default function DashboardPage() {
           ) : null}
         </div>
       </div>
+
+      {exportNote ? (
+        <AppStatePanel
+          tone="empty"
+          title="Экспорт dashboard"
+          description={exportNote}
+        />
+      ) : null}
 
       {/* Primary KPI row */}
       {summaryQuery.isLoading ? (

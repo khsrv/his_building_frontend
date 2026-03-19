@@ -231,7 +231,7 @@ export default function PipelineSettingsPage() {
   );
 
   return (
-    <main className="space-y-6 p-6">
+    <main className="space-y-6 p-4 md:p-6">
       <AppPageHeader
         title="Этапы воронки"
         subtitle="Настройка этапов CRM-воронки продаж"

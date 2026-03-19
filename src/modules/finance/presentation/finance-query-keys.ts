@@ -27,6 +27,8 @@ export const financeKeys = {
     ["finance", "reports", "cash-flow", params] as const,
   receivablesReport: (propertyId?: string) =>
     ["finance", "reports", "receivables", propertyId] as const,
+  propertyCostReport: (propertyId?: string) =>
+    ["finance", "reports", "property-cost", propertyId] as const,
 
   // Payable reminders
   payableReminders: () => ["finance", "payable-reminders"] as const,

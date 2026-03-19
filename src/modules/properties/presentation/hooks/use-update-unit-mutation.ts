@@ -11,7 +11,7 @@ export function useUpdateUnitMutation(unitId: string) {
   return useMutation({
     mutationFn: (input: UpdateUnitInput) => updateUnit(unitId, input),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: propertyKeys.units() });
+      void queryClient.invalidateQueries({ queryKey: propertyKeys.unitsAll() });
       void queryClient.invalidateQueries({ queryKey: propertyKeys.unit(unitId) });
     },
   });

@@ -34,6 +34,9 @@ import { useBulkCreateUnitsMutation } from "@/modules/properties/presentation/ho
 import { useUpdateUnitMutation } from "@/modules/properties/presentation/hooks/use-update-unit-mutation";
 import { useDeleteUnitMutation } from "@/modules/properties/presentation/hooks/use-delete-unit-mutation";
 import { useFloorsQuery } from "@/modules/properties/presentation/hooks/use-floors-query";
+import { useCreateFloorMutation } from "@/modules/properties/presentation/hooks/use-create-floor-mutation";
+import { useDeleteFloorMutation } from "@/modules/properties/presentation/hooks/use-delete-floor-mutation";
+import { AppError } from "@/shared/lib/errors/app-error";
 import type {
   Property,
   PropertyStatus,
@@ -45,6 +48,7 @@ import type {
   CreateUnitInput,
   BulkCreateUnitsInput,
   UpdateUnitInput,
+  FloorInfo,
 } from "@/modules/properties/domain/property";
 
 // ─── Status helpers ──────────────────────────────────────────────────────────
@@ -214,6 +218,19 @@ export default function BuildingDetailPage() {
   const [bulkDrawerOpen, setBulkDrawerOpen] = useState(false);
   const [bulkForm, setBulkForm] = useState<BulkUnitFormState>(EMPTY_BULK_FORM);
 
+  // ─── Floor tab state ─────────────────────────────────────────────
+  const [floorTabBlockId, setFloorTabBlockId] = useState("");
+  const [floorDrawerOpen, setFloorDrawerOpen] = useState(false);
+  const [floorNumber, setFloorNumber] = useState("");
+  const [deleteFloorTarget, setDeleteFloorTarget] = useState<FloorInfo | null>(null);
+  const [floorDeleteError, setFloorDeleteError] = useState<string | null>(null);
+
+  // ─── Floor tab queries & mutations ──────────────────────────────
+  const floorTabQuery = useFloorsQuery(propertyId, floorTabBlockId);
+  const floorTabFloors = floorTabQuery.data ?? [];
+  const createFloorMutation = useCreateFloorMutation(propertyId, floorTabBlockId);
+  const deleteFloorMutation = useDeleteFloorMutation(propertyId, floorTabBlockId);
+
   // ─── Floor query for unit forms ────────────────────────────────────
   const selectedBlockIdForUnit = unitDrawerOpen ? unitForm.blockId : bulkForm.blockId;
   const floorsQuery = useFloorsQuery(propertyId, selectedBlockIdForUnit);
@@ -377,13 +394,42 @@ export default function BuildingDetailPage() {
     });
   };
 
+  // ─── Floor handlers ──────────────────────────────────────────────
+  const handleSaveFloor = () => {
+    const num = Number(floorNumber);
+    if (!num) return;
+    createFloorMutation.mutate(num, {
+      onSuccess: () => {
+        setFloorDrawerOpen(false);
+        setFloorNumber("");
+      },
+    });
+  };
+
+  const handleDeleteFloor = () => {
+    if (!deleteFloorTarget) return;
+    setFloorDeleteError(null);
+    deleteFloorMutation.mutate(deleteFloorTarget.id, {
+      onSuccess: () => {
+        setDeleteFloorTarget(null);
+      },
+      onError: (error: unknown) => {
+        if (error instanceof AppError && error.status === 409) {
+          setFloorDeleteError("Сначала удалите квартиры с этого этажа");
+        } else {
+          setDeleteFloorTarget(null);
+        }
+      },
+    });
+  };
+
   // ─── Loading / error ───────────────────────────────────────────────
 
   if (propertyQuery.isLoading) {
     return (
-      <div className="space-y-6 p-6">
+      <div className="space-y-6 p-4 md:p-6">
         <ShimmerBox className="h-8 w-60" />
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:grid-cols-4">
           {Array.from({ length: 4 }, (_, i) => (
             <ShimmerBox key={i} className="h-20 rounded-xl" />
           ))}
@@ -395,7 +441,7 @@ export default function BuildingDetailPage() {
 
   if (propertyQuery.isError || !property) {
     return (
-      <div className="p-6">
+      <div className="p-4 md:p-6">
         <AppStatePanel
           tone="error"
           title="Ошибка загрузки"
@@ -455,6 +501,48 @@ export default function BuildingDetailPage() {
     },
   ];
 
+  // ─── Floor table columns ───────────────────────────────────────────
+
+  const floorColumns: readonly AppDataTableColumn<FloorInfo>[] = [
+    {
+      id: "floorNumber",
+      header: "Номер этажа",
+      cell: (row) => row.floorNumber,
+      sortAccessor: (row) => row.floorNumber,
+    },
+    {
+      id: "unitsCount",
+      header: "Квартиры",
+      cell: (row) => row.unitsCount,
+      sortAccessor: (row) => row.unitsCount,
+      align: "center",
+    },
+    {
+      id: "actions",
+      header: "",
+      cell: (row) => {
+        const groups: readonly AppActionMenuGroup[] = [
+          {
+            id: "danger",
+            items: [
+              {
+                id: "delete",
+                label: "Удалить",
+                destructive: true,
+                onClick: () => {
+                  setFloorDeleteError(null);
+                  setDeleteFloorTarget(row);
+                },
+              },
+            ],
+          },
+        ];
+        return <AppActionMenu triggerLabel="Действия" groups={groups} />;
+      },
+      align: "right",
+    },
+  ];
+
   // ─── Unit table columns ────────────────────────────────────────────
 
   const unitColumns: readonly AppDataTableColumn<Unit>[] = [
@@ -486,14 +574,14 @@ export default function BuildingDetailPage() {
     {
       id: "totalArea",
       header: "Площадь, м²",
-      cell: (row) => row.totalArea !== null ? row.totalArea.toLocaleString("ru-RU") : "—",
+      cell: (row) => row.totalArea != null ? row.totalArea.toLocaleString("ru-RU") : "—",
       sortAccessor: (row) => row.totalArea ?? 0,
       align: "right",
     },
     {
       id: "basePrice",
       header: "Цена",
-      cell: (row) => row.basePrice !== null ? row.basePrice.toLocaleString("ru-RU") : "—",
+      cell: (row) => row.basePrice != null ? row.basePrice.toLocaleString("ru-RU") : "—",
       sortAccessor: (row) => row.basePrice ?? 0,
       align: "right",
     },
@@ -546,7 +634,7 @@ export default function BuildingDetailPage() {
   const freeCount = units.filter((u) => u.status === "available").length;
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6 p-4 md:p-6">
       <AppPageHeader
         title={property.name}
         breadcrumbs={[
@@ -655,6 +743,63 @@ export default function BuildingDetailPage() {
                     columns={blockColumns}
                     rowKey={(row) => row.id}
                     title="Блоки"
+                  />
+                )}
+              </div>
+            ),
+          },
+          {
+            id: "floors",
+            title: "Этажи",
+            content: (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="w-64">
+                    <AppSelect
+                      label="Блок"
+                      value={floorTabBlockId}
+                      onChange={(e) => setFloorTabBlockId(e.target.value)}
+                      options={blockOptions}
+                    />
+                  </div>
+                  {floorTabBlockId && (
+                    <AppButton
+                      label="Добавить этаж"
+                      variant="primary"
+                      size="sm"
+                      onClick={() => {
+                        setFloorNumber("");
+                        setFloorDrawerOpen(true);
+                      }}
+                    />
+                  )}
+                </div>
+                {!floorTabBlockId ? (
+                  <AppStatePanel
+                    tone="empty"
+                    title="Выберите блок"
+                    description="Выберите блок, чтобы увидеть этажи."
+                  />
+                ) : floorTabQuery.isLoading ? (
+                  <ShimmerBox className="h-40 w-full rounded-xl" />
+                ) : floorTabQuery.isError ? (
+                  <AppStatePanel
+                    tone="error"
+                    title="Ошибка загрузки"
+                    description="Не удалось загрузить этажи."
+                  />
+                ) : floorTabFloors.length === 0 ? (
+                  <AppStatePanel
+                    tone="empty"
+                    title="Нет этажей"
+                    description="Добавьте первый этаж для этого блока."
+                  />
+                ) : (
+                  <AppDataTable<FloorInfo>
+                    data={floorTabFloors}
+                    columns={floorColumns}
+                    rowKey={(row) => row.id}
+                    title="Этажи"
                   />
                 )}
               </div>
@@ -1028,6 +1173,54 @@ export default function BuildingDetailPage() {
         destructive
         onConfirm={handleDeleteUnit}
         onClose={() => setDeleteUnitTarget(null)}
+      />
+
+      {/* Floor drawer */}
+      <AppDrawerForm
+        open={floorDrawerOpen}
+        title="Добавить этаж"
+        saveLabel="Создать"
+        cancelLabel="Отмена"
+        isSaving={createFloorMutation.isPending}
+        saveDisabled={!floorNumber || Number(floorNumber) === 0}
+        onClose={() => setFloorDrawerOpen(false)}
+        onSave={handleSaveFloor}
+      >
+        <div className="space-y-4">
+          <AppInput
+            label="Номер этажа"
+            type="number"
+            value={floorNumber}
+            onChange={(e) => setFloorNumber(e.target.value)}
+            required
+          />
+        </div>
+      </AppDrawerForm>
+
+      {/* Delete floor confirm */}
+      <ConfirmDialog
+        open={deleteFloorTarget !== null}
+        title={floorDeleteError ? "Невозможно удалить этаж" : "Удалить этаж?"}
+        message={
+          floorDeleteError
+            ? floorDeleteError
+            : `Вы уверены, что хотите удалить этаж ${deleteFloorTarget?.floorNumber ?? ""}?`
+        }
+        confirmText={floorDeleteError ? "Понятно" : "Удалить"}
+        cancelText="Отмена"
+        destructive={!floorDeleteError}
+        onConfirm={
+          floorDeleteError
+            ? () => {
+                setDeleteFloorTarget(null);
+                setFloorDeleteError(null);
+              }
+            : handleDeleteFloor
+        }
+        onClose={() => {
+          setDeleteFloorTarget(null);
+          setFloorDeleteError(null);
+        }}
       />
     </div>
   );

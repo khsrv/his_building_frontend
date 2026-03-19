@@ -60,7 +60,7 @@ export default function ExchangeRatesPage() {
   const otherRates = data?.rates.filter((r) => !PRIORITY_CODES.includes(r.code)) ?? [];
 
   return (
-    <main className="space-y-6 p-6">
+    <main className="space-y-6 p-4 md:p-6">
       <AppPageHeader
         title="Курсы валют"
         subtitle={data ? `Нацбанк Таджикистана · ${formatDate(data.date)}` : "Нацбанк Таджикистана"}

@@ -1,8 +1,15 @@
 import { apiClient } from "@/shared/lib/http/api-client";
+import {
+  getResponseData,
+  getResponseItems,
+  getResponsePagination,
+  normalizeApiKeys,
+} from "@/shared/lib/http/api-response";
 import type {
   Supplier,
   SupplierBalance,
   SupplierPayment,
+  SupplierStatementItem,
   Material,
   StockMovement,
   MaterialUnit,
@@ -18,79 +25,96 @@ import type {
   StockMovementsListParams,
 } from "@/modules/warehouse/domain/warehouse";
 
-// ─── DTOs (PascalCase — matches backend API) ────────────────────────────────
+// ─── DTOs (snake_case — matches backend API) ────────────────────────────────
 
 interface SupplierDto {
-  ID: string;
-  Name: string;
-  ContactPerson: string | null;
-  Phone: string | null;
-  Email: string | null;
-  Address: string | null;
-  Notes: string | null;
-  IsActive: boolean;
-  TotalPurchased: number;
-  TotalPaid: number;
-  CreatedAt: string;
-  UpdatedAt: string;
-  DeletedAt: string | null;
+  id: string;
+  name: string;
+  contact_person: string | null;
+  phone: string | null;
+  email: string | null;
+  address: string | null;
+  notes: string | null;
+  is_active: boolean;
+  total_purchased: number;
+  total_paid: number;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
 }
 
 interface SupplierBalanceDto {
-  SupplierID: string;
-  SupplierName: string;
-  TotalPurchases: number;
-  TotalPaid: number;
-  Balance: number;
+  supplier_id: string;
+  supplier_name: string;
+  total_purchases?: number;
+  total_purchased?: number;
+  total_paid: number;
+  balance: number;
 }
 
 interface SupplierPaymentDto {
-  ID: string;
-  Amount: number;
-  Currency: string;
-  Notes: string | null;
-  PaidAt: string;
-  CreatedByName: string;
+  id: string;
+  amount: number;
+  currency: string;
+  notes: string | null;
+  paid_at?: string;
+  payment_date?: string;
+  created_at?: string;
+  created_by_name?: string;
+  paid_by?: string;
+}
+
+interface SupplierStatementDto {
+  date: string;
+  type: string;
+  description: string;
+  amount: number;
+  running_debt: number;
 }
 
 interface MaterialDto {
-  ID: string;
-  Name: string;
-  SKU: string | null;
-  Unit: string;
-  CurrentStock: number;
-  MinStock: number;
-  PricePerUnit: number | null;
-  Currency: string | null;
-  CategoryID: string | null;
-  Notes: string | null;
-  CreatedAt: string;
-  UpdatedAt: string;
-  DeletedAt: string | null;
+  id: string;
+  name: string;
+  sku: string | null;
+  unit: string;
+  current_stock: number;
+  min_stock: number;
+  price_per_unit: number | null;
+  currency: string | null;
+  category_id: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
 }
 
 interface StockMovementDto {
-  ID: string;
-  MaterialID: string;
-  MaterialName: string;
-  MaterialUnit: string;
-  Type: string;
-  Quantity: number;
-  UnitPrice: number | null;
-  TotalAmount: number | null;
-  SupplierID: string | null;
-  SupplierName: string | null;
-  PropertyID: string | null;
-  PropertyName: string | null;
-  Notes: string | null;
-  CreatedAt: string;
-  CreatedByName: string;
+  id: string;
+  material_id: string;
+  material_name?: string;
+  material_unit?: string;
+  unit?: string;
+  type?: string;
+  movement_type?: string;
+  quantity: number;
+  unit_price?: number | null;
+  price_per_unit?: number | null;
+  total_amount: number | null;
+  supplier_id: string | null;
+  supplier_name?: string | null;
+  property_id: string | null;
+  property_name?: string | null;
+  notes: string | null;
+  created_at?: string;
+  movement_date?: string;
+  created_by_name?: string;
+  created_by?: string;
 }
 
 interface PaginatedResponseDto<T> {
   data: {
     items: T[];
-    pagination: { total: number; page: number; limit: number };
+    pagination?: { total: number; page: number; limit: number };
   };
 }
 
@@ -126,77 +150,87 @@ function toMovementType(value: string): StockMovementType {
 
 function mapSupplierDto(dto: SupplierDto): Supplier {
   return {
-    id: dto.ID,
-    name: dto.Name,
-    contactPerson: dto.ContactPerson,
-    phone: dto.Phone,
-    email: dto.Email,
-    address: dto.Address,
-    notes: dto.Notes,
-    isActive: dto.IsActive,
-    totalPurchased: dto.TotalPurchased,
-    totalPaid: dto.TotalPaid,
-    createdAt: dto.CreatedAt,
-    updatedAt: dto.UpdatedAt,
+    id: dto.id,
+    name: dto.name,
+    contactPerson: dto.contact_person,
+    phone: dto.phone,
+    email: dto.email,
+    address: dto.address,
+    notes: dto.notes,
+    isActive: dto.is_active,
+    totalPurchased: dto.total_purchased,
+    totalPaid: dto.total_paid,
+    createdAt: dto.created_at,
+    updatedAt: dto.updated_at,
   };
 }
 
 function mapSupplierBalanceDto(dto: SupplierBalanceDto): SupplierBalance {
   return {
-    supplierId: dto.SupplierID,
-    supplierName: dto.SupplierName,
-    totalPurchases: dto.TotalPurchases,
-    totalPaid: dto.TotalPaid,
-    balance: dto.Balance,
+    supplierId: dto.supplier_id,
+    supplierName: dto.supplier_name,
+    totalPurchases: dto.total_purchases ?? dto.total_purchased ?? 0,
+    totalPaid: dto.total_paid ?? 0,
+    balance: dto.balance ?? 0,
   };
 }
 
 function mapSupplierPaymentDto(dto: SupplierPaymentDto): SupplierPayment {
   return {
-    id: dto.ID,
-    amount: dto.Amount,
-    currency: dto.Currency,
-    notes: dto.Notes,
-    paidAt: dto.PaidAt,
-    createdByName: dto.CreatedByName,
+    id: dto.id,
+    amount: dto.amount,
+    currency: dto.currency,
+    notes: dto.notes,
+    paidAt: dto.paid_at ?? dto.payment_date ?? dto.created_at ?? "",
+    createdByName: dto.created_by_name ?? dto.paid_by ?? "",
+  };
+}
+
+function mapSupplierStatementDto(dto: SupplierStatementDto): SupplierStatementItem {
+  return {
+    date: dto.date,
+    type: dto.type,
+    description: dto.description,
+    amount: Number(dto.amount ?? 0),
+    runningDebt: Number(dto.running_debt ?? 0),
   };
 }
 
 function mapMaterialDto(dto: MaterialDto): Material {
   return {
-    id: dto.ID,
-    name: dto.Name,
-    sku: dto.SKU,
-    unit: toMaterialUnit(dto.Unit),
-    currentStock: dto.CurrentStock,
-    minStock: dto.MinStock,
-    pricePerUnit: dto.PricePerUnit,
-    currency: dto.Currency,
-    categoryId: dto.CategoryID,
-    notes: dto.Notes,
-    description: dto.Notes,
-    createdAt: dto.CreatedAt,
-    updatedAt: dto.UpdatedAt,
+    id: dto.id,
+    name: dto.name,
+    sku: dto.sku,
+    unit: toMaterialUnit(dto.unit),
+    currentStock: dto.current_stock,
+    minStock: dto.min_stock,
+    pricePerUnit: dto.price_per_unit,
+    currency: dto.currency,
+    categoryId: dto.category_id,
+    notes: dto.notes,
+    description: dto.notes,
+    createdAt: dto.created_at,
+    updatedAt: dto.updated_at,
   };
 }
 
 function mapStockMovementDto(dto: StockMovementDto): StockMovement {
   return {
-    id: dto.ID,
-    materialId: dto.MaterialID,
-    materialName: dto.MaterialName,
-    materialUnit: toMaterialUnit(dto.MaterialUnit),
-    type: toMovementType(dto.Type),
-    quantity: dto.Quantity,
-    unitPrice: dto.UnitPrice,
-    totalAmount: dto.TotalAmount,
-    supplierId: dto.SupplierID,
-    supplierName: dto.SupplierName,
-    propertyId: dto.PropertyID,
-    propertyName: dto.PropertyName,
-    notes: dto.Notes,
-    createdAt: dto.CreatedAt,
-    createdByName: dto.CreatedByName,
+    id: dto.id,
+    materialId: dto.material_id,
+    materialName: dto.material_name ?? "",
+    materialUnit: toMaterialUnit(dto.material_unit ?? dto.unit ?? "piece"),
+    type: toMovementType(dto.type ?? dto.movement_type ?? "income"),
+    quantity: dto.quantity,
+    unitPrice: dto.unit_price ?? dto.price_per_unit ?? null,
+    totalAmount: dto.total_amount,
+    supplierId: dto.supplier_id,
+    supplierName: dto.supplier_name ?? null,
+    propertyId: dto.property_id,
+    propertyName: dto.property_name ?? null,
+    notes: dto.notes,
+    createdAt: dto.created_at ?? dto.movement_date ?? "",
+    createdByName: dto.created_by_name ?? dto.created_by ?? "",
   };
 }
 
@@ -238,24 +272,29 @@ export async function fetchSuppliersList(
     "/api/v1/suppliers",
     query,
   );
+  const normalized = normalizeApiKeys(res);
+  const items = getResponseItems<SupplierDto>(normalized)
+    .filter((item) => Boolean(item?.id))
+    .map(mapSupplierDto);
+  const pagination = getResponsePagination(normalized);
   return {
-    items: (res.data.items ?? []).filter((item) => Boolean(item?.ID)).map(mapSupplierDto),
-    total: res.data.pagination.total,
-    page: res.data.pagination.page,
-    limit: res.data.pagination.limit,
+    items,
+    total: pagination?.total ?? items.length,
+    page: pagination?.page ?? (params?.page ?? 1),
+    limit: pagination?.limit ?? (params?.limit ?? 20),
   };
 }
 
 export async function createSupplier(input: CreateSupplierInput): Promise<Supplier> {
-  const body: Record<string, unknown> = { Name: input.name };
-  if (input.contactPerson !== undefined) body["ContactPerson"] = input.contactPerson;
-  if (input.phone !== undefined) body["Phone"] = input.phone;
-  if (input.email !== undefined) body["Email"] = input.email;
-  if (input.address !== undefined) body["Address"] = input.address;
-  if (input.notes !== undefined) body["Notes"] = input.notes;
+  const body: Record<string, unknown> = { name: input.name };
+  if (input.contactPerson !== undefined) body["contact_person"] = input.contactPerson;
+  if (input.phone !== undefined) body["phone"] = input.phone;
+  if (input.email !== undefined) body["email"] = input.email;
+  if (input.address !== undefined) body["address"] = input.address;
+  if (input.notes !== undefined) body["notes"] = input.notes;
 
   const res = await apiClient.post<SingleResponseDto<SupplierDto>>("/api/v1/suppliers", body);
-  return mapSupplierDto(res.data);
+  return mapSupplierDto(getResponseData<SupplierDto>(normalizeApiKeys(res)));
 }
 
 export async function updateSupplier(
@@ -263,32 +302,47 @@ export async function updateSupplier(
   input: UpdateSupplierInput,
 ): Promise<Supplier> {
   const body: Record<string, unknown> = {};
-  if (input.name !== undefined) body["Name"] = input.name;
-  if (input.contactPerson !== undefined) body["ContactPerson"] = input.contactPerson;
-  if (input.phone !== undefined) body["Phone"] = input.phone;
-  if (input.email !== undefined) body["Email"] = input.email;
-  if (input.address !== undefined) body["Address"] = input.address;
-  if (input.notes !== undefined) body["Notes"] = input.notes;
+  if (input.name !== undefined) body["name"] = input.name;
+  if (input.contactPerson !== undefined) body["contact_person"] = input.contactPerson;
+  if (input.phone !== undefined) body["phone"] = input.phone;
+  if (input.email !== undefined) body["email"] = input.email;
+  if (input.address !== undefined) body["address"] = input.address;
+  if (input.notes !== undefined) body["notes"] = input.notes;
 
   const res = await apiClient.patch<SingleResponseDto<SupplierDto>>(
     `/api/v1/suppliers/${id}`,
     body,
   );
-  return mapSupplierDto(res.data);
+  return mapSupplierDto(getResponseData<SupplierDto>(normalizeApiKeys(res)));
 }
 
 export async function fetchSupplierBalance(id: string): Promise<SupplierBalance> {
   const res = await apiClient.get<SingleResponseDto<SupplierBalanceDto>>(
     `/api/v1/suppliers/${id}/balance`,
   );
-  return mapSupplierBalanceDto(res.data);
+  return mapSupplierBalanceDto(getResponseData<SupplierBalanceDto>(normalizeApiKeys(res)));
 }
 
 export async function fetchSupplierPayments(id: string): Promise<SupplierPayment[]> {
   const res = await apiClient.get<ListResponseDto<SupplierPaymentDto>>(
     `/api/v1/suppliers/${id}/payments`,
   );
-  return (res.data.items ?? []).filter((item) => Boolean(item?.ID)).map(mapSupplierPaymentDto);
+  const items = getResponseItems<SupplierPaymentDto>(normalizeApiKeys(res));
+  return items.filter((item) => Boolean(item?.id)).map(mapSupplierPaymentDto);
+}
+
+export async function fetchSupplierStatement(id: string): Promise<SupplierStatementItem[]> {
+  const res = await apiClient.get<ListResponseDto<SupplierStatementDto>>(
+    `/api/v1/suppliers/${id}/statement`,
+  );
+  const items = getResponseItems<SupplierStatementDto>(normalizeApiKeys(res));
+  return items.map(mapSupplierStatementDto);
+}
+
+export async function fetchAllSupplierBalances(): Promise<SupplierBalance[]> {
+  const res = await apiClient.get<ListResponseDto<SupplierBalanceDto>>("/api/v1/supplier-balances");
+  const items = getResponseItems<SupplierBalanceDto>(normalizeApiKeys(res));
+  return items.map(mapSupplierBalanceDto);
 }
 
 export async function createSupplierPayment(
@@ -296,17 +350,17 @@ export async function createSupplierPayment(
   input: CreateSupplierPaymentInput,
 ): Promise<SupplierPayment> {
   const body: Record<string, unknown> = {
-    Amount: input.amount,
-    Currency: input.currency,
+    amount: input.amount,
+    currency: input.currency,
   };
-  if (input.accountId !== undefined) body["AccountID"] = input.accountId;
-  if (input.notes !== undefined) body["Notes"] = input.notes;
+  if (input.accountId !== undefined) body["account_id"] = input.accountId;
+  if (input.notes !== undefined) body["notes"] = input.notes;
 
   const res = await apiClient.post<SingleResponseDto<SupplierPaymentDto>>(
     `/api/v1/suppliers/${supplierId}/payments`,
     body,
   );
-  return mapSupplierPaymentDto(res.data);
+  return mapSupplierPaymentDto(getResponseData<SupplierPaymentDto>(normalizeApiKeys(res)));
 }
 
 export async function fetchMaterialsList(
@@ -322,28 +376,33 @@ export async function fetchMaterialsList(
     "/api/v1/materials",
     query,
   );
+  const normalized = normalizeApiKeys(res);
+  const items = getResponseItems<MaterialDto>(normalized)
+    .filter((item) => Boolean(item?.id))
+    .map(mapMaterialDto);
+  const pagination = getResponsePagination(normalized);
   return {
-    items: (res.data.items ?? []).filter((item) => Boolean(item?.ID)).map(mapMaterialDto),
-    total: res.data.pagination.total,
-    page: res.data.pagination.page,
-    limit: res.data.pagination.limit,
+    items,
+    total: pagination?.total ?? items.length,
+    page: pagination?.page ?? (params?.page ?? 1),
+    limit: pagination?.limit ?? (params?.limit ?? 20),
   };
 }
 
 export async function createMaterial(input: CreateMaterialInput): Promise<Material> {
   const body: Record<string, unknown> = {
-    Name: input.name,
-    Unit: input.unit,
+    name: input.name,
+    unit: input.unit,
   };
-  if (input.sku !== undefined) body["SKU"] = input.sku;
-  if (input.minStock !== undefined) body["MinStock"] = input.minStock;
-  if (input.pricePerUnit !== undefined) body["PricePerUnit"] = input.pricePerUnit;
-  if (input.currency !== undefined) body["Currency"] = input.currency;
-  if (input.categoryId !== undefined) body["CategoryID"] = input.categoryId;
-  if (input.notes !== undefined) body["Notes"] = input.notes;
+  if (input.sku !== undefined) body["sku"] = input.sku;
+  if (input.minStock !== undefined) body["min_stock"] = input.minStock;
+  if (input.pricePerUnit !== undefined) body["price_per_unit"] = input.pricePerUnit;
+  if (input.currency !== undefined) body["currency"] = input.currency;
+  if (input.categoryId !== undefined) body["category_id"] = input.categoryId;
+  if (input.notes !== undefined) body["notes"] = input.notes;
 
   const res = await apiClient.post<SingleResponseDto<MaterialDto>>("/api/v1/materials", body);
-  return mapMaterialDto(res.data);
+  return mapMaterialDto(getResponseData<MaterialDto>(normalizeApiKeys(res)));
 }
 
 export async function updateMaterial(
@@ -351,20 +410,20 @@ export async function updateMaterial(
   input: UpdateMaterialInput,
 ): Promise<Material> {
   const body: Record<string, unknown> = {};
-  if (input.name !== undefined) body["Name"] = input.name;
-  if (input.unit !== undefined) body["Unit"] = input.unit;
-  if (input.sku !== undefined) body["SKU"] = input.sku;
-  if (input.minStock !== undefined) body["MinStock"] = input.minStock;
-  if (input.pricePerUnit !== undefined) body["PricePerUnit"] = input.pricePerUnit;
-  if (input.currency !== undefined) body["Currency"] = input.currency;
-  if (input.categoryId !== undefined) body["CategoryID"] = input.categoryId;
-  if (input.notes !== undefined) body["Notes"] = input.notes;
+  if (input.name !== undefined) body["name"] = input.name;
+  if (input.unit !== undefined) body["unit"] = input.unit;
+  if (input.sku !== undefined) body["sku"] = input.sku;
+  if (input.minStock !== undefined) body["min_stock"] = input.minStock;
+  if (input.pricePerUnit !== undefined) body["price_per_unit"] = input.pricePerUnit;
+  if (input.currency !== undefined) body["currency"] = input.currency;
+  if (input.categoryId !== undefined) body["category_id"] = input.categoryId;
+  if (input.notes !== undefined) body["notes"] = input.notes;
 
   const res = await apiClient.patch<SingleResponseDto<MaterialDto>>(
     `/api/v1/materials/${id}`,
     body,
   );
-  return mapMaterialDto(res.data);
+  return mapMaterialDto(getResponseData<MaterialDto>(normalizeApiKeys(res)));
 }
 
 export async function deleteMaterial(id: string): Promise<void> {
@@ -386,11 +445,16 @@ export async function fetchStockMovementsList(
     "/api/v1/stock-movements",
     query,
   );
+  const normalized = normalizeApiKeys(res);
+  const items = getResponseItems<StockMovementDto>(normalized)
+    .filter((item) => Boolean(item?.id))
+    .map(mapStockMovementDto);
+  const pagination = getResponsePagination(normalized);
   return {
-    items: (res.data.items ?? []).filter((item) => Boolean(item?.ID)).map(mapStockMovementDto),
-    total: res.data.pagination.total,
-    page: res.data.pagination.page,
-    limit: res.data.pagination.limit,
+    items,
+    total: pagination?.total ?? items.length,
+    page: pagination?.page ?? (params?.page ?? 1),
+    limit: pagination?.limit ?? (params?.limit ?? 20),
   };
 }
 
@@ -398,18 +462,18 @@ export async function createStockMovement(
   input: CreateStockMovementInput,
 ): Promise<StockMovement> {
   const body: Record<string, unknown> = {
-    MaterialID: input.materialId,
-    Type: input.type,
-    Quantity: input.quantity,
+    material_id: input.materialId,
+    movement_type: input.type,
+    quantity: input.quantity,
   };
-  if (input.unitPrice !== undefined) body["UnitPrice"] = input.unitPrice;
-  if (input.supplierId !== undefined) body["SupplierID"] = input.supplierId;
-  if (input.propertyId !== undefined) body["PropertyID"] = input.propertyId;
-  if (input.notes !== undefined) body["Notes"] = input.notes;
+  if (input.unitPrice !== undefined) body["price_per_unit"] = input.unitPrice;
+  if (input.supplierId !== undefined) body["supplier_id"] = input.supplierId;
+  if (input.propertyId !== undefined) body["property_id"] = input.propertyId;
+  if (input.notes !== undefined) body["notes"] = input.notes;
 
   const res = await apiClient.post<SingleResponseDto<StockMovementDto>>(
     "/api/v1/stock-movements",
     body,
   );
-  return mapStockMovementDto(res.data);
+  return mapStockMovementDto(getResponseData<StockMovementDto>(normalizeApiKeys(res)));
 }

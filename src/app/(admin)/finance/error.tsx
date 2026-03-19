@@ -14,7 +14,7 @@ export default function FinanceError({ error, reset }: FinanceErrorProps) {
   }, [reset]);
 
   return (
-    <div className="flex min-h-[60vh] items-center justify-center p-6">
+    <div className="flex min-h-[60vh] items-center justify-center p-4 md:p-6">
       <AppStatePanel
         actionLabel="Попробовать снова"
         description={error.digest ? `Код ошибки: ${error.digest}` : "Ошибка в финансовом модуле. Обновите страницу или обратитесь к администратору."}

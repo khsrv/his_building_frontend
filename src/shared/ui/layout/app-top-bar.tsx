@@ -137,9 +137,9 @@ export function AppTopBar({ leftSlot, actions = [], profile, className }: AppTop
   };
 
   return (
-    <Paper className={className} sx={{ borderRadius: 1.5, p: 1 }}>
-      <Stack alignItems="center" direction="row" flexWrap="wrap" gap={1}>
-        <Box sx={{ mr: "auto" }}>{leftSlot}</Box>
+    <Paper className={className} sx={{ borderRadius: 1.5, p: { xs: 0.75, sm: 1 } }}>
+      <Stack alignItems="center" direction="row" flexWrap="wrap" gap={{ xs: 0.5, sm: 1 }}>
+        <Box sx={{ minWidth: 0, mr: "auto" }}>{leftSlot}</Box>
 
         {actions.map((action) => {
           const hasMenu = Boolean(action.menuItems && action.menuItems.length > 0);
@@ -160,9 +160,9 @@ export function AppTopBar({ leftSlot, actions = [], profile, className }: AppTop
                   color={selected ? "primary" : "default"}
                   onClick={(event) => openMenu(action.id, event)}
                   sx={{
-                    height: 38,
-                    minWidth: action.label ? 66 : 38,
-                    px: action.label ? 1.2 : 0,
+                    height: { xs: 34, sm: 38 },
+                    minWidth: { xs: action.label ? 54 : 34, sm: action.label ? 66 : 38 },
+                    px: { xs: action.label ? 0.75 : 0, sm: action.label ? 1.2 : 0 },
                     bgcolor: selected ? "primary.light" : "transparent",
                     borderRadius: 1.25,
                   }}
@@ -192,9 +192,9 @@ export function AppTopBar({ leftSlot, actions = [], profile, className }: AppTop
                 href={action.href}
                 key={action.id}
                 sx={{
-                  height: 38,
-                  minWidth: action.label ? 66 : 38,
-                  px: action.label ? 1.2 : 0,
+                  height: { xs: 34, sm: 38 },
+                  minWidth: { xs: action.label ? 54 : 34, sm: action.label ? 66 : 38 },
+                  px: { xs: action.label ? 0.75 : 0, sm: action.label ? 1.2 : 0 },
                   borderRadius: 1.25,
                   bgcolor: selected ? "primary.light" : "transparent",
                 }}
@@ -212,9 +212,9 @@ export function AppTopBar({ leftSlot, actions = [], profile, className }: AppTop
               key={action.id}
               onClick={action.onClick}
               sx={{
-                height: 38,
-                minWidth: action.label ? 66 : 38,
-                px: action.label ? 1.2 : 0,
+                height: { xs: 34, sm: 38 },
+                minWidth: { xs: action.label ? 54 : 34, sm: action.label ? 66 : 38 },
+                px: { xs: action.label ? 0.75 : 0, sm: action.label ? 1.2 : 0 },
                 borderRadius: 1.25,
                 bgcolor: selected ? "primary.light" : "transparent",
               }}
@@ -240,6 +240,7 @@ export function AppTopBar({ leftSlot, actions = [], profile, className }: AppTop
                 borderRadius: 1.25,
                 px: 0.75,
                 py: 0.35,
+                maxWidth: { xs: "100%", sm: 240 },
                 "&:hover": { bgcolor: "action.hover" },
               }}
             >
@@ -260,7 +261,7 @@ export function AppTopBar({ leftSlot, actions = [], profile, className }: AppTop
                   </Avatar>
                 </Badge>
 
-                <Box sx={{ minWidth: 0, textAlign: "left" }}>
+                <Box sx={{ minWidth: 0, textAlign: "left", display: { xs: "none", sm: "block" } }}>
                   <Typography noWrap variant="subtitle1">
                     {profile.name}
                   </Typography>

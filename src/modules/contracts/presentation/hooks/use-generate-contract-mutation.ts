@@ -5,7 +5,7 @@ import { generateContract } from "@/modules/contracts/infrastructure/contracts-r
 
 export function useGenerateContractMutation() {
   return useMutation({
-    mutationFn: ({ dealId, templateId }: { dealId: string; templateId: string }) =>
+    mutationFn: ({ dealId, templateId }: { dealId: string; templateId?: string }) =>
       generateContract(dealId, templateId),
   });
 }

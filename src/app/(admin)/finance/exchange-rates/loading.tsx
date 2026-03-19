@@ -2,7 +2,7 @@ import { ShimmerBox } from "@/shared/ui";
 
 export default function ExchangeRatesLoading() {
   return (
-    <div className="space-y-6 p-6 animate-in fade-in duration-200">
+    <div className="space-y-6 p-4 md:p-6 animate-in fade-in duration-200">
       {/* Header */}
       <div className="space-y-2">
         <ShimmerBox className="h-4 w-48" />

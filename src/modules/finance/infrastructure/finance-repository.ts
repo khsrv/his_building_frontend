@@ -1,4 +1,11 @@
 import { apiClient } from "@/shared/lib/http/api-client";
+import {
+  getResponseData,
+  getResponseItems,
+  getResponseRecord,
+  isApiRecord,
+  normalizeApiKeys,
+} from "@/shared/lib/http/api-response";
 import type {
   Account,
   AccountType,
@@ -8,6 +15,7 @@ import type {
   IncomeExpenseReport,
   CashFlowReport,
   ReceivablesReport,
+  PropertyCostReport,
   PayableReminder,
   PayeeType,
   ReminderStatus,
@@ -30,60 +38,70 @@ import type {
 // ─── DTOs ─────────────────────────────────────────────────────────────────────
 
 interface AccountDto {
-  ID: string;
-  TenantID: string;
-  Name: string;
-  AccountType: string;
-  BankName: string;
-  AccountNumber: string;
-  Currency: string;
-  InitialBalance: number;
-  CurrentBalance: number;
-  ResponsibleUserID: string;
-  IsActive: boolean;
-  CreatedAt: string;
-  UpdatedAt: string;
-  DeletedAt: string | null;
+  id: string;
+  tenant_id: string;
+  name: string;
+  account_type: string;
+  bank_name: string;
+  account_number: string;
+  currency: string;
+  initial_balance: number;
+  current_balance: number;
+  responsible_user_id: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
 }
 
 interface TransactionDto {
-  ID: string;
-  TenantID: string;
-  TransactionType: string;
-  CategoryID: string | null;
-  AccountID: string;
-  ToAccountID: string | null;
-  Amount: number;
-  Currency: string;
-  ExchangeRate: number;
-  AmountInPrimaryCurrency: number;
-  Description: string;
-  ReferenceType: string;
-  ReferenceID: string | null;
-  PropertyID: string | null;
-  CreatedBy: string;
-  TransactionDate: string;
-  CreatedAt: string;
+  id: string;
+  tenant_id: string;
+  transaction_type: string;
+  category_id: string | null;
+  account_id: string;
+  to_account_id: string | null;
+  amount: number;
+  currency: string;
+  exchange_rate: number;
+  amount_in_primary_currency: number;
+  description: string;
+  reference_type: string;
+  reference_id: string | null;
+  property_id: string | null;
+  created_by: string;
+  transaction_date: string;
+  created_at: string;
 }
 
 interface CategoryDto {
   id: string;
   name: string;
   parent_id: string | null;
-  parent_name: string | null;
-  children_count: number;
+  slug: string;
+  sort_order: number;
+  is_system: boolean;
+  tenant_id: string;
+  created_at: string;
 }
 
 interface PayableReminderDto {
-  id: string;
-  payee_type: string;
-  payee_name: string;
-  amount: number;
-  currency: string;
-  due_date: string;
-  description: string;
-  status: string;
-  created_at: string;
+  id?: string;
+  reminder_id?: string;
+  payee_type?: string;
+  type?: string;
+  payee_name?: string;
+  name?: string;
+  amount?: number;
+  total_amount?: number;
+  currency?: string;
+  due_date?: string;
+  date?: string;
+  description?: string;
+  note?: string;
+  status?: string;
+  created_at?: string;
+  created?: string;
 }
 
 interface AccountsListResponseDto {
@@ -136,10 +154,15 @@ interface ReceivablesReportResponseDto {
   };
 }
 
+interface PropertyCostRowDto {
+  category_name: string;
+  total_amount: number;
+}
+
 // ─── Type guards ──────────────────────────────────────────────────────────────
 
 function isAccountType(value: string): value is AccountType {
-  return ["cash", "bank_account", "card"].includes(value);
+  return ["bank_account", "cash_register", "mobile_wallet"].includes(value);
 }
 
 function isTransactionType(value: string): value is TransactionType {
@@ -154,36 +177,108 @@ function isReminderStatus(value: string): value is ReminderStatus {
   return ["pending", "paid", "cancelled"].includes(value);
 }
 
+function pickFirstString(...values: readonly (string | null | undefined)[]): string {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim().length > 0) {
+      return value;
+    }
+  }
+  return "";
+}
+
+function pickFirstNumber(...values: readonly (number | null | undefined)[]): number {
+  for (const value of values) {
+    if (typeof value === "number" && Number.isFinite(value)) {
+      return value;
+    }
+  }
+  return 0;
+}
+
+function extractItemsFromEnvelope<T>(
+  response: unknown,
+  containerKeys: readonly string[],
+): T[] {
+  const normalized = normalizeApiKeys(response);
+  const data = getResponseData<unknown>(normalized);
+  const candidates: unknown[] = [data];
+  if (isApiRecord(data)) {
+    candidates.push(data["data"], data["result"], data["payload"], data["list"]);
+    for (const key of containerKeys) {
+      candidates.push(data[key]);
+    }
+  }
+
+  for (const candidate of candidates) {
+    if (Array.isArray(candidate)) {
+      return candidate as T[];
+    }
+    if (!isApiRecord(candidate)) {
+      continue;
+    }
+    for (const key of containerKeys) {
+      const value = candidate[key];
+      if (Array.isArray(value)) {
+        return value as T[];
+      }
+    }
+  }
+
+  const fallback = getResponseItems<T>(data, containerKeys);
+  if (fallback.length > 0) {
+    return fallback;
+  }
+
+  const dataRecord = getResponseRecord(data);
+  if (!dataRecord) {
+    return [];
+  }
+
+  for (const [key, value] of Object.entries(dataRecord)) {
+    if (!Array.isArray(value)) {
+      continue;
+    }
+    const keyMatched = containerKeys.includes(key);
+    const looksLikeObjectList =
+      value.length === 0 || value.every((item) => isApiRecord(item));
+    if (keyMatched || looksLikeObjectList) {
+      return value as T[];
+    }
+  }
+
+  return [];
+}
+
 // ─── Mappers ──────────────────────────────────────────────────────────────────
 
 function mapAccountDto(dto: AccountDto): Account {
   return {
-    id: dto.ID,
-    name: dto.Name,
-    type: isAccountType(dto.AccountType) ? dto.AccountType : "bank_account",
-    currency: dto.Currency,
-    balance: dto.CurrentBalance,
-    description: dto.BankName || null,
-    createdAt: dto.CreatedAt,
+    id: dto.id,
+    name: dto.name,
+    type: isAccountType(dto.account_type) ? dto.account_type : "bank_account",
+    currency: dto.currency,
+    balance: dto.current_balance ?? dto.initial_balance ?? 0,
+    description: dto.bank_name || null,
+    createdAt: dto.created_at,
   };
 }
 
 function mapTransactionDto(dto: TransactionDto): Transaction {
   return {
-    id: dto.ID,
-    type: isTransactionType(dto.TransactionType) ? dto.TransactionType : "income",
-    amount: dto.Amount,
-    currency: dto.Currency,
-    accountId: dto.AccountID,
+    id: dto.id,
+    type: isTransactionType(dto.transaction_type) ? dto.transaction_type : "income",
+    amount: dto.amount,
+    currency: dto.currency,
+    accountId: dto.account_id,
     accountName: "", // API does not return joined account name
-    toAccountId: dto.ToAccountID,
+    toAccountId: dto.to_account_id,
     toAccountName: null, // API does not return joined account name
-    categoryId: dto.CategoryID,
+    categoryId: dto.category_id,
     categoryName: null, // API does not return joined category name
-    description: dto.Description,
-    transactionDate: dto.TransactionDate,
-    createdAt: dto.CreatedAt,
-    createdByName: "", // API does not return joined user name
+    description: dto.description,
+    transactionDate: dto.transaction_date,
+    createdAt: dto.created_at,
+    createdByName: dto.created_by ?? "", // API returns uuid, keep as safe fallback
   };
 }
 
@@ -192,22 +287,29 @@ function mapCategoryDto(dto: CategoryDto): ExpenseCategory {
     id: dto.id,
     name: dto.name,
     parentId: dto.parent_id,
-    parentName: dto.parent_name,
-    childrenCount: dto.children_count,
+    parentName: null,
+    childrenCount: 0,
   };
 }
 
 function mapPayableReminderDto(dto: PayableReminderDto): PayableReminder {
+  const payeeTypeRaw = pickFirstString(dto.payee_type, dto.type);
+  const statusRaw = pickFirstString(dto.status, "pending");
+  const payeeName = pickFirstString(dto.payee_name, dto.name, "Без названия");
+  const dueDate = pickFirstString(dto.due_date, dto.date);
+  const createdAt = pickFirstString(dto.created_at, dto.created, dueDate);
+  const id = pickFirstString(dto.id, dto.reminder_id, `${payeeName}:${dueDate}`);
+
   return {
-    id: dto.id,
-    payeeType: isPayeeType(dto.payee_type) ? dto.payee_type : "other",
-    payeeName: dto.payee_name,
-    amount: dto.amount,
-    currency: dto.currency,
-    dueDate: dto.due_date,
-    description: dto.description,
-    status: isReminderStatus(dto.status) ? dto.status : "pending",
-    createdAt: dto.created_at,
+    id,
+    payeeType: isPayeeType(payeeTypeRaw) ? payeeTypeRaw : "other",
+    payeeName,
+    amount: pickFirstNumber(dto.amount, dto.total_amount),
+    currency: pickFirstString(dto.currency, "TJS"),
+    dueDate,
+    description: pickFirstString(dto.description, dto.note),
+    status: isReminderStatus(statusRaw) ? statusRaw : "pending",
+    createdAt,
   };
 }
 
@@ -222,29 +324,32 @@ export interface PaginatedResult<T> {
 
 export async function fetchAccounts(): Promise<Account[]> {
   const res = await apiClient.get<AccountsListResponseDto>("/api/v1/accounts");
-  return (res.data.items ?? []).map(mapAccountDto);
+  const items = getResponseItems<AccountDto>(normalizeApiKeys(res));
+  return items.filter((item) => Boolean(item?.id)).map(mapAccountDto);
 }
 
 export async function createAccount(input: CreateAccountInput): Promise<Account> {
   const body: Record<string, unknown> = {
     name: input.name,
-    type: input.type,
+    account_type: input.type,
     currency: input.currency,
+    account_number: "",
+    is_active: true,
   };
   if (input.initialBalance !== undefined) body["initial_balance"] = input.initialBalance;
-  if (input.description !== undefined) body["description"] = input.description;
+  if (input.description !== undefined) body["bank_name"] = input.description;
 
   const res = await apiClient.post<{ data: AccountDto }>("/api/v1/accounts", body);
-  return mapAccountDto(res.data);
+  return mapAccountDto(getResponseData<AccountDto>(normalizeApiKeys(res)));
 }
 
 export async function updateAccount(id: string, input: UpdateAccountInput): Promise<Account> {
   const body: Record<string, unknown> = {};
   if (input.name !== undefined) body["name"] = input.name;
-  if (input.description !== undefined) body["description"] = input.description;
+  if (input.description !== undefined) body["bank_name"] = input.description;
 
   const res = await apiClient.patch<{ data: AccountDto }>(`/api/v1/accounts/${id}`, body);
-  return mapAccountDto(res.data);
+  return mapAccountDto(getResponseData<AccountDto>(normalizeApiKeys(res)));
 }
 
 // ─── Transactions ─────────────────────────────────────────────────────────────
@@ -260,31 +365,35 @@ export async function fetchTransactions(params?: TransactionListParams): Promise
   if (params?.dateTo) query["date_to"] = params.dateTo;
 
   const res = await apiClient.get<TransactionsListResponseDto>("/api/v1/transactions", query);
-  return (res.data.items ?? []).map(mapTransactionDto);
+  const items = getResponseItems<TransactionDto>(normalizeApiKeys(res));
+  return items.filter((item) => Boolean(item?.id)).map(mapTransactionDto);
 }
 
 export async function createTransaction(input: CreateTransactionInput): Promise<Transaction> {
+  const normalizedDate = input.transactionDate.includes("T")
+    ? input.transactionDate.slice(0, 10)
+    : input.transactionDate;
   const body: Record<string, unknown> = {
-    type: input.type,
+    transaction_type: input.type,
     amount: input.amount,
     currency: input.currency,
     account_id: input.accountId,
-    description: input.description,
-    transaction_date: input.transactionDate,
+    description: input.description ?? "",
+    transaction_date: normalizedDate,
   };
   if (input.toAccountId !== undefined) body["to_account_id"] = input.toAccountId;
   if (input.categoryId !== undefined) body["category_id"] = input.categoryId;
   if (input.referenceId !== undefined) body["reference_id"] = input.referenceId;
 
   const res = await apiClient.post<{ data: TransactionDto }>("/api/v1/transactions", body);
-  return mapTransactionDto(res.data);
+  return mapTransactionDto(getResponseData<TransactionDto>(normalizeApiKeys(res)));
 }
 
 // ─── Expense Categories ───────────────────────────────────────────────────────
 
 export async function fetchExpenseCategories(): Promise<ExpenseCategory[]> {
   const res = await apiClient.get<CategoriesListResponseDto>("/api/v1/expense-categories");
-  const items = Array.isArray(res.data) ? res.data : (res.data.items ?? []);
+  const items = getResponseItems<CategoryDto>(normalizeApiKeys(res));
   return items.filter((item) => Boolean(item?.id)).map(mapCategoryDto);
 }
 
@@ -297,7 +406,7 @@ export async function createExpenseCategory(input: CreateExpenseCategoryInput): 
   if (input.sortOrder !== undefined) body["sort_order"] = input.sortOrder;
 
   const res = await apiClient.post<{ data: CategoryDto }>("/api/v1/expense-categories", body);
-  return mapCategoryDto(res.data);
+  return mapCategoryDto(getResponseData<CategoryDto>(normalizeApiKeys(res)));
 }
 
 export async function deleteExpenseCategory(id: string): Promise<void> {
@@ -318,19 +427,35 @@ export async function fetchIncomeExpenseReport(
     "/api/v1/reports/income-expense",
     query,
   );
+  const data = getResponseRecord(normalizeApiKeys(res)) ?? {};
+  const byCategoryRaw = data["by_category"];
+  const byMonthRaw = data["by_month"];
+  const byCategory = Array.isArray(byCategoryRaw) ? byCategoryRaw : [];
+  const byMonth = Array.isArray(byMonthRaw) ? byMonthRaw : [];
+
   return {
-    income: res.data.total_income,
-    expense: res.data.total_expense,
-    net: res.data.net_profit,
-    byCategory: (res.data.by_category ?? []).map((c) => ({
-      categoryName: c.category_name,
-      amount: c.amount,
-    })),
-    byMonth: (res.data.by_month ?? []).map((m) => ({
-      month: m.month,
-      income: m.income,
-      expense: m.expense,
-    })),
+    income: Number(data["total_income"] ?? data["income"] ?? 0),
+    expense: Number(data["total_expense"] ?? data["expense"] ?? 0),
+    net: Number(data["net_profit"] ?? data["net"] ?? 0),
+    byCategory: byCategory.map((item) => {
+      const record = typeof item === "object" && item !== null
+        ? item as Record<string, unknown>
+        : {};
+      return {
+        categoryName: String(record["category_name"] ?? ""),
+        amount: Number(record["amount"] ?? 0),
+      };
+    }),
+    byMonth: byMonth.map((item) => {
+      const record = typeof item === "object" && item !== null
+        ? item as Record<string, unknown>
+        : {};
+      return {
+        month: String(record["month"] ?? ""),
+        income: Number(record["income"] ?? 0),
+        expense: Number(record["expense"] ?? 0),
+      };
+    }),
   };
 }
 
@@ -340,8 +465,11 @@ export async function fetchCashFlowReport(params?: CashFlowReportParams): Promis
   if (params?.to) query["to"] = params.to;
 
   const res = await apiClient.get<CashFlowReportResponseDto>("/api/v1/reports/cash-flow", query);
+  const items = getResponseItems<{ date: string; income: number; expense: number; balance: number }>(
+    normalizeApiKeys(res),
+  );
   return {
-    items: (res.data.items ?? []).map((item) => ({
+    items: items.map((item) => ({
       date: item.date,
       income: item.income,
       expense: item.expense,
@@ -360,15 +488,39 @@ export async function fetchReceivablesReport(params?: {
     "/api/v1/reports/receivables",
     query,
   );
+  const normalized = normalizeApiKeys(res);
+  const data = getResponseRecord(normalized) ?? {};
+  const items = getResponseItems<{
+    client_name: string;
+    deal_number: string;
+    total_debt: number;
+    overdue_amount: number;
+    next_payment_date: string | null;
+  }>(normalized);
   return {
-    total: res.data.total ?? 0,
-    items: (res.data.items ?? []).map((item) => ({
+    total: Number(data["total"] ?? items.length),
+    items: items.map((item) => ({
       clientName: item.client_name,
       dealNumber: item.deal_number,
       totalDebt: item.total_debt,
       overdueAmount: item.overdue_amount,
       nextPaymentDate: item.next_payment_date,
     })),
+  };
+}
+
+export async function fetchPropertyCostReport(propertyId: string): Promise<PropertyCostReport> {
+  const res = await apiClient.get<{ data: { items: PropertyCostRowDto[] } }>(
+    `/api/v1/reports/property-cost/${propertyId}`,
+  );
+  const items = getResponseItems<PropertyCostRowDto>(normalizeApiKeys(res)).map((item) => ({
+    categoryName: String(item.category_name ?? ""),
+    totalAmount: Number(item.total_amount ?? 0),
+  }));
+
+  return {
+    items,
+    totalAmount: items.reduce((sum, row) => sum + row.totalAmount, 0),
   };
 }
 
@@ -388,8 +540,14 @@ export async function fetchPayableReminders(
     "/api/v1/payable-reminders",
     query,
   );
-  const items = Array.isArray(res.data) ? res.data : (res.data.items ?? []);
-  return items.filter((item) => Boolean(item?.id)).map(mapPayableReminderDto);
+  const items = extractItemsFromEnvelope<PayableReminderDto>(res, [
+    "items",
+    "reminders",
+    "payable_reminders",
+    "rows",
+    "columns",
+  ]);
+  return items.map(mapPayableReminderDto).filter((item) => item.id.length > 0);
 }
 
 export async function createPayableReminder(
@@ -402,6 +560,7 @@ export async function createPayableReminder(
     currency: input.currency,
     due_date: input.dueDate,
     description: input.description,
+    status: "pending",
   };
   if (input.accountId !== undefined) body["account_id"] = input.accountId;
 
@@ -409,11 +568,13 @@ export async function createPayableReminder(
     "/api/v1/payable-reminders",
     body,
   );
-  return mapPayableReminderDto(res.data);
+  return mapPayableReminderDto(getResponseData<PayableReminderDto>(normalizeApiKeys(res)));
 }
 
-export async function markPayableReminderPaid(id: string): Promise<void> {
-  await apiClient.post<unknown>(`/api/v1/payable-reminders/${id}/mark-paid`, {});
+export async function markPayableReminderPaid(input: { id: string; amount: number }): Promise<void> {
+  await apiClient.post<unknown>(`/api/v1/payable-reminders/${input.id}/mark-paid`, {
+    amount: input.amount,
+  });
 }
 
 export async function cancelPayableReminder(id: string): Promise<void> {
@@ -432,6 +593,9 @@ interface CurrencyDto {
   name: string;
   symbol: string | null;
   is_primary: boolean;
+  sort_order: number;
+  tenant_id: string;
+  is_active: boolean;
   created_at: string;
 }
 
@@ -448,7 +612,7 @@ function mapCurrencyDto(dto: CurrencyDto): Currency {
 
 export async function fetchCurrencies(): Promise<Currency[]> {
   const res = await apiClient.get<{ data: CurrencyDto[] | { items: CurrencyDto[]; pagination?: unknown } }>("/api/v1/currencies");
-  const items = Array.isArray(res.data) ? res.data : (res.data.items ?? []);
+  const items = getResponseItems<CurrencyDto>(normalizeApiKeys(res));
   return items.filter((item): item is CurrencyDto => Boolean(item?.id)).map(mapCurrencyDto);
 }
 
@@ -461,7 +625,7 @@ export async function createCurrency(input: CreateCurrencyInput): Promise<Curren
   if (input.isPrimary !== undefined) body["is_primary"] = input.isPrimary;
 
   const res = await apiClient.post<{ data: CurrencyDto }>("/api/v1/currencies", body);
-  return mapCurrencyDto(res.data);
+  return mapCurrencyDto(getResponseData<CurrencyDto>(normalizeApiKeys(res)));
 }
 
 export async function setPrimaryCurrency(id: string): Promise<void> {
@@ -499,7 +663,8 @@ export async function fetchExchangeRates(params?: ExchangeRateListParams): Promi
   if (params?.toCurrency) query["to_currency"] = params.toCurrency;
 
   const res = await apiClient.get<{ data: { items: ExchangeRateDto[] } }>("/api/v1/exchange-rates", query);
-  return (res.data.items ?? [])
+  const items = getResponseItems<ExchangeRateDto>(normalizeApiKeys(res));
+  return items
     .filter((item): item is ExchangeRateDto => Boolean(item?.id))
     .map(mapExchangeRateDto);
 }
@@ -513,5 +678,5 @@ export async function createExchangeRate(input: CreateExchangeRateInput): Promis
   };
 
   const res = await apiClient.post<{ data: ExchangeRateDto }>("/api/v1/exchange-rates", body);
-  return mapExchangeRateDto(res.data);
+  return mapExchangeRateDto(getResponseData<ExchangeRateDto>(normalizeApiKeys(res)));
 }

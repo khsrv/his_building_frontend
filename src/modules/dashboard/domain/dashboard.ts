@@ -84,3 +84,9 @@ export interface PropertyAnalytics {
   readonly salesByMonth: readonly SalesChartItem[];
   readonly dealsByPaymentType: readonly PaymentTypeBreakdown[];
 }
+
+export interface DashboardExportResult {
+  readonly format: string;
+  readonly note: string;
+  readonly summary: DashboardSummary;
+}

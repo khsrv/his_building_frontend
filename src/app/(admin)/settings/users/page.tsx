@@ -243,7 +243,7 @@ export default function SettingsUsersPage() {
   // ─── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <main className="space-y-6 p-6">
+    <main className="space-y-6 p-4 md:p-6">
       <AppPageHeader
         title="Пользователи"
         subtitle="Управление сотрудниками"
