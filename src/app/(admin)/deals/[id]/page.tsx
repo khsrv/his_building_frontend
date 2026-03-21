@@ -97,6 +97,7 @@ const PAYMENT_METHOD_LABEL: Record<Payment["paymentMethod"], string> = {
   cash: "Наличные",
   bank_transfer: "Банковский перевод",
   mobile: "Мобильный платёж",
+  barter: "Бартер",
 };
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
@@ -157,6 +158,7 @@ export default function DealDetailPage() {
   }
 
   const paidAmount = schedule.reduce((sum, item) => sum + item.paidAmount, 0);
+  const hasBarterPayment = payments.some((p) => p.paymentMethod === "barter");
 
   const installments: AppPaymentInstallment[] = schedule.map((item) => {
     const base = {
@@ -311,6 +313,11 @@ export default function DealDetailPage() {
                     {PAYMENT_METHOD_LABEL[payment.paymentMethod]}
                     {payment.notes ? ` · ${payment.notes}` : ""}
                   </p>
+                  {payment.barterDescription ? (
+                    <p className="text-xs text-muted-foreground">
+                      Получено взамен: {payment.barterDescription}
+                    </p>
+                  ) : null}
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="text-right">
@@ -370,6 +377,7 @@ export default function DealDetailPage() {
       <div className="space-y-6 p-4 md:p-6">
         <AppPageHeader
           title={deal.dealNumber}
+          {...(hasBarterPayment ? { meta: <AppStatusBadge label="Обмен" tone="warning" /> } : {})}
           breadcrumbs={[
             { id: "dashboard", label: "Панель", href: routes.dashboard },
             { id: "deals", label: "Сделки", href: routes.deals },

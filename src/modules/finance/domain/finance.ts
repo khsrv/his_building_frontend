@@ -12,6 +12,7 @@ export interface Account {
   readonly currency: string;
   readonly balance: number;
   readonly description: string | null;
+  readonly propertyId: string | null;
   readonly createdAt: string;
 }
 
@@ -98,11 +99,17 @@ export interface CreateAccountInput {
   currency: string;
   initialBalance?: number | undefined;
   description?: string | undefined;
+  propertyId?: string | undefined;
 }
 
 export interface UpdateAccountInput {
   name?: string | undefined;
   description?: string | undefined;
+  propertyId?: string | null | undefined;
+}
+
+export interface AccountListParams {
+  propertyId?: string | undefined;
 }
 
 export interface CreateTransactionInput {
@@ -115,6 +122,22 @@ export interface CreateTransactionInput {
   description: string;
   transactionDate: string;
   referenceId?: string | undefined;
+  propertyId?: string | undefined;
+}
+
+export interface BarterSellInput {
+  barterAccountId: string;
+  cashAccountId: string;
+  bookValue: number;
+  salePrice: number;
+  currency: string;
+  description: string;
+  propertyId?: string | undefined;
+}
+
+export interface BarterSellResult {
+  readonly profitLoss: number;
+  readonly isProfit: boolean;
 }
 
 export interface CreatePayableReminderInput {

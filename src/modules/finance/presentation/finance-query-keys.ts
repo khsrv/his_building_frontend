@@ -4,13 +4,14 @@ import type {
   IncomeExpenseReportParams,
   CashFlowReportParams,
   ExchangeRateListParams,
+  AccountListParams,
 } from "@/modules/finance/domain/finance";
 
 export const financeKeys = {
   all: ["finance"] as const,
 
   // Accounts
-  accounts: () => ["finance", "accounts"] as const,
+  accounts: (params?: AccountListParams) => ["finance", "accounts", params] as const,
 
   // Transactions
   transactions: () => ["finance", "transactions"] as const,

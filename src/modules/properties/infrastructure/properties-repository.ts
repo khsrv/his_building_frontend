@@ -75,6 +75,7 @@ interface ChessUnitDto {
 }
 
 interface ChessFloorDto {
+  floor_id?: string;
   floor_number: number;
   units?: ChessUnitDto[];
 }
@@ -144,6 +145,7 @@ function mapChessUnitDto(dto: ChessUnitDto): ChessUnit {
 
 function mapChessFloorDto(dto: ChessFloorDto): ChessFloor {
   return {
+    floorId: dto.floor_id ?? null,
     floorNumber: Number(dto.floor_number ?? 0),
     units: (dto.units ?? []).map(mapChessUnitDto),
   };
@@ -224,13 +226,23 @@ export async function fetchChessBoard(
 
 type UnitAction = "book" | "release" | "reserve" | "mark_sold";
 
+export interface UnitStatusPayload {
+  action: UnitAction;
+  clientId?: string | undefined;
+  comment?: string | undefined;
+}
+
 export async function updateUnitStatus(
   unitId: string,
   action: UnitAction,
+  options?: { clientId?: string | undefined; comment?: string | undefined },
 ): Promise<void> {
+  const body: Record<string, unknown> = { action };
+  if (options?.clientId) body.client_id = options.clientId;
+  if (options?.comment) body.comment = options.comment;
   await apiClient.patch(
     `/api/v1/units/${unitId}/status`,
-    { action },
+    body,
   );
 }
 

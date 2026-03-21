@@ -210,6 +210,7 @@ export const NAVIGATION_ITEMS: readonly NavItem[] = [
       { id: "finance-payable-reminders", labelKey: "nav.finance_payable_reminders", href: routes.financePayableReminders, icon: <FinanceIcon /> },
       { id: "finance-currencies", labelKey: "nav.finance_currencies", href: routes.financeCurrencies, icon: <FinanceIcon />, permission: "finance.exchange_rates.manage" },
       { id: "finance-categories", labelKey: "nav.finance_categories", href: routes.financeCategories, icon: <FinanceIcon />, permission: "finance.ledger.create" },
+      { id: "finance-deposits", labelKey: "nav.finance_deposits", href: routes.deposits, icon: <FinanceIcon />, permission: "finance.accounts.read" },
     ],
   },
   {

@@ -88,7 +88,7 @@ export type BackendPayeeType = "supplier" | "contractor" | "master" | "other";
 export type BackendAccountType = "bank_account" | "cash_register" | "mobile_wallet";
 
 /** Payment method */
-export type BackendPaymentMethod = "cash" | "bank_transfer" | "mobile";
+export type BackendPaymentMethod = "cash" | "bank_transfer" | "mobile" | "barter";
 
 /** Payment type (deal type) */
 export type BackendPaymentType = "full_payment" | "installment" | "mortgage" | "barter" | "combined";

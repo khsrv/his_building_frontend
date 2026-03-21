@@ -66,6 +66,7 @@ export const enDictionary = {
   "nav.finance_payable_reminders": "Payable reminders",
   "nav.finance_currencies": "Currencies",
   "nav.finance_categories": "Expense Categories",
+  "nav.finance_deposits": "Deposits",
   "nav.land": "Land parcels",
   "nav.warehouse": "Warehouse",
   "nav.warehouse_materials": "Materials",

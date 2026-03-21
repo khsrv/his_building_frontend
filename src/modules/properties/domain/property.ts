@@ -47,6 +47,7 @@ export interface ChessUnit {
 }
 
 export interface ChessFloor {
+  readonly floorId: string | null;
   readonly floorNumber: number;
   readonly units: readonly ChessUnit[];
 }

@@ -138,6 +138,10 @@ async function doRequest<T>(
       throw new AppError("NOT_FOUND", body.message ?? "Not found", 404, body);
     if (response.status === 422)
       throw new AppError("VALIDATION", body.message ?? "Validation error", 422, body);
+    if (response.status === 409)
+      throw new AppError("VALIDATION", body.message ?? "Conflict", 409, body);
+    if (response.status >= 500)
+      throw new AppError("SERVER", body.message ?? "Server error", response.status, body);
     throw new AppError("UNKNOWN", body.message ?? "Request failed", response.status, body);
   }
 

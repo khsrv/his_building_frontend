@@ -33,6 +33,8 @@ import type {
   IncomeExpenseReportParams,
   CashFlowReportParams,
   ExchangeRateListParams,
+  BarterSellInput,
+  BarterSellResult,
 } from "@/modules/finance/domain/finance";
 
 // ─── DTOs ─────────────────────────────────────────────────────────────────────
@@ -49,6 +51,7 @@ interface AccountDto {
   current_balance: number;
   responsible_user_id: string;
   is_active: boolean;
+  property_id: string | null;
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
@@ -259,6 +262,7 @@ function mapAccountDto(dto: AccountDto): Account {
     currency: dto.currency,
     balance: dto.current_balance ?? dto.initial_balance ?? 0,
     description: dto.bank_name || null,
+    propertyId: dto.property_id ?? null,
     createdAt: dto.created_at,
   };
 }
@@ -322,8 +326,10 @@ export interface PaginatedResult<T> {
 
 // ─── Accounts ─────────────────────────────────────────────────────────────────
 
-export async function fetchAccounts(): Promise<Account[]> {
-  const res = await apiClient.get<AccountsListResponseDto>("/api/v1/accounts");
+export async function fetchAccounts(params?: import("@/modules/finance/domain/finance").AccountListParams): Promise<Account[]> {
+  const query: Record<string, string | undefined> = {};
+  if (params?.propertyId) query["property_id"] = params.propertyId;
+  const res = await apiClient.get<AccountsListResponseDto>("/api/v1/accounts", query);
   const items = getResponseItems<AccountDto>(normalizeApiKeys(res));
   return items.filter((item) => Boolean(item?.id)).map(mapAccountDto);
 }
@@ -338,6 +344,7 @@ export async function createAccount(input: CreateAccountInput): Promise<Account>
   };
   if (input.initialBalance !== undefined) body["initial_balance"] = input.initialBalance;
   if (input.description !== undefined) body["bank_name"] = input.description;
+  if (input.propertyId !== undefined) body["property_id"] = input.propertyId;
 
   const res = await apiClient.post<{ data: AccountDto }>("/api/v1/accounts", body);
   return mapAccountDto(getResponseData<AccountDto>(normalizeApiKeys(res)));
@@ -347,6 +354,7 @@ export async function updateAccount(id: string, input: UpdateAccountInput): Prom
   const body: Record<string, unknown> = {};
   if (input.name !== undefined) body["name"] = input.name;
   if (input.description !== undefined) body["bank_name"] = input.description;
+  if (input.propertyId !== undefined) body["property_id"] = input.propertyId;
 
   const res = await apiClient.patch<{ data: AccountDto }>(`/api/v1/accounts/${id}`, body);
   return mapAccountDto(getResponseData<AccountDto>(normalizeApiKeys(res)));
@@ -384,9 +392,34 @@ export async function createTransaction(input: CreateTransactionInput): Promise<
   if (input.toAccountId !== undefined) body["to_account_id"] = input.toAccountId;
   if (input.categoryId !== undefined) body["category_id"] = input.categoryId;
   if (input.referenceId !== undefined) body["reference_id"] = input.referenceId;
+  if (input.propertyId !== undefined) body["property_id"] = input.propertyId;
 
   const res = await apiClient.post<{ data: TransactionDto }>("/api/v1/transactions", body);
   return mapTransactionDto(getResponseData<TransactionDto>(normalizeApiKeys(res)));
+}
+
+// ─── Barter ───────────────────────────────────────────────────────────────────
+
+export async function sellBarterAsset(input: BarterSellInput): Promise<BarterSellResult> {
+  const body: Record<string, unknown> = {
+    barter_account_id: input.barterAccountId,
+    cash_account_id: input.cashAccountId,
+    book_value: input.bookValue,
+    sale_price: input.salePrice,
+    currency: input.currency,
+    description: input.description,
+  };
+  if (input.propertyId !== undefined) body["property_id"] = input.propertyId;
+
+  const res = await apiClient.post<{ data: { profit_loss: number; is_profit: boolean } }>(
+    "/api/v1/barter/sell",
+    body,
+  );
+  const data = getResponseData<{ profit_loss: number; is_profit: boolean }>(normalizeApiKeys(res));
+  return {
+    profitLoss: data.profit_loss ?? 0,
+    isProfit: data.is_profit ?? (data.profit_loss ?? 0) >= 0,
+  };
 }
 
 // ─── Expense Categories ───────────────────────────────────────────────────────

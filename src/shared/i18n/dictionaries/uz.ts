@@ -66,6 +66,7 @@ export const uzDictionary = {
   "nav.finance_payable_reminders": "To'lov eslatmalari",
   "nav.finance_currencies": "Valyutalar",
   "nav.finance_categories": "Xarajat kategoriyalari",
+  "nav.finance_deposits": "Garovlar",
   "nav.land": "Yer uchastkalar",
   "nav.warehouse": "Ombor",
   "nav.warehouse_materials": "Materiallar",

@@ -97,7 +97,14 @@ const columns: readonly AppDataTableColumn<Deal>[] = [
   {
     id: "paymentType",
     header: "Тип оплаты",
-    cell: (row) => PAYMENT_TYPE_LABEL[row.paymentType],
+    cell: (row) => (
+      <span className="flex flex-wrap items-center gap-1">
+        {PAYMENT_TYPE_LABEL[row.paymentType]}
+        {row.paymentType === "barter" ? (
+          <AppStatusBadge label="Обмен" tone="warning" />
+        ) : null}
+      </span>
+    ),
     sortAccessor: (row) => row.paymentType,
   },
   {

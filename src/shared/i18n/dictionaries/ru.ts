@@ -66,6 +66,7 @@ export const ruDictionary = {
   "nav.finance_payable_reminders": "Напоминалки",
   "nav.finance_currencies": "Валюты",
   "nav.finance_categories": "Категории расходов",
+  "nav.finance_deposits": "Залоги",
   "nav.land": "Земельные участки",
   "nav.warehouse": "Склад",
   "nav.warehouse_materials": "Материалы",

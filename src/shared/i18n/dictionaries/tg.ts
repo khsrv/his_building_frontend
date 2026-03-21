@@ -66,6 +66,7 @@ export const tgDictionary = {
   "nav.finance_payable_reminders": "Ёдоварӣ оид ба пардохт",
   "nav.finance_currencies": "Асъорҳо",
   "nav.finance_categories": "Категорияҳои хароҷот",
+  "nav.finance_deposits": "Пешпардохтҳо",
   "nav.land": "Заминҳо",
   "nav.warehouse": "Анбор",
   "nav.warehouse_materials": "Масолеҳ",

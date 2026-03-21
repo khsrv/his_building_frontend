@@ -11,6 +11,7 @@ export function useCreateFloorMutation(propertyId: string, blockId: string) {
     mutationFn: (floorNumber: number) => createFloor(propertyId, blockId, floorNumber),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: propertyKeys.floors(propertyId, blockId) });
+      void queryClient.invalidateQueries({ queryKey: propertyKeys.chessboard(propertyId) });
     },
   });
 }

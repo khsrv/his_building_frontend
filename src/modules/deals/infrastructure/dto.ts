@@ -80,6 +80,7 @@ export interface PaymentDto {
   amount: number;
   currency: string;
   payment_method: BackendPaymentMethod;
+  barter_description: string | null;
   status: "pending" | "confirmed" | "rejected";
   notes: string | null;
   created_at: string;
@@ -128,6 +129,7 @@ export interface ReceivePaymentRequestDto {
   amount: number;
   currency: string;
   payment_method: BackendPaymentMethod;
+  barter_description?: string | undefined;
   account_id?: string | undefined;
   notes?: string | undefined;
 }

@@ -88,7 +88,8 @@ export interface ReceivePaymentInput {
   scheduleItemId?: string | undefined;
   amount: number;
   currency: string;
-  paymentMethod: "cash" | "bank_transfer" | "mobile";
+  paymentMethod: "cash" | "bank_transfer" | "mobile" | "barter";
+  barterDescription?: string | undefined;
   accountId?: string | undefined;
   notes?: string | undefined;
 }

@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Box, Grid, Typography } from "@mui/material";
-// Inline SVG icons to avoid @mui/icons-material dependency
+import { Box, Chip, Divider, Grid, Typography } from "@mui/material";
+
 function BankIcon() {
   return (
     <svg aria-hidden fill="none" height="24" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" width="24">
@@ -10,7 +10,6 @@ function BankIcon() {
     </svg>
   );
 }
-
 function CashIcon() {
   return (
     <svg aria-hidden fill="none" height="24" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" width="24">
@@ -19,7 +18,6 @@ function CashIcon() {
     </svg>
   );
 }
-
 function MobileIcon() {
   return (
     <svg aria-hidden fill="none" height="24" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" width="24">
@@ -28,6 +26,7 @@ function MobileIcon() {
     </svg>
   );
 }
+
 import {
   AppButton,
   AppDrawerForm,
@@ -36,14 +35,15 @@ import {
   AppPageHeader,
   AppSelect,
   AppStatePanel,
-  AppStatCard,
   ShimmerBox,
 } from "@/shared/ui";
 import { routes } from "@/shared/constants/routes";
 import { useAccountsQuery } from "@/modules/finance/presentation/hooks/use-accounts-query";
 import { useCreateAccountMutation } from "@/modules/finance/presentation/hooks/use-create-account-mutation";
-import type { AccountType } from "@/modules/finance/domain/finance";
-import type { Account } from "@/modules/finance/domain/finance";
+import { usePropertiesListQuery } from "@/modules/properties/presentation/hooks/use-properties-list-query";
+import { BarterSellDrawer } from "@/modules/finance/presentation/components/barter-sell-drawer";
+import { BarterWriteOffDrawer } from "@/modules/finance/presentation/components/barter-write-off-drawer";
+import type { AccountType, Account } from "@/modules/finance/domain/finance";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -58,6 +58,10 @@ const CURRENCY_OPTIONS = [
   { value: "USD", label: "USD — Доллар" },
   { value: "RUB", label: "RUB — Рубль" },
 ] as const;
+
+function isBarterAccount(account: Account): boolean {
+  return account.name.toLowerCase().includes("бартер");
+}
 
 function accountTypeIcon(type: AccountType) {
   if (type === "cash_register") return <CashIcon />;
@@ -76,7 +80,13 @@ function formatBalance(balance: number, currency: string): string {
 
 // ─── Account card ─────────────────────────────────────────────────────────────
 
-function AccountCard({ account }: { account: Account }) {
+function MoneyAccountCard({
+  account,
+  propertyName,
+}: {
+  account: Account;
+  propertyName: string | null;
+}) {
   return (
     <Box
       sx={{
@@ -89,6 +99,7 @@ function AccountCard({ account }: { account: Account }) {
         display: "flex",
         flexDirection: "column",
         gap: 1,
+        height: "100%",
       }}
     >
       <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
@@ -113,6 +124,76 @@ function AccountCard({ account }: { account: Account }) {
           {account.description}
         </Typography>
       ) : null}
+      <Chip
+        label={propertyName ?? "Общий"}
+        size="small"
+        variant="outlined"
+        color={propertyName ? "primary" : "default"}
+        sx={{ alignSelf: "flex-start", mt: 0.5 }}
+      />
+    </Box>
+  );
+}
+
+function BarterAccountCard({
+  account,
+  propertyName,
+  onSell,
+  onWriteOff,
+}: {
+  account: Account;
+  propertyName: string | null;
+  onSell: () => void;
+  onWriteOff: () => void;
+}) {
+  return (
+    <Box
+      sx={{
+        borderRadius: 3,
+        border: "1px solid",
+        borderColor: "warning.main",
+        bgcolor: "background.paper",
+        p: 2,
+        boxShadow: 1,
+        display: "flex",
+        flexDirection: "column",
+        gap: 1,
+        height: "100%",
+      }}
+    >
+      <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+        <Box sx={{ color: "warning.main" }}>{accountTypeIcon(account.type)}</Box>
+        <Box sx={{ flex: 1, minWidth: 0 }}>
+          <Typography
+            variant="subtitle2"
+            sx={{ fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+          >
+            {account.name}
+          </Typography>
+          <Chip label="Бартерный актив" size="small" color="warning" sx={{ mt: 0.25 }} />
+        </Box>
+      </Box>
+      <Typography variant="h6" sx={{ fontWeight: 700, color: "text.primary" }}>
+        {formatBalance(account.balance, account.currency)}
+      </Typography>
+      {account.description ? (
+        <Typography variant="caption" color="text.secondary" sx={{ mt: -0.5 }}>
+          {account.description}
+        </Typography>
+      ) : null}
+      {propertyName ? (
+        <Chip
+          label={propertyName}
+          size="small"
+          variant="outlined"
+          color="primary"
+          sx={{ alignSelf: "flex-start" }}
+        />
+      ) : null}
+      <Box sx={{ display: "flex", gap: 1, mt: 0.5 }}>
+        <AppButton label="Продать" variant="primary" size="sm" onClick={onSell} />
+        <AppButton label="Списать на объект" variant="secondary" size="sm" onClick={onWriteOff} />
+      </Box>
     </Box>
   );
 }
@@ -125,6 +206,7 @@ interface CreateFormState {
   currency: string;
   initialBalance: string;
   description: string;
+  propertyId: string;
 }
 
 const INITIAL_FORM: CreateFormState = {
@@ -133,6 +215,7 @@ const INITIAL_FORM: CreateFormState = {
   currency: "TJS",
   initialBalance: "",
   description: "",
+  propertyId: "",
 };
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
@@ -140,12 +223,33 @@ const INITIAL_FORM: CreateFormState = {
 export default function FinanceAccountsPage() {
   const { data: accounts, isLoading, isError } = useAccountsQuery();
   const createMutation = useCreateAccountMutation();
+  const { data: propertiesResult } = usePropertiesListQuery();
+  const properties = propertiesResult?.items ?? [];
 
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [form, setForm] = useState<CreateFormState>(INITIAL_FORM);
 
-  // Summary: total balance per currency
-  const balanceByCurrency = (accounts ?? []).reduce<Record<string, number>>((acc, acct) => {
+  // Barter action state
+  const [sellTarget, setSellTarget] = useState<Account | null>(null);
+  const [writeOffTarget, setWriteOffTarget] = useState<Account | null>(null);
+
+  const propertyNameMap = new Map<string, string>(
+    properties.map((p) => [p.id, p.name] as [string, string]),
+  );
+
+  const allAccounts = accounts ?? [];
+  const barterAccounts = allAccounts.filter(isBarterAccount);
+  const moneyAccounts = allAccounts.filter((a) => !isBarterAccount(a));
+
+  // Cash accounts = non-barter, for sell form
+  const cashAccounts = moneyAccounts;
+
+  const barterByCurrency = barterAccounts.reduce<Record<string, number>>((acc, acct) => {
+    const prev = acc[acct.currency] ?? 0;
+    return { ...acc, [acct.currency]: prev + acct.balance };
+  }, {});
+
+  const balanceByCurrency = moneyAccounts.reduce<Record<string, number>>((acc, acct) => {
     const prev = acc[acct.currency] ?? 0;
     return { ...acc, [acct.currency]: prev + acct.balance };
   }, {});
@@ -156,20 +260,25 @@ export default function FinanceAccountsPage() {
     deltaTone: "success" as const,
   }));
 
+  const barterSummaryItems = Object.entries(barterByCurrency).map(([currency, total]) => ({
+    title: `Бартер ${currency}`,
+    value: formatBalance(total, currency),
+    deltaTone: "warning" as const,
+  }));
+
+  const propertyOptions = [
+    { value: "", label: "Общий (без объекта)" },
+    ...properties.map((p) => ({ value: p.id, label: p.name })),
+  ];
+
   function handleOpen() {
     setForm(INITIAL_FORM);
     setDrawerOpen(true);
   }
 
-  function handleClose() {
-    setDrawerOpen(false);
-  }
-
   function handleSave() {
     if (!form.name.trim() || !form.type || !form.currency) return;
-
     const initialBalance = form.initialBalance ? parseFloat(form.initialBalance) : undefined;
-
     const createInput: import("@/modules/finance/domain/finance").CreateAccountInput = {
       name: form.name.trim(),
       type: form.type,
@@ -179,19 +288,15 @@ export default function FinanceAccountsPage() {
       createInput.initialBalance = initialBalance;
     }
     const trimmedDesc = form.description.trim();
-    if (trimmedDesc) {
-      createInput.description = trimmedDesc;
-    }
+    if (trimmedDesc) createInput.description = trimmedDesc;
+    if (form.propertyId) createInput.propertyId = form.propertyId;
 
-    createMutation.mutate(
-      createInput,
-      {
-        onSuccess: () => {
-          setDrawerOpen(false);
-          setForm(INITIAL_FORM);
-        },
+    createMutation.mutate(createInput, {
+      onSuccess: () => {
+        setDrawerOpen(false);
+        setForm(INITIAL_FORM);
       },
-    );
+    });
   }
 
   return (
@@ -204,10 +309,27 @@ export default function FinanceAccountsPage() {
           { id: "finance", label: "Финансы", href: routes.finance },
           { id: "accounts", label: "Счета" },
         ]}
-        actions={<AppButton label="Добавить счёт" variant="primary" size="md" onClick={handleOpen} />}
+        actions={
+          <div className="flex flex-wrap gap-2">
+            <AppButton
+              label="Создать счёт для обменных квартир"
+              variant="outline"
+              size="md"
+              onClick={() => {
+                setForm({
+                  ...INITIAL_FORM,
+                  name: "Полученные квартиры (обмен)",
+                  type: "cash_register",
+                });
+                setDrawerOpen(true);
+              }}
+            />
+            <AppButton label="Добавить счёт" variant="primary" size="md" onClick={handleOpen} />
+          </div>
+        }
       />
 
-      {/* Summary KPIs */}
+      {/* Money KPIs */}
       {summaryItems.length > 0 && (
         <AppKpiGrid
           columns={summaryItems.length > 2 ? 4 : summaryItems.length === 2 ? 2 : 2}
@@ -215,7 +337,19 @@ export default function FinanceAccountsPage() {
         />
       )}
 
-      {/* Loading */}
+      {/* Barter KPIs */}
+      {barterSummaryItems.length > 0 && (
+        <>
+          <Typography variant="subtitle2" color="text.secondary" sx={{ fontWeight: 600 }}>
+            Бартерные активы
+          </Typography>
+          <AppKpiGrid
+            columns={barterSummaryItems.length > 2 ? 4 : barterSummaryItems.length === 2 ? 2 : 2}
+            items={barterSummaryItems}
+          />
+        </>
+      )}
+
       {isLoading && (
         <Grid container spacing={2}>
           {[1, 2, 3, 4].map((n) => (
@@ -226,7 +360,6 @@ export default function FinanceAccountsPage() {
         </Grid>
       )}
 
-      {/* Error */}
       {isError && (
         <AppStatePanel
           tone="error"
@@ -235,8 +368,7 @@ export default function FinanceAccountsPage() {
         />
       )}
 
-      {/* Empty */}
-      {!isLoading && !isError && accounts?.length === 0 && (
+      {!isLoading && !isError && allAccounts.length === 0 && (
         <AppStatePanel
           tone="empty"
           title="Счета не найдены"
@@ -244,15 +376,48 @@ export default function FinanceAccountsPage() {
         />
       )}
 
-      {/* Cards grid */}
-      {!isLoading && !isError && accounts && accounts.length > 0 && (
-        <Grid container spacing={2}>
-          {accounts.map((account) => (
-            <Grid key={account.id} size={{ xs: 12, sm: 6, md: 4, lg: 3 }}>
-              <AccountCard account={account} />
-            </Grid>
-          ))}
-        </Grid>
+      {/* ── Денежные счета ── */}
+      {!isLoading && !isError && moneyAccounts.length > 0 && (
+        <>
+          <Divider sx={{ my: 1 }}>
+            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, textTransform: "uppercase", letterSpacing: 1 }}>
+              Денежные счета
+            </Typography>
+          </Divider>
+          <Grid container spacing={2}>
+            {moneyAccounts.map((account) => (
+              <Grid key={account.id} size={{ xs: 12, sm: 6, md: 4, lg: 3 }}>
+                <MoneyAccountCard
+                  account={account}
+                  propertyName={account.propertyId ? (propertyNameMap.get(account.propertyId) ?? null) : null}
+                />
+              </Grid>
+            ))}
+          </Grid>
+        </>
+      )}
+
+      {/* ── Бартерные активы ── */}
+      {!isLoading && !isError && barterAccounts.length > 0 && (
+        <>
+          <Divider sx={{ my: 1 }}>
+            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, textTransform: "uppercase", letterSpacing: 1 }}>
+              Бартерные активы
+            </Typography>
+          </Divider>
+          <Grid container spacing={2}>
+            {barterAccounts.map((account) => (
+              <Grid key={account.id} size={{ xs: 12, sm: 6, md: 4, lg: 3 }}>
+                <BarterAccountCard
+                  account={account}
+                  propertyName={account.propertyId ? (propertyNameMap.get(account.propertyId) ?? null) : null}
+                  onSell={() => setSellTarget(account)}
+                  onWriteOff={() => setWriteOffTarget(account)}
+                />
+              </Grid>
+            ))}
+          </Grid>
+        </>
       )}
 
       {/* Create drawer */}
@@ -264,7 +429,7 @@ export default function FinanceAccountsPage() {
         cancelLabel="Отмена"
         isSaving={createMutation.isPending}
         saveDisabled={!form.name.trim() || createMutation.isPending}
-        onClose={handleClose}
+        onClose={() => setDrawerOpen(false)}
         onSave={handleSave}
       >
         <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
@@ -288,6 +453,13 @@ export default function FinanceAccountsPage() {
             value={form.currency}
             onChange={(e) => setForm((prev) => ({ ...prev, currency: e.target.value }))}
           />
+          <AppSelect
+            label="Объект"
+            id="account-property"
+            options={propertyOptions}
+            value={form.propertyId}
+            onChange={(e) => setForm((prev) => ({ ...prev, propertyId: e.target.value }))}
+          />
           <AppInput
             label="Начальный баланс"
             type="number"
@@ -303,6 +475,25 @@ export default function FinanceAccountsPage() {
           />
         </Box>
       </AppDrawerForm>
+
+      {/* Barter sell drawer */}
+      {sellTarget !== null && (
+        <BarterSellDrawer
+          open
+          barterAccount={sellTarget}
+          cashAccounts={cashAccounts}
+          onClose={() => setSellTarget(null)}
+        />
+      )}
+
+      {/* Barter write-off drawer */}
+      {writeOffTarget !== null && (
+        <BarterWriteOffDrawer
+          open
+          barterAccount={writeOffTarget}
+          onClose={() => setWriteOffTarget(null)}
+        />
+      )}
     </main>
   );
 }

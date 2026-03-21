@@ -98,7 +98,8 @@ export interface Payment {
   scheduleItemId: string | null;
   amount: number;
   currency: string;
-  paymentMethod: "cash" | "bank_transfer" | "mobile";
+  paymentMethod: "cash" | "bank_transfer" | "mobile" | "barter";
+  barterDescription: string | null;
   status: "pending" | "confirmed" | "rejected";
   notes: string | null;
   createdAt: string;
@@ -113,6 +114,7 @@ function mapPaymentDto(item: PaymentDto): Payment {
     amount: Number(item.amount ?? 0),
     currency: String(item.currency ?? "USD"),
     paymentMethod: item.payment_method,
+    barterDescription: item.barter_description ?? null,
     status: item.status,
     notes: item.notes ?? null,
     createdAt: item.created_at,
@@ -135,6 +137,7 @@ export async function receivePayment(input: ReceivePaymentInput): Promise<void> 
     payment_method: input.paymentMethod,
   };
   if (input.scheduleItemId !== undefined) body.schedule_item_id = input.scheduleItemId;
+  if (input.barterDescription !== undefined) body.barter_description = input.barterDescription;
   if (input.accountId !== undefined) body.account_id = input.accountId;
   if (input.notes !== undefined) body.notes = input.notes;
   await apiClient.post<PaymentDetailResponseDto>("/api/v1/payments", body);

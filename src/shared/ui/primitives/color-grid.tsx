@@ -10,6 +10,8 @@ export type AppColorGridCellStatus = "free" | "booked" | "sold" | "reserved" | "
 export interface AppColorGridCell {
   id: string;
   label: string;
+  sublabel?: string | undefined;
+  secondarySublabel?: string | undefined;
   status: AppColorGridCellStatus;
   floor?: number;
   column?: number;
@@ -40,9 +42,10 @@ const STATUS_STYLE: Record<AppColorGridCellStatus, StatusConfig> = {
 interface AppColorGridProps {
   rows: readonly AppColorGridRow[];
   onCellClick?: (cell: AppColorGridCell) => void;
+  onRowAddClick?: (row: AppColorGridRow) => void;
   filterStatuses?: readonly AppColorGridCellStatus[];
   showLegend?: boolean;
-  cellSize?: "sm" | "md" | "lg";
+  cellSize?: "sm" | "md" | "lg" | "xl";
   title?: string;
   className?: string;
 }
@@ -51,6 +54,7 @@ const cellSizeClasses = {
   sm: "w-10 h-8 text-[10px]",
   md: "w-14 h-10 text-xs",
   lg: "w-18 h-12 text-sm",
+  xl: "w-20 h-16 text-xs",
 };
 
 type StatusKey = "free" | "booked" | "sold" | "reserved";
@@ -58,6 +62,7 @@ type StatusKey = "free" | "booked" | "sold" | "reserved";
 export function AppColorGrid({
   rows,
   onCellClick,
+  onRowAddClick,
   filterStatuses,
   showLegend = true,
   cellSize = "md",
@@ -138,12 +143,16 @@ export function AppColorGrid({
         <div className="flex flex-col gap-1">
           {[...filteredRows].reverse().map((row) => (
             <div className="flex items-center gap-1" key={row.id}>
-              <span className="w-9 shrink-0 text-right text-xs text-muted-foreground">
+              <span className={cn(
+                "shrink-0 text-right text-xs font-medium text-muted-foreground whitespace-nowrap",
+                cellSize === "xl" ? "w-16" : "w-12",
+              )}>
                 {row.label}
               </span>
               <div className="flex flex-nowrap gap-1">
                 {row.cells.map((cell) => {
                   const cfg = STATUS_STYLE[cell.status];
+                  const hasSubContent = cellSize === "xl" && (cell.sublabel ?? cell.secondarySublabel);
                   return (
                     <button
                       className={cn(
@@ -154,16 +163,42 @@ export function AppColorGrid({
                         cell.status === "unavailable"
                           ? "cursor-default border-dashed"
                           : "cursor-pointer",
+                        hasSubContent && "flex-col gap-0 px-1",
                       )}
                       key={cell.id}
                       onClick={(e) => handleCellClick(cell, e.currentTarget)}
                       title={cell.tooltip ?? cell.label}
                       type="button"
                     >
-                      {cell.label}
+                      {hasSubContent ? (
+                        <>
+                          <span className="text-xs font-semibold leading-tight">{cell.label}</span>
+                          <span className="text-[9px] leading-tight opacity-80">{cell.sublabel}</span>
+                          {cell.secondarySublabel ? (
+                            <span className="text-[9px] leading-tight opacity-60">{cell.secondarySublabel}</span>
+                          ) : null}
+                        </>
+                      ) : (
+                        cell.label
+                      )}
                     </button>
                   );
                 })}
+                {onRowAddClick ? (
+                  <button
+                    className={cn(
+                      "flex shrink-0 items-center justify-center rounded-lg border border-dashed border-border text-muted-foreground hover:border-primary hover:text-primary hover:bg-primary/5 transition-colors cursor-pointer",
+                      cellSize === "xl" ? "w-10 h-16" : cellSize === "lg" ? "w-10 h-12" : cellSize === "md" ? "w-10 h-10" : "w-8 h-8",
+                    )}
+                    onClick={() => onRowAddClick(row)}
+                    title="Добавить квартиру"
+                    type="button"
+                  >
+                    <svg aria-hidden className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                      <path d="M12 5v14M5 12h14" />
+                    </svg>
+                  </button>
+                ) : null}
               </div>
             </div>
           ))}

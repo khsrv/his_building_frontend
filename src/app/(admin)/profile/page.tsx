@@ -44,7 +44,7 @@ const ROLE_LABELS: Record<UserRole, string> = {
   accountant: "Бухгалтер",
   cashier: "Кассир",
   foreman: "Прораб",
-  warehouse_manager: "Кладовщик",
+  warehouse_manager: "Нач. склада",
   broker: "Брокер",
 };
 

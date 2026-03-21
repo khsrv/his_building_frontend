@@ -355,6 +355,7 @@ export async function createSupplierPayment(
   };
   if (input.accountId !== undefined) body["account_id"] = input.accountId;
   if (input.notes !== undefined) body["notes"] = input.notes;
+  if (input.propertyId !== undefined) body["property_id"] = input.propertyId;
 
   const res = await apiClient.post<SingleResponseDto<SupplierPaymentDto>>(
     `/api/v1/suppliers/${supplierId}/payments`,

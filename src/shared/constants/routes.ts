@@ -43,6 +43,9 @@ export const routes = {
   // Profile
   profile: "/profile",
 
+  // Deposits
+  deposits: "/deposits",
+
   // Finance
   finance: "/finance",
   financeLedger: "/finance/ledger",

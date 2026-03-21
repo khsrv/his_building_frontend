@@ -118,6 +118,7 @@ export interface CreateSupplierPaymentInput {
   currency: string;
   accountId?: string | undefined;
   notes?: string | undefined;
+  propertyId?: string | undefined;
 }
 
 export interface CreateMaterialInput {

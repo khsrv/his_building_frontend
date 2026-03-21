@@ -4,6 +4,7 @@ export type AppErrorCode =
   | "NOT_FOUND"
   | "VALIDATION"
   | "NETWORK"
+  | "SERVER"
   | "UNKNOWN";
 
 export class AppError extends Error {

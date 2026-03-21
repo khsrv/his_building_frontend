@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Stack } from "@mui/material";
 import { AppDrawerForm, AppInput, AppSelect } from "@/shared/ui";
 import { useCreateSupplierPaymentMutation } from "@/modules/warehouse/presentation/hooks/use-create-supplier-payment-mutation";
+import { usePropertiesListQuery } from "@/modules/properties/presentation/hooks/use-properties-list-query";
 
 const CURRENCY_OPTIONS = [
   { label: "TJS", value: "TJS" },
@@ -14,12 +15,14 @@ const CURRENCY_OPTIONS = [
 interface FormState {
   amount: string;
   currency: string;
+  propertyId: string;
   notes: string;
 }
 
 const INITIAL_FORM: FormState = {
   amount: "",
   currency: "TJS",
+  propertyId: "",
   notes: "",
 };
 
@@ -39,6 +42,14 @@ export function SupplierPaymentDrawer({
   onSuccess,
 }: SupplierPaymentDrawerProps) {
   const mutation = useCreateSupplierPaymentMutation(supplierId);
+  const { data: propertiesResult } = usePropertiesListQuery();
+  const properties = propertiesResult?.items ?? [];
+
+  const propertyOptions = [
+    { value: "", label: "Без объекта" },
+    ...properties.map((p) => ({ value: p.id, label: p.name })),
+  ];
+
   const [form, setForm] = useState<FormState>(INITIAL_FORM);
   const [errors, setErrors] = useState<FormErrors>({});
 
@@ -83,6 +94,7 @@ export function SupplierPaymentDrawer({
         amount: parsed,
         currency: form.currency,
         notes: form.notes.trim() || undefined,
+        propertyId: form.propertyId || undefined,
       },
       {
         onSuccess: () => {
@@ -119,6 +131,13 @@ export function SupplierPaymentDrawer({
           options={CURRENCY_OPTIONS}
           value={form.currency}
           onChange={(e) => set("currency")(e.target.value)}
+        />
+        <AppSelect
+          id="payment-property"
+          label="Объект"
+          options={propertyOptions}
+          value={form.propertyId}
+          onChange={(e) => set("propertyId")(e.target.value)}
         />
         <AppInput
           label="Заметки"

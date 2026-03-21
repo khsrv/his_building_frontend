@@ -7,10 +7,13 @@ import { useAccountsQuery } from "@/modules/finance/presentation/hooks/use-accou
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const PAYMENT_METHOD_OPTIONS: readonly { value: string; label: string }[] = [
+type PaymentMethod = "cash" | "bank_transfer" | "mobile" | "barter";
+
+const PAYMENT_METHOD_OPTIONS: readonly { value: PaymentMethod; label: string }[] = [
   { value: "cash", label: "Наличные" },
   { value: "bank_transfer", label: "Банковский перевод" },
   { value: "mobile", label: "Мобильный платёж" },
+  { value: "barter", label: "Бартер" },
 ];
 
 const CURRENCY_OPTIONS: readonly { value: string; label: string }[] = [
@@ -26,6 +29,7 @@ interface FormErrors {
   amount?: string;
   paymentMethod?: string;
   accountId?: string;
+  barterDescription?: string;
 }
 
 // ─── Props ────────────────────────────────────────────────────────────────────
@@ -52,22 +56,40 @@ export function ReceivePaymentDrawer({
   const { mutateAsync: receivePayment, isPending } = useReceivePaymentMutation(dealId);
   const { data: accounts } = useAccountsQuery();
 
-  const accountOptions: { value: string; label: string }[] = (accounts ?? []).map((acc) => ({
-    value: acc.id,
-    label: `${acc.name} (${acc.currency})`,
-  }));
-
   const [amount, setAmount] = useState("");
   const [selectedCurrency, setSelectedCurrency] = useState(currency);
-  const [paymentMethod, setPaymentMethod] = useState<"cash" | "bank_transfer" | "mobile">("cash");
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
+  const [barterDescription, setBarterDescription] = useState("");
   const [accountId, setAccountId] = useState("");
   const [notes, setNotes] = useState("");
   const [errors, setErrors] = useState<FormErrors>({});
+
+  const isBarter = paymentMethod === "barter";
+
+  // For barter: put accounts with "бартер" or "обмен" in name first
+  const sortedAccounts = [...(accounts ?? [])].sort((a, b) => {
+    if (!isBarter) return 0;
+    const isExchangeAccount = (name: string) => {
+      const lower = name.toLowerCase();
+      return lower.includes("бартер") || lower.includes("обмен");
+    };
+    const aFirst = isExchangeAccount(a.name);
+    const bFirst = isExchangeAccount(b.name);
+    if (aFirst && !bFirst) return -1;
+    if (!aFirst && bFirst) return 1;
+    return 0;
+  });
+
+  const accountOptions = sortedAccounts.map((acc) => ({
+    value: acc.id,
+    label: `${acc.name} (${acc.currency})`,
+  }));
 
   const handleClose = () => {
     setAmount("");
     setSelectedCurrency(currency);
     setPaymentMethod("cash");
+    setBarterDescription("");
     setAccountId("");
     setNotes("");
     setErrors({});
@@ -86,6 +108,9 @@ export function ReceivePaymentDrawer({
     if (!accountId) {
       nextErrors.accountId = "Выберите счёт";
     }
+    if (isBarter && !barterDescription.trim()) {
+      nextErrors.barterDescription = "Укажите что получили в счёт оплаты";
+    }
     setErrors(nextErrors);
     return Object.keys(nextErrors).length === 0;
   };
@@ -102,6 +127,9 @@ export function ReceivePaymentDrawer({
     };
     if (scheduleItemId) input.scheduleItemId = scheduleItemId;
     if (notes) input.notes = notes;
+    if (isBarter && barterDescription.trim()) {
+      input.barterDescription = barterDescription.trim();
+    }
     await receivePayment(input);
     handleClose();
   };
@@ -140,11 +168,26 @@ export function ReceivePaymentDrawer({
           label="Способ оплаты"
           options={PAYMENT_METHOD_OPTIONS}
           value={paymentMethod}
-          onChange={(e) =>
-            setPaymentMethod(e.target.value as "cash" | "bank_transfer" | "mobile")
-          }
+          onChange={(e) => {
+            setPaymentMethod(e.target.value as PaymentMethod);
+            setBarterDescription("");
+            setErrors((prev) => {
+              const { barterDescription: _removed, ...rest } = prev;
+              return rest;
+            });
+          }}
           {...(errors.paymentMethod ? { errorText: errors.paymentMethod } : {})}
         />
+
+        {isBarter && (
+          <AppInput
+            label="Что получаем взамен *"
+            value={barterDescription}
+            onChangeValue={setBarterDescription}
+            placeholder="Квартира №9, ул. Навои 12, 2-комн, 45м²"
+            {...(errors.barterDescription ? { errorText: errors.barterDescription } : {})}
+          />
+        )}
 
         <AppSelect
           id="recv-account"
