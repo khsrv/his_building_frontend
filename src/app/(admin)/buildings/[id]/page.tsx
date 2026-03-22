@@ -37,6 +37,7 @@ import { useFloorsQuery } from "@/modules/properties/presentation/hooks/use-floo
 import { useCreateFloorMutation } from "@/modules/properties/presentation/hooks/use-create-floor-mutation";
 import { useDeleteFloorMutation } from "@/modules/properties/presentation/hooks/use-delete-floor-mutation";
 import { AppError } from "@/shared/lib/errors/app-error";
+import { UnitPhotoManager } from "@/modules/properties/presentation/components/unit-photo-manager";
 import type {
   Property,
   PropertyStatus,
@@ -108,7 +109,7 @@ interface UnitFormState {
   livingArea: string;
   kitchenArea: string;
   balconyArea: string;
-  basePrice: string;
+  pricePerSqm: string;
   finishing: string;
   description: string;
 }
@@ -124,7 +125,7 @@ const EMPTY_UNIT_FORM: UnitFormState = {
   livingArea: "",
   kitchenArea: "",
   balconyArea: "",
-  basePrice: "",
+  pricePerSqm: "",
   finishing: "",
   description: "",
 };
@@ -312,7 +313,7 @@ export default function BuildingDetailPage() {
       livingArea: unit.livingArea !== null ? String(unit.livingArea) : "",
       kitchenArea: unit.kitchenArea !== null ? String(unit.kitchenArea) : "",
       balconyArea: unit.balconyArea !== null ? String(unit.balconyArea) : "",
-      basePrice: unit.basePrice !== null ? String(unit.basePrice) : "",
+      pricePerSqm: unit.basePrice !== null && unit.totalArea ? String(Math.round(unit.basePrice / unit.totalArea)) : "",
       finishing: unit.finishing ?? "",
       description: unit.description ?? "",
     });
@@ -320,14 +321,17 @@ export default function BuildingDetailPage() {
   };
 
   const handleSaveUnit = () => {
+    const totalArea = unitForm.totalArea ? Number(unitForm.totalArea) : undefined;
+    const pricePerSqm = unitForm.pricePerSqm ? Number(unitForm.pricePerSqm) : undefined;
+
     if (editingUnit) {
       const input: UpdateUnitInput = {
         rooms: unitForm.rooms ? Number(unitForm.rooms) : undefined,
-        totalArea: unitForm.totalArea ? Number(unitForm.totalArea) : undefined,
+        totalArea,
         livingArea: unitForm.livingArea ? Number(unitForm.livingArea) : undefined,
         kitchenArea: unitForm.kitchenArea ? Number(unitForm.kitchenArea) : undefined,
         balconyArea: unitForm.balconyArea ? Number(unitForm.balconyArea) : undefined,
-        basePrice: unitForm.basePrice ? Number(unitForm.basePrice) : undefined,
+        pricePerSqm,
         finishing: unitForm.finishing || undefined,
         description: unitForm.description || undefined,
       };
@@ -346,11 +350,11 @@ export default function BuildingDetailPage() {
         unitType: unitForm.unitType,
         floorNumber: Number(unitForm.floorNumber),
         rooms: unitForm.rooms ? Number(unitForm.rooms) : undefined,
-        totalArea: unitForm.totalArea ? Number(unitForm.totalArea) : undefined,
+        totalArea,
         livingArea: unitForm.livingArea ? Number(unitForm.livingArea) : undefined,
         kitchenArea: unitForm.kitchenArea ? Number(unitForm.kitchenArea) : undefined,
         balconyArea: unitForm.balconyArea ? Number(unitForm.balconyArea) : undefined,
-        basePrice: unitForm.basePrice ? Number(unitForm.basePrice) : undefined,
+        pricePerSqm,
         finishing: unitForm.finishing || undefined,
         description: unitForm.description || undefined,
       };
@@ -1045,11 +1049,20 @@ export default function BuildingDetailPage() {
             onChange={(e) => setUnitForm((prev) => ({ ...prev, balconyArea: e.target.value }))}
           />
           <AppInput
-            label="Базовая цена"
+            label="Цена за м² ($)"
             type="number"
-            value={unitForm.basePrice}
-            onChange={(e) => setUnitForm((prev) => ({ ...prev, basePrice: e.target.value }))}
+            value={unitForm.pricePerSqm}
+            onChange={(e) => setUnitForm((prev) => ({ ...prev, pricePerSqm: e.target.value }))}
+            placeholder="1000"
           />
+          {unitForm.totalArea && unitForm.pricePerSqm ? (
+            <div className="rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm">
+              <span className="text-muted-foreground">Базовая цена: </span>
+              <span className="font-semibold">
+                ${Math.round(parseFloat(unitForm.totalArea) * parseFloat(unitForm.pricePerSqm)).toLocaleString("ru-RU")}
+              </span>
+            </div>
+          ) : null}
           <AppInput
             label="Отделка"
             value={unitForm.finishing}
@@ -1063,6 +1076,13 @@ export default function BuildingDetailPage() {
             value={unitForm.description}
             onChange={(e) => setUnitForm((prev) => ({ ...prev, description: e.target.value }))}
           />
+          {editingUnit ? (
+            <UnitPhotoManager
+              unitId={editingUnit.id}
+              propertyId={propertyId}
+              photoUrls={editingUnit.photoUrls}
+            />
+          ) : null}
         </div>
       </AppDrawerForm>
 

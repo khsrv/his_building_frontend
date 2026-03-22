@@ -10,7 +10,7 @@ export function useReleaseUnitMutation(propertyId: string) {
   return useMutation({
     mutationFn: (unitId: string) => updateUnitStatus(unitId, "release"),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: propertyKeys.chessboard(propertyId) });
+      void queryClient.invalidateQueries({ queryKey: propertyKeys.chessboardPrefix(propertyId) });
     },
   });
 }

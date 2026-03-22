@@ -12,7 +12,7 @@ export function useDeleteUnitMutation(propertyId?: string) {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: propertyKeys.unitsAll() });
       if (propertyId) {
-        void queryClient.invalidateQueries({ queryKey: propertyKeys.chessboard(propertyId) });
+        void queryClient.invalidateQueries({ queryKey: propertyKeys.chessboardPrefix(propertyId) });
       }
     },
   });

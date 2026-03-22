@@ -12,7 +12,7 @@ export function useCreateUnitMutation(propertyId: string) {
     mutationFn: (input: CreateUnitInput) => createUnit(input),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: propertyKeys.unitsAll() });
-      void queryClient.invalidateQueries({ queryKey: propertyKeys.chessboard(propertyId) });
+      void queryClient.invalidateQueries({ queryKey: propertyKeys.chessboardPrefix(propertyId) });
     },
   });
 }

@@ -43,6 +43,7 @@ interface AppColorGridProps {
   rows: readonly AppColorGridRow[];
   onCellClick?: (cell: AppColorGridCell) => void;
   onRowAddClick?: (row: AppColorGridRow) => void;
+  onRowDeleteClick?: (row: AppColorGridRow) => void;
   filterStatuses?: readonly AppColorGridCellStatus[];
   showLegend?: boolean;
   cellSize?: "sm" | "md" | "lg" | "xl";
@@ -54,7 +55,7 @@ const cellSizeClasses = {
   sm: "w-10 h-8 text-[10px]",
   md: "w-14 h-10 text-xs",
   lg: "w-18 h-12 text-sm",
-  xl: "w-20 h-16 text-xs",
+  xl: "w-28 h-20 text-sm",
 };
 
 type StatusKey = "free" | "booked" | "sold" | "reserved";
@@ -63,6 +64,7 @@ export function AppColorGrid({
   rows,
   onCellClick,
   onRowAddClick,
+  onRowDeleteClick,
   filterStatuses,
   showLegend = true,
   cellSize = "md",
@@ -173,9 +175,9 @@ export function AppColorGrid({
                       {hasSubContent ? (
                         <>
                           <span className="text-xs font-semibold leading-tight">{cell.label}</span>
-                          <span className="text-[9px] leading-tight opacity-80">{cell.sublabel}</span>
+                          <span className="text-sm leading-tight opacity-80">{cell.sublabel}</span>
                           {cell.secondarySublabel ? (
-                            <span className="text-[9px] leading-tight opacity-60">{cell.secondarySublabel}</span>
+                            <span className="text-sm leading-tight opacity-70">{cell.secondarySublabel}</span>
                           ) : null}
                         </>
                       ) : (
@@ -188,7 +190,7 @@ export function AppColorGrid({
                   <button
                     className={cn(
                       "flex shrink-0 items-center justify-center rounded-lg border border-dashed border-border text-muted-foreground hover:border-primary hover:text-primary hover:bg-primary/5 transition-colors cursor-pointer",
-                      cellSize === "xl" ? "w-10 h-16" : cellSize === "lg" ? "w-10 h-12" : cellSize === "md" ? "w-10 h-10" : "w-8 h-8",
+                      cellSize === "xl" ? "w-10 h-20" : cellSize === "lg" ? "w-10 h-12" : cellSize === "md" ? "w-10 h-10" : "w-8 h-8",
                     )}
                     onClick={() => onRowAddClick(row)}
                     title="Добавить квартиру"
@@ -196,6 +198,21 @@ export function AppColorGrid({
                   >
                     <svg aria-hidden className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                       <path d="M12 5v14M5 12h14" />
+                    </svg>
+                  </button>
+                ) : null}
+                {onRowDeleteClick && row.cells.length === 0 ? (
+                  <button
+                    className={cn(
+                      "flex shrink-0 items-center justify-center rounded-lg border border-dashed border-border text-muted-foreground hover:border-danger hover:text-danger hover:bg-danger/5 transition-colors cursor-pointer",
+                      cellSize === "xl" ? "w-10 h-20" : cellSize === "lg" ? "w-10 h-12" : cellSize === "md" ? "w-10 h-10" : "w-8 h-8",
+                    )}
+                    onClick={() => onRowDeleteClick(row)}
+                    title="Удалить этаж"
+                    type="button"
+                  >
+                    <svg aria-hidden className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                      <path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                     </svg>
                   </button>
                 ) : null}

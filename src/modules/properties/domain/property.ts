@@ -117,6 +117,7 @@ export interface Unit {
   readonly status: UnitStatus;
   readonly finishing: string | null;
   readonly description: string | null;
+  readonly photoUrls: readonly string[];
   readonly createdAt: string;
 }
 
@@ -153,7 +154,7 @@ export interface CreateUnitInput {
   propertyId: string;
   blockId: string;
   floorId: string;
-  unitNumber: string;
+  unitNumber?: string | undefined;
   unitType: string;
   floorNumber: number;
   rooms?: number | undefined;
@@ -162,6 +163,7 @@ export interface CreateUnitInput {
   kitchenArea?: number | undefined;
   balconyArea?: number | undefined;
   basePrice?: number | undefined;
+  pricePerSqm?: number | undefined;
   finishing?: string | undefined;
   description?: string | undefined;
 }
@@ -175,6 +177,7 @@ export interface BulkCreateUnitsInput {
   rooms?: number | undefined;
   totalArea?: number | undefined;
   basePrice?: number | undefined;
+  pricePerSqm?: number | undefined;
   numberFrom: number;
   numberTo: number;
   prefix?: string | undefined;
@@ -187,6 +190,7 @@ export interface UpdateUnitInput {
   kitchenArea?: number | undefined;
   balconyArea?: number | undefined;
   basePrice?: number | undefined;
+  pricePerSqm?: number | undefined;
   currentPrice?: number | undefined;
   finishing?: string | undefined;
   description?: string | undefined;

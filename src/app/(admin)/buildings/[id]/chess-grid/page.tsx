@@ -34,11 +34,11 @@ import { useReleaseUnitMutation } from "@/modules/properties/presentation/hooks/
 import { useReserveUnitMutation } from "@/modules/properties/presentation/hooks/use-reserve-unit-mutation";
 import { useCreateUnitMutation } from "@/modules/properties/presentation/hooks/use-create-unit-mutation";
 import { useDeleteUnitMutation } from "@/modules/properties/presentation/hooks/use-delete-unit-mutation";
-import { useCreateFloorMutation } from "@/modules/properties/presentation/hooks/use-create-floor-mutation";
+
 import { useCreateBlockMutation } from "@/modules/properties/presentation/hooks/use-create-block-mutation";
 import { useDealsListQuery } from "@/modules/deals/presentation/hooks/use-deals-list-query";
 import { useClientSearchQuery } from "@/modules/deals/presentation/hooks/use-client-search-query";
-import { createFloor, fetchFloors } from "@/modules/properties/infrastructure/properties-repository";
+import { createFloor, deleteFloor, duplicateFloor, fetchFloors } from "@/modules/properties/infrastructure/properties-repository";
 import { propertyKeys } from "@/modules/properties/presentation/query-keys";
 import { useNotifier } from "@/shared/providers/notifier-provider";
 import { normalizeErrorMessage } from "@/shared/lib/errors/normalize-error-message";
@@ -152,7 +152,12 @@ interface UnitFormState {
   unitType: string;
   rooms: string;
   totalArea: string;
-  basePrice: string;
+  livingArea: string;
+  kitchenArea: string;
+  balconyArea: string;
+  pricePerSqm: string;
+  finishing: string;
+  description: string;
 }
 
 const EMPTY_UNIT_FORM: UnitFormState = {
@@ -160,7 +165,12 @@ const EMPTY_UNIT_FORM: UnitFormState = {
   unitType: "apartment",
   rooms: "",
   totalArea: "",
-  basePrice: "",
+  livingArea: "",
+  kitchenArea: "",
+  balconyArea: "",
+  pricePerSqm: "",
+  finishing: "",
+  description: "",
 };
 
 // ─── Helper: resolve floorId ─────────────────────────────────────────────────
@@ -226,6 +236,13 @@ export default function ChessGridPage() {
   // Create empty floor state
   const [createFloorBlockId, setCreateFloorBlockId] = useState("");
 
+  // Delete floor state
+  const [deleteFloorConfirm, setDeleteFloorConfirm] = useState<{
+    block: ChessBlock;
+    floorId: string;
+    floorNumber: number;
+  } | null>(null);
+
   const apiFilters = toApiFilters(localFilters);
 
   const propertyQuery = usePropertyDetailQuery(propertyId);
@@ -238,8 +255,7 @@ export default function ChessGridPage() {
   const deleteUnitMutation = useDeleteUnitMutation(propertyId);
   const createBlockMutation = useCreateBlockMutation(propertyId);
 
-  const activeBlockId = createUnitContext?.block.id ?? copyFloorConfirm?.block.id ?? "";
-  const createFloorMutation = useCreateFloorMutation(propertyId, activeBlockId);
+
 
   const { data: clientResults = [], isLoading: clientsSearching } = useClientSearchQuery(clientSearch);
   const clientOptions: AppSearchableSelectOption[] = clientResults.map((c) => ({
@@ -396,8 +412,16 @@ export default function ChessGridPage() {
     if (!isNaN(rooms)) input.rooms = rooms;
     const totalArea = parseFloat(unitForm.totalArea);
     if (!isNaN(totalArea)) input.totalArea = totalArea;
-    const basePrice = parseFloat(unitForm.basePrice);
-    if (!isNaN(basePrice)) input.basePrice = basePrice;
+    const livingArea = parseFloat(unitForm.livingArea);
+    if (!isNaN(livingArea)) input.livingArea = livingArea;
+    const kitchenArea = parseFloat(unitForm.kitchenArea);
+    if (!isNaN(kitchenArea)) input.kitchenArea = kitchenArea;
+    const balconyArea = parseFloat(unitForm.balconyArea);
+    if (!isNaN(balconyArea)) input.balconyArea = balconyArea;
+    const pricePerSqm = parseFloat(unitForm.pricePerSqm);
+    if (!isNaN(pricePerSqm)) input.pricePerSqm = pricePerSqm;
+    if (unitForm.finishing) input.finishing = unitForm.finishing;
+    if (unitForm.description) input.description = unitForm.description;
 
     await createUnitMutation.mutateAsync(input);
     setCreateUnitOpen(false);
@@ -414,19 +438,10 @@ export default function ChessGridPage() {
     const floorId = await resolveFloorId(propertyId, block.id, floor);
     if (!floorId) return;
 
-    // Generate next unit number
-    const existingNumbers = floor.units
-      .map((u) => parseInt(u.unitNumber.replace(/\D/g, ""), 10))
-      .filter((n) => !isNaN(n));
-    const nextNumber = existingNumbers.length > 0
-      ? Math.max(...existingNumbers) + 1
-      : floor.floorNumber * 100 + floor.units.length + 1;
-
     const input: CreateUnitInput = {
       propertyId,
       blockId: block.id,
       floorId,
-      unitNumber: String(nextNumber),
       unitType: selectedUnit.unitType,
       floorNumber: floor.floorNumber,
     };
@@ -453,20 +468,42 @@ export default function ChessGridPage() {
   // ─── Create empty floor ──────────────────────────────────────────
 
   async function handleCreateEmptyFloor(block: ChessBlock): Promise<void> {
-    const maxFloor = block.floors.length > 0
-      ? Math.max(...block.floors.map((f) => f.floorNumber))
-      : 0;
-    const newFloorNumber = maxFloor + 1;
     setCreateFloorBlockId(block.id);
     try {
-      await createFloor(propertyId, block.id, newFloorNumber);
-      void queryClient.invalidateQueries({ queryKey: propertyKeys.chessboard(propertyId) });
+      const created = await createFloor(propertyId, block.id);
+      void queryClient.invalidateQueries({ queryKey: propertyKeys.chessboardPrefix(propertyId) });
       void queryClient.invalidateQueries({ queryKey: propertyKeys.floors(propertyId, block.id) });
-      notifier.success(`Этаж ${newFloorNumber} успешно создан`);
+      notifier.success(`Этаж ${created.floorNumber} успешно создан`);
     } catch (error) {
       notifier.error(normalizeErrorMessage(error));
     } finally {
       setCreateFloorBlockId("");
+    }
+  }
+
+  // ─── Delete empty floor ──────────────────────────────────────────
+
+  function handleRowDeleteClick(block: ChessBlock, row: AppColorGridRow): void {
+    const match = row.label.match(/-?\d+/);
+    if (!match) return;
+    const floorNumber = parseInt(match[0], 10);
+    const floor = block.floors.find((f) => f.floorNumber === floorNumber);
+    if (!floor?.floorId) return;
+    setDeleteFloorConfirm({ block, floorId: floor.floorId, floorNumber });
+  }
+
+  async function handleConfirmDeleteFloor(): Promise<void> {
+    if (!deleteFloorConfirm) return;
+    const { block, floorId, floorNumber } = deleteFloorConfirm;
+    try {
+      await deleteFloor(propertyId, block.id, floorId);
+      void queryClient.invalidateQueries({ queryKey: propertyKeys.chessboardPrefix(propertyId) });
+      void queryClient.invalidateQueries({ queryKey: propertyKeys.floors(propertyId, block.id) });
+      notifier.success(`Этаж ${floorNumber} удалён`);
+    } catch (error) {
+      notifier.error(normalizeErrorMessage(error));
+    } finally {
+      setDeleteFloorConfirm(null);
     }
   }
 
@@ -478,31 +515,12 @@ export default function ChessGridPage() {
     setCopyFloorPending(true);
 
     try {
-      const maxFloor = Math.max(...block.floors.map((f) => f.floorNumber));
-      const newFloorNumber = maxFloor + 1;
+      await duplicateFloor(propertyId, block.id, floor.floorId ?? "");
 
-      const newFloor = await createFloorMutation.mutateAsync(newFloorNumber);
-
-      for (const unit of floor.units) {
-        const oldNum = unit.unitNumber.replace(/\D/g, "");
-        const unitSuffix = oldNum.slice(-2) || oldNum;
-        const newUnitNumber = `${newFloorNumber}${unitSuffix.padStart(2, "0")}`;
-
-        const input: CreateUnitInput = {
-          propertyId,
-          blockId: block.id,
-          floorId: newFloor.id,
-          unitNumber: newUnitNumber,
-          unitType: unit.unitType,
-          floorNumber: newFloorNumber,
-        };
-
-        if (unit.rooms != null) input.rooms = unit.rooms;
-        if (unit.totalArea != null) input.totalArea = unit.totalArea;
-        if (unit.currentPrice != null) input.basePrice = unit.currentPrice;
-
-        await createUnitMutation.mutateAsync(input);
-      }
+      void queryClient.invalidateQueries({ queryKey: propertyKeys.chessboardPrefix(propertyId) });
+      void queryClient.invalidateQueries({ queryKey: propertyKeys.floors(propertyId, block.id) });
+    } catch (err) {
+      notifier.error(normalizeErrorMessage(err));
     } finally {
       setCopyFloorPending(false);
       setCopyFloorConfirm(null);
@@ -551,6 +569,13 @@ export default function ChessGridPage() {
               variant="outline"
               size="sm"
               onClick={() => router.push(routes.buildings)}
+            />
+            <AppButton
+              label="Создать блок"
+              variant="outline"
+              size="sm"
+              onClick={() => setCreateBlockOpen(true)}
+              isLoading={createBlockMutation.isPending}
             />
           </div>
         }
@@ -683,6 +708,7 @@ export default function ChessGridPage() {
                     cellSize="xl"
                     onCellClick={handleCellClick}
                     onRowAddClick={handleRowAddClick}
+                    onRowDeleteClick={(row) => handleRowDeleteClick(block, row)}
                     rows={rows}
                     showLegend={false}
                   />
@@ -720,15 +746,6 @@ export default function ChessGridPage() {
             );
           })}
 
-          {/* Create block button */}
-          <div className="rounded-xl border border-dashed border-border p-4">
-            <AppButton
-              label="Создать блок"
-              variant="outline"
-              onClick={() => setCreateBlockOpen(true)}
-              isLoading={createBlockMutation.isPending}
-            />
-          </div>
         </div>
       )}
 
@@ -850,6 +867,18 @@ export default function ChessGridPage() {
           <Divider />
 
           <Stack direction="column" spacing={1.5} sx={{ px: 3, py: 2 }}>
+            {selectedUnit ? (
+              <AppButton
+                label="Редактировать"
+                variant="outline"
+                fullWidth
+                onClick={() => {
+                  router.push(routes.unitDetail(propertyId, selectedUnit.id));
+                  handleCloseDrawer();
+                }}
+              />
+            ) : null}
+
             {unitNeedsDeal && unitDealQuery.data && unitDealQuery.data.length > 0 ? (
               <AppButton
                 label="Открыть сделку"
@@ -864,56 +893,12 @@ export default function ChessGridPage() {
             ) : null}
 
             {selectedUnit?.status === "free" ? (
-              <>
-                <AppButton
-                  label="Забронировать"
-                  variant="primary"
-                  fullWidth
-                  disabled={isActionPending}
-                  onClick={() => openActionForm("book")}
-                />
-                <AppButton
-                  label="Резервировать"
-                  variant="tonal"
-                  fullWidth
-                  disabled={isActionPending}
-                  onClick={() => openActionForm("reserve")}
-                />
-                <AppButton
-                  label="Создать копию квартиры на этот этаж"
-                  variant="outline"
-                  fullWidth
-                  isLoading={createUnitMutation.isPending}
-                  onClick={() => void handleCopyUnit()}
-                />
-                <AppButton
-                  label="Удалить квартиру"
-                  variant="destructive"
-                  fullWidth
-                  onClick={() => setDeleteUnitConfirm(true)}
-                />
-              </>
-            ) : null}
-
-            {selectedUnit?.status === "booked" ? (
               <AppButton
-                label="Отменить бронь"
-                variant="destructive"
+                label="Создать копию квартиры на этот этаж"
+                variant="outline"
                 fullWidth
-                isLoading={releaseMutation.isPending}
-                disabled={isActionPending}
-                onClick={() => void handleReleaseUnit()}
-              />
-            ) : null}
-
-            {selectedUnit?.status === "reserved" ? (
-              <AppButton
-                label="Отменить резерв"
-                variant="destructive"
-                fullWidth
-                isLoading={releaseMutation.isPending}
-                disabled={isActionPending}
-                onClick={() => void handleReleaseUnit()}
+                isLoading={createUnitMutation.isPending}
+                onClick={() => void handleCopyUnit()}
               />
             ) : null}
 
@@ -975,11 +960,52 @@ export default function ChessGridPage() {
             placeholder="42"
           />
           <AppInput
-            label="Базовая цена ($)"
-            value={unitForm.basePrice}
-            onChange={(e) => setUnitField("basePrice", e.target.value)}
+            label="Жилая площадь, м²"
+            value={unitForm.livingArea}
+            onChange={(e) => setUnitField("livingArea", e.target.value)}
             type="number"
-            placeholder="50000"
+            placeholder="30"
+          />
+          <AppInput
+            label="Кухня, м²"
+            value={unitForm.kitchenArea}
+            onChange={(e) => setUnitField("kitchenArea", e.target.value)}
+            type="number"
+            placeholder="8"
+          />
+          <AppInput
+            label="Балкон, м²"
+            value={unitForm.balconyArea}
+            onChange={(e) => setUnitField("balconyArea", e.target.value)}
+            type="number"
+            placeholder="4"
+          />
+          <AppInput
+            label="Цена за м² ($)"
+            value={unitForm.pricePerSqm}
+            onChange={(e) => setUnitField("pricePerSqm", e.target.value)}
+            type="number"
+            placeholder="1000"
+          />
+          {unitForm.totalArea && unitForm.pricePerSqm ? (
+            <div className="rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm">
+              <span className="text-muted-foreground">Базовая цена: </span>
+              <span className="font-semibold">
+                ${Math.round(parseFloat(unitForm.totalArea) * parseFloat(unitForm.pricePerSqm)).toLocaleString("ru-RU")}
+              </span>
+            </div>
+          ) : null}
+          <AppInput
+            label="Отделка"
+            value={unitForm.finishing}
+            onChange={(e) => setUnitField("finishing", e.target.value)}
+            placeholder="Черновая"
+          />
+          <AppInput
+            label="Описание"
+            value={unitForm.description}
+            onChange={(e) => setUnitField("description", e.target.value)}
+            placeholder="Доп. информация"
           />
         </div>
       </AppDrawerForm>
@@ -1060,6 +1086,21 @@ export default function ChessGridPage() {
         cancelText="Отмена"
         onConfirm={() => void handleCopyFloor()}
         onClose={() => setCopyFloorConfirm(null)}
+      />
+
+      {/* ─── Delete floor confirm ─────────────────────────────────────── */}
+      <ConfirmDialog
+        open={deleteFloorConfirm !== null}
+        title="Удалить этаж?"
+        message={
+          deleteFloorConfirm
+            ? `Вы уверены, что хотите удалить этаж ${deleteFloorConfirm.floorNumber}? Этаж пустой и будет удалён безвозвратно.`
+            : ""
+        }
+        confirmText="Удалить"
+        cancelText="Отмена"
+        onConfirm={() => void handleConfirmDeleteFloor()}
+        onClose={() => setDeleteFloorConfirm(null)}
       />
 
       {/* ─── Create block drawer ──────────────────────────────────────── */}

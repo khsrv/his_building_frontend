@@ -20,7 +20,7 @@ export function useReserveUnitMutation(propertyId: string) {
         comment: input.comment,
       }),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: propertyKeys.chessboard(propertyId) });
+      void queryClient.invalidateQueries({ queryKey: propertyKeys.chessboardPrefix(propertyId) });
     },
   });
 }

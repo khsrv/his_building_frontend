@@ -8,10 +8,10 @@ export function useCreateFloorMutation(propertyId: string, blockId: string) {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (floorNumber: number) => createFloor(propertyId, blockId, floorNumber),
+    mutationFn: (floorNumber?: number) => createFloor(propertyId, blockId, floorNumber),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: propertyKeys.floors(propertyId, blockId) });
-      void queryClient.invalidateQueries({ queryKey: propertyKeys.chessboard(propertyId) });
+      void queryClient.invalidateQueries({ queryKey: propertyKeys.chessboardPrefix(propertyId) });
     },
   });
 }

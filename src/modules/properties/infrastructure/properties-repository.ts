@@ -1,4 +1,5 @@
 import { apiClient } from "@/shared/lib/http/api-client";
+import { httpRequest } from "@/shared/lib/http/http-client";
 import { AppError } from "@/shared/lib/errors/app-error";
 import {
   getResponseData,
@@ -266,6 +267,7 @@ interface UnitDto {
   status: string;
   finishing: string | null;
   description: string | null;
+  photo_urls?: string[] | null;
   created_at: string;
 }
 
@@ -303,6 +305,7 @@ function mapUnitDto(dto: UnitDto): Unit {
     status: isUnitStatus(dto.status) ? dto.status : "available",
     finishing: dto.finishing,
     description: dto.description,
+    photoUrls: dto.photo_urls ?? [],
     createdAt: dto.created_at,
   };
 }
@@ -415,16 +418,20 @@ interface CreateFloorResponseDto {
 export async function createFloor(
   propertyId: string,
   blockId: string,
-  floorNumber: number,
+  floorNumber?: number | undefined,
 ): Promise<FloorInfo> {
+  const body: Record<string, unknown> = {};
+  if (floorNumber !== undefined) {
+    body.floor_number = floorNumber;
+  }
   const response = await apiClient.post<unknown>(
     `/api/v1/properties/${propertyId}/blocks/${blockId}/floors`,
-    { floor_number: floorNumber },
+    body,
   );
   const data = getResponseData<CreateFloorResponseDto>(normalizeApiKeys(response));
   return {
     id: data.id,
-    floorNumber: Number(data.floor_number ?? floorNumber),
+    floorNumber: Number(data.floor_number ?? floorNumber ?? 0),
     unitsCount: 0,
   };
 }
@@ -447,7 +454,26 @@ export async function deleteFloor(
   }
 }
 
+export async function duplicateFloor(
+  propertyId: string,
+  blockId: string,
+  floorId: string,
+  newFloorNumber?: number | undefined,
+): Promise<void> {
+  const body: Record<string, unknown> = {};
+  if (newFloorNumber !== undefined) body.new_floor_number = newFloorNumber;
+  await apiClient.post<unknown>(
+    `/api/v1/properties/${propertyId}/blocks/${blockId}/floors/${floorId}/duplicate`,
+    body,
+  );
+}
+
 // ─── Units CRUD ──────────────────────────────────────────────────────────────
+
+export async function fetchUnit(id: string): Promise<Unit> {
+  const response = await apiClient.get<unknown>(`/api/v1/units/${id}`);
+  return mapUnitDto(getResponseData<UnitDto>(normalizeApiKeys(response)));
+}
 
 export async function fetchUnitsList(
   params: UnitsListParams,
@@ -481,16 +507,17 @@ export async function createUnit(input: CreateUnitInput): Promise<Unit> {
     property_id: input.propertyId,
     block_id: input.blockId,
     floor_id: input.floorId,
-    unit_number: input.unitNumber,
     unit_type: input.unitType,
     floor_number: input.floorNumber,
   };
+  if (input.unitNumber) body["unit_number"] = input.unitNumber;
   if (input.rooms !== undefined) body["rooms"] = input.rooms;
   if (input.totalArea !== undefined) body["total_area"] = input.totalArea;
   if (input.livingArea !== undefined) body["living_area"] = input.livingArea;
   if (input.kitchenArea !== undefined) body["kitchen_area"] = input.kitchenArea;
   if (input.balconyArea !== undefined) body["balcony_area"] = input.balconyArea;
   if (input.basePrice !== undefined) body["base_price"] = input.basePrice;
+  if (input.pricePerSqm !== undefined) body["price_per_sqm"] = input.pricePerSqm;
   if (input.finishing !== undefined) body["finishing"] = input.finishing;
   if (input.description !== undefined) body["description"] = input.description;
 
@@ -513,6 +540,7 @@ export async function bulkCreateUnits(
   if (input.rooms !== undefined) body["rooms"] = input.rooms;
   if (input.totalArea !== undefined) body["total_area"] = input.totalArea;
   if (input.basePrice !== undefined) body["base_price"] = input.basePrice;
+  if (input.pricePerSqm !== undefined) body["price_per_sqm"] = input.pricePerSqm;
   if (input.prefix !== undefined) body["prefix"] = input.prefix;
 
   const response = await apiClient.post<unknown>("/api/v1/units/bulk", body);
@@ -539,6 +567,7 @@ export async function updateUnit(id: string, input: UpdateUnitInput): Promise<Un
   if (input.kitchenArea !== undefined) body["kitchen_area"] = input.kitchenArea;
   if (input.balconyArea !== undefined) body["balcony_area"] = input.balconyArea;
   if (input.basePrice !== undefined) body["base_price"] = input.basePrice;
+  if (input.pricePerSqm !== undefined) body["price_per_sqm"] = input.pricePerSqm;
   if (input.currentPrice !== undefined) body["current_price"] = input.currentPrice;
   if (input.finishing !== undefined) body["finishing"] = input.finishing;
   if (input.description !== undefined) body["description"] = input.description;
@@ -549,4 +578,19 @@ export async function updateUnit(id: string, input: UpdateUnitInput): Promise<Un
 
 export async function deleteUnit(id: string): Promise<void> {
   await apiClient.delete(`/api/v1/units/${id}`);
+}
+
+export async function uploadUnitPhoto(unitId: string, file: File): Promise<Unit> {
+  const formData = new FormData();
+  formData.append("file", file);
+  const response = await apiClient.upload<unknown>(`/api/v1/units/${unitId}/photos`, formData);
+  return mapUnitDto(getResponseData<UnitDto>(normalizeApiKeys(response)));
+}
+
+export async function deleteUnitPhoto(unitId: string, url: string): Promise<Unit> {
+  const response = await httpRequest<unknown>(`/api/v1/units/${unitId}/photos`, {
+    method: "DELETE",
+    body: JSON.stringify({ url }),
+  });
+  return mapUnitDto(getResponseData<UnitDto>(normalizeApiKeys(response)));
 }

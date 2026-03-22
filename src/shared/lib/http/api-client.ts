@@ -55,6 +55,14 @@ const apiClient = {
   delete<T = { data: { status: string } }>(path: string, options?: Omit<HttpRequestOptions, "method">): Promise<T> {
     return httpRequest<T>(path, { ...options, method: "DELETE" });
   },
+
+  upload<T>(path: string, formData: FormData, options?: Omit<HttpRequestOptions, "method" | "body">): Promise<T> {
+    return httpRequest<T>(path, {
+      ...options,
+      method: "POST",
+      body: formData,
+    });
+  },
 };
 
 export { apiClient };

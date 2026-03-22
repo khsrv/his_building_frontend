@@ -12,7 +12,7 @@ export function useCreateBlockMutation(propertyId: string) {
     mutationFn: (input: CreateBlockInput) => createBlock(propertyId, input),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: propertyKeys.blocks(propertyId) });
-      void queryClient.invalidateQueries({ queryKey: propertyKeys.chessboard(propertyId) });
+      void queryClient.invalidateQueries({ queryKey: propertyKeys.chessboardPrefix(propertyId) });
     },
   });
 }

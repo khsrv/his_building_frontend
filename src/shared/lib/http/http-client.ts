@@ -105,12 +105,14 @@ async function doRequest<T>(
   }
   logRequest(method, url, parsedBody);
 
+  const isFormData = typeof FormData !== "undefined" && requestInit.body instanceof FormData;
+
   let response: Response;
   try {
     response = await fetch(url, {
       ...requestInit,
       headers: {
-        "Content-Type": "application/json",
+        ...(isFormData ? {} : { "Content-Type": "application/json" }),
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...headers,
       },
