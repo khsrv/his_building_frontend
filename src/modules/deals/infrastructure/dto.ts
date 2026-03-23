@@ -24,16 +24,36 @@ export interface DealDto {
   installment_months: number | null;
   installment_frequency: string;
   client_id: string;
+  client_name?: string;
+  client_phone?: string;
   unit_id: string;
+  unit_number?: string;
+  property_id?: string;
+  property_name?: string;
   manager_id: string;
+  manager_name?: string;
   contract_number: string;
   notes: string;
   signed_at: string | null;
   completed_at: string | null;
   cancelled_at: string | null;
   cancellation_reason: string;
+  paid_amount?: number;
+  debt_amount?: number;
+  cancellation?: DealCancellationDto | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface DealCancellationDto {
+  reason: string;
+  refund_type: string;
+  paid_amount: number;
+  refund_amount: number;
+  penalty_amount: number;
+  penalty_reason?: string;
+  refund_status: string;
+  refunded_at?: string | null;
 }
 
 export interface DealsListResponseDto {

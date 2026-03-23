@@ -57,6 +57,7 @@ export const tgDictionary = {
   "nav.payments": "Пардохтҳо",
   "nav.payments_upcoming": "Пардохтҳои наздик",
   "nav.payments_overdue": "Пардохтҳои мӯҳлаташон гузашта",
+  "nav.refunds": "Баргардонидан",
   "nav.calculator": "Ҳисобкунак",
   "nav.finance": "Молия",
   "nav.finance_ledger": "Журнал",

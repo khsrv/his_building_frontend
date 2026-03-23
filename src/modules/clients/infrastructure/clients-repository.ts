@@ -39,6 +39,10 @@ interface ClientDto {
   assigned_manager_name?: string | null;
   manager_name: string | null;
   notes: string | null;
+  deals_count?: number;
+  total_amount?: number;
+  total_paid?: number;
+  total_debt?: number;
   created_at: string;
   updated_at: string;
 }
@@ -138,6 +142,10 @@ function mapClientDto(dto: ClientDto): Client {
     managerId: dto.assigned_manager_id ?? dto.manager_id ?? null,
     managerName: dto.assigned_manager_name ?? dto.manager_name ?? null,
     notes: dto.notes,
+    dealsCount: dto.deals_count ?? 0,
+    totalAmount: dto.total_amount ?? 0,
+    totalPaid: dto.total_paid ?? 0,
+    totalDebt: dto.total_debt ?? 0,
     createdAt: dto.created_at,
   };
 }
@@ -211,6 +219,7 @@ export async function fetchClientsList(params?: ClientsListParams): Promise<Clie
   if (params?.source) query["source"] = params.source;
   if (params?.managerId) query["manager_id"] = params.managerId;
   if (params?.pipelineStageId) query["pipeline_stage_id"] = params.pipelineStageId;
+  if (params?.hasDeals !== undefined) query["has_deals"] = params.hasDeals;
 
   const res = await apiClient.get<ClientsListResponseDto>("/api/v1/clients", query);
   const normalized = normalizeApiKeys(res);

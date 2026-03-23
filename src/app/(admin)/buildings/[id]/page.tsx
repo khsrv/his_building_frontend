@@ -36,6 +36,8 @@ import { useFloorsQuery } from "@/modules/properties/presentation/hooks/use-floo
 import { useCreateFloorMutation } from "@/modules/properties/presentation/hooks/use-create-floor-mutation";
 import { useDeleteFloorMutation } from "@/modules/properties/presentation/hooks/use-delete-floor-mutation";
 import { AppError } from "@/shared/lib/errors/app-error";
+import { usePropertyDashboardQuery } from "@/modules/properties/presentation/hooks/use-property-dashboard-query";
+import { useDashboardSummaryQuery } from "@/modules/properties/presentation/hooks/use-dashboard-summary-query";
 import { UnitPhotoManager } from "@/modules/properties/presentation/components/unit-photo-manager";
 import type {
   Property,
@@ -178,11 +180,15 @@ export default function BuildingDetailPage() {
   // ─── Data queries ──────────────────────────────────────────────────
   const propertyQuery = usePropertyDetailQuery(propertyId);
   const blocksQuery = usePropertyBlocksQuery(propertyId);
-  const unitsQuery = useUnitsListQuery({ propertyId, page: 1, limit: 100 });
+  const unitsQuery = useUnitsListQuery({ propertyId, page: 1, limit: 200 });
+  const dashboardQuery = usePropertyDashboardQuery(propertyId);
+  const summaryQuery = useDashboardSummaryQuery(propertyId);
 
   const property = propertyQuery.data;
   const blocks = blocksQuery.data ?? [];
   const units = unitsQuery.data?.items ?? [];
+  const dashboard = dashboardQuery.data;
+  const summary = summaryQuery.data;
 
   // ─── Mutations ─────────────────────────────────────────────────────
   const updatePropertyMutation = useUpdatePropertyMutation(propertyId);
@@ -224,6 +230,12 @@ export default function BuildingDetailPage() {
   const [floorNumber, setFloorNumber] = useState("");
   const [deleteFloorTarget, setDeleteFloorTarget] = useState<FloorInfo | null>(null);
   const [floorDeleteError, setFloorDeleteError] = useState<string | null>(null);
+
+  // ─── Unit filter state ─────────────────────────────────────────
+  const [unitFilterBlock, setUnitFilterBlock] = useState("");
+  const [unitFilterFloor, setUnitFilterFloor] = useState("");
+  const [unitFilterStatus, setUnitFilterStatus] = useState("");
+  const [unitFilterRooms, setUnitFilterRooms] = useState("");
 
   // ─── Floor tab queries & mutations ──────────────────────────────
   const floorTabQuery = useFloorsQuery(propertyId, floorTabBlockId);
@@ -661,54 +673,56 @@ export default function BuildingDetailPage() {
         }
       />
 
-      {/* Info card */}
-      <AppCard>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-          <div>
-            <p className="text-xs text-muted-foreground">Адрес</p>
-            <p className="text-sm font-medium">{property.address || "—"}</p>
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground">Город</p>
-            <p className="text-sm font-medium">{property.city || "—"}</p>
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground">Статус</p>
-            <AppStatusBadge
-              label={PROPERTY_STATUS_LABEL[property.status]}
-              tone={PROPERTY_STATUS_TONE[property.status]}
-            />
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground">Валюта</p>
-            <p className="text-sm font-medium">{property.currency}</p>
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground">Начало строительства</p>
-            <p className="text-sm font-medium">{property.constructionStartDate ?? "—"}</p>
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground">Завершение</p>
-            <p className="text-sm font-medium">{property.constructionEndDate ?? "—"}</p>
-          </div>
-        </div>
-      </AppCard>
+      {/* Property info row */}
+      <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+        <AppStatusBadge
+          label={PROPERTY_STATUS_LABEL[property.status]}
+          tone={PROPERTY_STATUS_TONE[property.status]}
+        />
+        {property.address ? <span>{property.address}</span> : null}
+        {property.city ? <span>· {property.city}</span> : null}
+        <span>· {property.currency}</span>
+      </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+      {/* Main KPI row */}
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
         <AppStatCard title="Всего квартир" value={String(property.totalUnits)} />
-        <AppStatCard title="Продано" value={String(property.soldUnits)} />
-        <AppStatCard title="Реализация" value={`${property.realizationPercent.toFixed(1)}%`} />
+        <AppStatCard title="Свободных" value={String(dashboard?.availableUnits ?? property.availableUnits)} />
+        <AppStatCard title="Бронь" value={String(dashboard?.bookedUnits ?? property.bookedUnits)} />
+        <AppStatCard title="Продано" value={String(dashboard?.soldUnits ?? property.soldUnits)} />
         <AppStatCard
-          delta={`${freeCount} свободных`}
-          deltaTone="success"
-          title="Свободных"
-          value={String(property.totalUnits - property.soldUnits)}
+          title="Реализация"
+          value={`${(dashboard?.salesPct ?? property.realizationPercent).toFixed(1)}%`}
+        />
+        <AppStatCard
+          title="Ср. цена/м²"
+          value={dashboard?.avgPricePerSqm ? `$${Math.round(dashboard.avgPricePerSqm).toLocaleString("ru-RU")}` : "—"}
+        />
+      </div>
+
+      {/* Revenue & debt row */}
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <AppStatCard
+          title="Общая выручка"
+          value={summary?.totalRevenue ? `$${summary.totalRevenue.toLocaleString("ru-RU")}` : `$${property.totalRevenue.toLocaleString("ru-RU")}`}
+        />
+        <AppStatCard
+          title="Задолженность"
+          value={summary?.totalDebt ? `$${summary.totalDebt.toLocaleString("ru-RU")}` : "—"}
+        />
+        <AppStatCard
+          title="Активные сделки"
+          value={String(summary?.activeDeals ?? 0)}
+        />
+        <AppStatCard
+          title="Просрочено"
+          value={String(summary?.overdueCount ?? 0)}
         />
       </div>
 
       {/* Tabs */}
       <AppTabs
+        initialTabId="units"
         tabs={[
           {
             id: "blocks",
@@ -812,63 +826,116 @@ export default function BuildingDetailPage() {
             id: "units",
             title: "Квартиры",
             badge: units.length,
-            content: (
-              <div className="space-y-4">
-                <div className="flex justify-end gap-2">
-                  <AppButton
-                    label="Массовое создание"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      setBulkForm(EMPTY_BULK_FORM);
-                      setBulkDrawerOpen(true);
-                    }}
-                  />
-                  <AppButton
-                    label="Добавить квартиру"
-                    variant="primary"
-                    size="sm"
-                    onClick={handleOpenCreateUnit}
-                  />
+            content: (() => {
+              const filteredUnits = units.filter((u) => {
+                if (unitFilterBlock && u.blockId !== unitFilterBlock) return false;
+                if (unitFilterFloor && u.floorNumber !== Number(unitFilterFloor)) return false;
+                if (unitFilterStatus && u.status !== unitFilterStatus) return false;
+                if (unitFilterRooms && u.rooms !== Number(unitFilterRooms)) return false;
+                return true;
+              });
+
+              const statusOptions = [
+                { label: "Все статусы", value: "" },
+                { label: "Свободна", value: "available" },
+                { label: "Бронь", value: "booked" },
+                { label: "Резерв", value: "reserved" },
+                { label: "Продана", value: "sold" },
+              ];
+
+              const roomsSet = new Set(units.map((u) => u.rooms).filter((r): r is number => r !== null));
+              const roomsOptions = [
+                { label: "Все комнаты", value: "" },
+                ...[...roomsSet].sort((a, b) => a - b).map((r) => ({ label: `${r}-комн.`, value: String(r) })),
+              ];
+
+              const blockFilterOptions = [
+                { label: "Все блоки", value: "" },
+                ...blocks.map((b) => ({ label: b.name, value: b.id })),
+              ];
+
+              const floorsInBlock = unitFilterBlock
+                ? [...new Set(units.filter((u) => u.blockId === unitFilterBlock).map((u) => u.floorNumber))].sort((a, b) => a - b)
+                : [...new Set(units.map((u) => u.floorNumber))].sort((a, b) => a - b);
+              const floorFilterOptions = [
+                { label: "Все этажи", value: "" },
+                ...floorsInBlock.map((f) => ({ label: `Этаж ${f}`, value: String(f) })),
+              ];
+
+              return (
+                <div className="space-y-4">
+                  <div className="flex flex-wrap items-end justify-between gap-3">
+                    <div className="flex flex-wrap gap-2">
+                      <div className="w-40">
+                        <AppSelect
+                          label="Блок"
+                          value={unitFilterBlock}
+                          onChange={(e) => {
+                            setUnitFilterBlock(e.target.value);
+                            setUnitFilterFloor("");
+                          }}
+                          options={blockFilterOptions}
+                        />
+                      </div>
+                      <div className="w-40">
+                        <AppSelect
+                          label="Этаж"
+                          value={unitFilterFloor}
+                          onChange={(e) => setUnitFilterFloor(e.target.value)}
+                          options={floorFilterOptions}
+                        />
+                      </div>
+                      <div className="w-40">
+                        <AppSelect
+                          label="Статус"
+                          value={unitFilterStatus}
+                          onChange={(e) => setUnitFilterStatus(e.target.value)}
+                          options={statusOptions}
+                        />
+                      </div>
+                      <div className="w-40">
+                        <AppSelect
+                          label="Комнаты"
+                          value={unitFilterRooms}
+                          onChange={(e) => setUnitFilterRooms(e.target.value)}
+                          options={roomsOptions}
+                        />
+                      </div>
+                    </div>
+                    <AppButton
+                      label="Добавить квартиру"
+                      variant="primary"
+                      size="sm"
+                      onClick={handleOpenCreateUnit}
+                    />
+                  </div>
+                  {unitsQuery.isLoading ? (
+                    <ShimmerBox className="h-40 w-full rounded-xl" />
+                  ) : unitsQuery.isError ? (
+                    <AppStatePanel
+                      tone="error"
+                      title="Ошибка загрузки"
+                      description="Не удалось загрузить квартиры."
+                    />
+                  ) : filteredUnits.length === 0 ? (
+                    <AppStatePanel
+                      tone="empty"
+                      title={units.length === 0 ? "Нет квартир" : "Ничего не найдено"}
+                      description={units.length === 0 ? "Добавьте первую квартиру или используйте массовое создание." : "Попробуйте изменить фильтры."}
+                    />
+                  ) : (
+                    <AppDataTable<Unit>
+                      data={filteredUnits}
+                      columns={unitColumns}
+                      rowKey={(row) => row.id}
+                      title={`Квартиры (${filteredUnits.length})`}
+                      searchPlaceholder="Поиск по номеру..."
+                      onRowClick={(row) => router.push(routes.unitDetail(propertyId, row.id))}
+                    />
+                  )}
                 </div>
-                {unitsQuery.isLoading ? (
-                  <ShimmerBox className="h-40 w-full rounded-xl" />
-                ) : unitsQuery.isError ? (
-                  <AppStatePanel
-                    tone="error"
-                    title="Ошибка загрузки"
-                    description="Не удалось загрузить квартиры."
-                  />
-                ) : units.length === 0 ? (
-                  <AppStatePanel
-                    tone="empty"
-                    title="Нет квартир"
-                    description="Добавьте первую квартиру или используйте массовое создание."
-                  />
-                ) : (
-                  <AppDataTable<Unit>
-                    data={units}
-                    columns={unitColumns}
-                    rowKey={(row) => row.id}
-                    title="Квартиры"
-                    searchPlaceholder="Поиск по номеру..."
-                  />
-                )}
-              </div>
-            ),
-          },
-          {
-            id: "chess",
-            title: "Шахматка",
-            content: (
-              <div className="space-y-4">
-                <AppButton
-                  label="Открыть шахматку"
-                  variant="primary"
-                  onClick={() => router.push(routes.buildingChessGrid(propertyId))}
-                />
-              </div>
-            ),
+              );
+            })(),
           },
         ]}
       />

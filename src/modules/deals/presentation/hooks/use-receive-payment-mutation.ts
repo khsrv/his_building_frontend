@@ -14,6 +14,7 @@ export function useReceivePaymentMutation(dealId: string) {
       void queryClient.invalidateQueries({ queryKey: dealKeys.detail(dealId) });
       void queryClient.invalidateQueries({ queryKey: dealKeys.schedule(dealId) });
       void queryClient.invalidateQueries({ queryKey: dealKeys.payments(dealId) });
+      void queryClient.invalidateQueries({ queryKey: ["payments"] });
     },
   });
 }

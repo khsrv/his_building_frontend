@@ -9,9 +9,11 @@ import {
   type AppDataTableColumn,
   AppKpiGrid,
   AppPageHeader,
+  AppSelect,
   AppStatusBadge,
   type AppStatusTone,
   AppStatePanel,
+  ShimmerBox,
 } from "@/shared/ui";
 import { routes } from "@/shared/constants/routes";
 import { useClientsListQuery } from "@/modules/clients/presentation/hooks/use-clients-list-query";
@@ -38,72 +40,102 @@ const SOURCE_TONE: Record<ClientSource, AppStatusTone> = {
   other: "muted",
 };
 
-// ─── Columns ─────────────────────────────────────────────────────────────────
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
-const columns: readonly AppDataTableColumn<Client>[] = [
-  {
-    id: "fullName",
-    header: "ФИО",
-    cell: (row) => row.fullName,
-    sortAccessor: (row) => row.fullName,
-    searchAccessor: (row) => row.fullName,
-  },
-  {
-    id: "phone",
-    header: "Телефон",
-    cell: (row) => row.phone,
-    searchAccessor: (row) => row.phone,
-  },
-  {
-    id: "source",
-    header: "Источник",
-    cell: (row) => (
-      <AppStatusBadge
-        label={SOURCE_LABEL[row.source]}
-        tone={SOURCE_TONE[row.source]}
-      />
-    ),
-    sortAccessor: (row) => row.source,
-  },
-  {
-    id: "managerName",
-    header: "Менеджер",
-    cell: (row) => row.managerName ?? "—",
-    sortAccessor: (row) => row.managerName ?? "",
-  },
-  {
-    id: "pipelineStageName",
-    header: "Этап",
-    cell: (row) =>
-      row.pipelineStageName ? (
-        <AppStatusBadge label={row.pipelineStageName} tone="info" />
-      ) : (
-        "—"
-      ),
-  },
-  {
-    id: "createdAt",
-    header: "Дата создания",
-    cell: (row) => new Date(row.createdAt).toLocaleDateString("ru-RU"),
-    sortAccessor: (row) => row.createdAt,
-  },
-];
+function fmtMoney(v: number): string {
+  return v > 0 ? `$${v.toLocaleString("ru-RU")}` : "—";
+}
 
 // ─── Page ────────────────────────────────────────────────────────────────────
 
 export default function ClientsPage() {
   const router = useRouter();
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [filterType, setFilterType] = useState<string>("with_deals");
 
-  const { data, isLoading, isError, error } = useClientsListQuery({ page: 1, limit: 100 });
+  const { data, isLoading, isError, error } = useClientsListQuery({
+    page: 1,
+    limit: 200,
+  });
 
-  const clients = data?.items ?? [];
+  const allClients = data?.items ?? [];
   const total = data?.total ?? 0;
 
-  // Compute new-this-month count from loaded data
-  const now = new Date();
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
-  const newThisMonth = clients.filter((c) => c.createdAt >= startOfMonth).length;
+  // Client-side filter until backend supports has_deals
+  const clients = filterType === "with_deals"
+    ? allClients.filter((c) => c.dealsCount > 0)
+    : filterType === "no_deals"
+      ? allClients.filter((c) => c.dealsCount === 0)
+      : allClients;
+
+  const withDeals = allClients.filter((c) => c.dealsCount > 0).length;
+  const totalDebt = allClients.reduce((sum, c) => sum + c.totalDebt, 0);
+  const totalRevenue = allClients.reduce((sum, c) => sum + c.totalPaid, 0);
+
+  // ─── Columns ──────────────────────────────────────────────────────
+
+  const columns: readonly AppDataTableColumn<Client>[] = [
+    {
+      id: "fullName",
+      header: "ФИО",
+      cell: (row) => (
+        <div>
+          <span className="font-medium">{row.fullName}</span>
+          <span className="block text-xs text-muted-foreground">{row.phone}</span>
+        </div>
+      ),
+      sortAccessor: (row) => row.fullName,
+      searchAccessor: (row) => `${row.fullName} ${row.phone}`,
+    },
+    {
+      id: "dealsCount",
+      header: "Сделки",
+      cell: (row) => (
+        <span className={row.dealsCount > 0 ? "font-semibold" : "text-muted-foreground"}>
+          {row.dealsCount}
+        </span>
+      ),
+      sortAccessor: (row) => row.dealsCount,
+      align: "right",
+    },
+    {
+      id: "totalAmount",
+      header: "Сумма сделок",
+      cell: (row) => (
+        <span className="text-muted-foreground">{fmtMoney(row.totalAmount)}</span>
+      ),
+      sortAccessor: (row) => row.totalAmount,
+      align: "right",
+    },
+    {
+      id: "totalPaid",
+      header: "Оплачено",
+      cell: (row) => (
+        <span className={row.totalPaid > 0 ? "text-emerald-600 font-medium" : "text-muted-foreground"}>
+          {fmtMoney(row.totalPaid)}
+        </span>
+      ),
+      sortAccessor: (row) => row.totalPaid,
+      align: "right",
+    },
+    {
+      id: "totalDebt",
+      header: "Долг",
+      cell: (row) => (
+        <span className={row.totalDebt > 0 ? "text-red-600 font-semibold" : "text-muted-foreground"}>
+          {fmtMoney(row.totalDebt)}
+        </span>
+      ),
+      sortAccessor: (row) => row.totalDebt,
+      align: "right",
+    },
+    {
+      id: "createdAt",
+      header: "Дата",
+      cell: (row) => new Date(row.createdAt).toLocaleDateString("ru-RU"),
+      sortAccessor: (row) => row.createdAt,
+    },
+  ];
 
   if (isError) {
     return (
@@ -142,25 +174,46 @@ export default function ClientsPage() {
         }
         filters={
           <AppKpiGrid
-            columns={3}
+            columns={4}
             items={[
               { title: "Всего клиентов", value: total },
-              { title: "Новые за месяц", value: newThisMonth, deltaTone: "info" },
-              { title: "Загружено", value: clients.length, deltaTone: "success" },
+              { title: "Со сделками", value: withDeals },
+              { title: "Оплачено", value: fmtMoney(totalRevenue) },
+              { title: "Общий долг", value: fmtMoney(totalDebt), deltaTone: totalDebt > 0 ? "danger" : "success" },
             ]}
           />
         }
         content={
-          <AppDataTable<Client>
-            data={clients}
-            columns={columns}
-            rowKey={(row) => row.id}
-            title="Клиенты"
-            searchPlaceholder="Поиск по ФИО или телефону..."
-            enableExport
-            enableSettings
-            onRowClick={(row) => router.push(routes.clientDetail(row.id))}
-          />
+          <div className="space-y-4">
+            <div className="flex items-end gap-3">
+              <div className="w-48">
+                <AppSelect
+                  label="Тип клиента"
+                  value={filterType}
+                  onChange={(e) => setFilterType(e.target.value)}
+                  options={[
+                    { label: "Все клиенты", value: "" },
+                    { label: "Со сделками", value: "with_deals" },
+                    { label: "Без сделок", value: "no_deals" },
+                  ]}
+                />
+              </div>
+            </div>
+            {isLoading ? (
+              <ShimmerBox className="h-64 w-full rounded-xl" />
+            ) : (
+              <AppDataTable<Client>
+                data={clients}
+                columns={columns}
+                rowKey={(row) => row.id}
+                title="Клиенты"
+                searchPlaceholder="Поиск по ФИО или телефону..."
+                enableExport
+                enableSettings
+                onRowClick={(row) => router.push(routes.clientDetail(row.id))}
+              />
+            )}
+          </div>
         }
       />
 

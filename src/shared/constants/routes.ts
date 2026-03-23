@@ -38,6 +38,7 @@ export const routes = {
   // Payments
   payments: "/payments",
   paymentsOverdue: "/payments/overdue",
+  refunds: "/refunds",
   paymentSchedule: (dealId: string) => `/deals/${dealId}/payments` as const,
 
   // Profile

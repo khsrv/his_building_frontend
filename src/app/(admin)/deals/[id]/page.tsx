@@ -10,6 +10,9 @@ import {
   AppSelect,
   AppStatCard,
   AppStatusBadge,
+  AppDrawerForm,
+  AppActionMenu,
+  type AppActionMenuGroup,
   AppPaymentTimeline,
   type AppPaymentInstallment,
   type AppPaymentStatus,
@@ -38,6 +41,9 @@ import { useRejectPaymentMutation } from "@/modules/deals/presentation/hooks/use
 import { ReceivePaymentDrawer } from "@/modules/deals/presentation/components/receive-payment-drawer";
 import type { ScheduleItem, ScheduleItemStatus, DealStatus, DealPaymentType } from "@/modules/deals/domain/deal";
 import type { Payment } from "@/modules/deals/infrastructure/repository";
+import { regenerateSchedule } from "@/modules/deals/infrastructure/repository";
+import { dealKeys } from "@/modules/deals/presentation/query-keys";
+import { useQueryClient } from "@tanstack/react-query";
 import { useContractTemplatesQuery } from "@/modules/contracts/presentation/hooks/use-contract-templates-query";
 import { useGenerateContractMutation } from "@/modules/contracts/presentation/hooks/use-generate-contract-mutation";
 
@@ -115,6 +121,14 @@ export default function DealDetailPage() {
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
   const [generatedContractHtml, setGeneratedContractHtml] = useState<string | null>(null);
   const [contractError, setContractError] = useState<string | null>(null);
+  const [regenerating, setRegenerating] = useState(false);
+  const [completeConfirmOpen, setCompleteConfirmOpen] = useState(false);
+  const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
+  const [cancelReason, setCancelReason] = useState("");
+  const [cancelRefundType, setCancelRefundType] = useState<"full" | "partial" | "none">("full");
+  const [cancelPenaltyAmount, setCancelPenaltyAmount] = useState("");
+  const [cancelPenaltyReason, setCancelPenaltyReason] = useState("");
+  const queryClient = useQueryClient();
 
   const { data: deal, isLoading: dealLoading, error: dealError } = useEnrichedDealDetailQuery(id);
   const { data: schedule = [], isLoading: scheduleLoading } = useDealScheduleQuery(id);
@@ -157,7 +171,7 @@ export default function DealDetailPage() {
     );
   }
 
-  const paidAmount = schedule.reduce((sum, item) => sum + item.paidAmount, 0);
+  const paidAmount = deal.paidAmount > 0 ? deal.paidAmount : schedule.reduce((sum, item) => sum + item.paidAmount, 0);
   const hasBarterPayment = payments.some((p) => p.paymentMethod === "barter");
 
   const installments: AppPaymentInstallment[] = schedule.map((item) => {
@@ -251,28 +265,64 @@ export default function DealDetailPage() {
     </div>
   );
 
+  async function handleRegenerateSchedule() {
+    setRegenerating(true);
+    try {
+      await regenerateSchedule(id);
+      void queryClient.invalidateQueries({ queryKey: dealKeys.schedule(id) });
+      void queryClient.invalidateQueries({ queryKey: dealKeys.detail(id) });
+    } catch {
+      // error handled silently
+    } finally {
+      setRegenerating(false);
+    }
+  }
+
   const scheduleTabContent = scheduleLoading ? (
     <ShimmerBox className="h-64 w-full rounded-xl" />
   ) : schedule.length === 0 ? (
-    <AppStatePanel
-      tone="empty"
-      title="График платежей не создан"
-      description="График платежей будет сформирован после активации сделки"
-    />
+    <div className="space-y-4">
+      <AppStatePanel
+        tone="empty"
+        title="График платежей не создан"
+        description="График платежей будет сформирован после активации сделки"
+      />
+      {deal?.status === "active" ? (
+        <div className="flex justify-center">
+          <AppButton
+            label="Сгенерировать график"
+            variant="primary"
+            isLoading={regenerating}
+            onClick={() => void handleRegenerateSchedule()}
+          />
+        </div>
+      ) : null}
+    </div>
   ) : (
-    <AppPaymentTimeline
-      title="График платежей"
-      installments={installments}
-      showProgress
-      onInstallmentClick={(inst) => {
-        const item = schedule.find((s) => s.id === inst.id);
-        if (item) {
-          setEditScheduleItem(item);
-          setEditDueDate(item.dueDate);
-          setEditPlannedAmount(String(item.plannedAmount));
-        }
-      }}
-    />
+    <div className="space-y-4">
+      <div className="flex justify-end">
+        <AppButton
+          label="Пересоздать график"
+          variant="outline"
+          size="sm"
+          isLoading={regenerating}
+          onClick={() => void handleRegenerateSchedule()}
+        />
+      </div>
+      <AppPaymentTimeline
+        title="График платежей"
+        installments={installments}
+        showProgress
+        onInstallmentClick={(inst) => {
+          const item = schedule.find((s) => s.id === inst.id);
+          if (item) {
+            setEditScheduleItem(item);
+            setEditDueDate(item.dueDate);
+            setEditPlannedAmount(String(item.plannedAmount));
+          }
+        }}
+      />
+    </div>
   );
 
   const paymentsTabContent = (
@@ -385,6 +435,13 @@ export default function DealDetailPage() {
           ]}
           actions={
             <div className="flex flex-wrap items-center gap-2">
+              {isActive ? (
+                <AppButton
+                  label="Принять платёж"
+                  variant="primary"
+                  onClick={() => setPaymentDrawerOpen(true)}
+                />
+              ) : null}
               {isDraft ? (
                 <AppButton
                   label="Активировать"
@@ -393,40 +450,50 @@ export default function DealDetailPage() {
                   onClick={() => activate(deal.id)}
                 />
               ) : null}
-              {isActive ? (
-                <AppButton
-                  label="Завершить"
-                  variant="primary"
-                  isLoading={completing}
-                  onClick={() => complete(deal.id)}
-                />
-              ) : null}
-              {!isCancelled && !isCompleted ? (
-                <AppButton
-                  label="Отменить"
-                  variant="destructive"
-                  isLoading={cancelling}
-                  onClick={() => cancel(deal.id)}
-                />
-              ) : null}
-              {!isCancelled ? (
-                <AppButton
-                  label="Сформировать договор"
-                  variant="outline"
-                  onClick={() => {
-                    setContractError(null);
-                    setGeneratedContractHtml(null);
-                    setContractDialogOpen(true);
-                  }}
-                />
-              ) : null}
+              {(() => {
+                const mainItems = [
+                  ...(!isCancelled ? [{
+                    id: "contract",
+                    label: "Сформировать договор",
+                    onClick: () => {
+                      setContractError(null);
+                      setGeneratedContractHtml(null);
+                      setContractDialogOpen(true);
+                    },
+                  }] : []),
+                  ...(isActive ? [{
+                    id: "complete",
+                    label: "Завершить сделку",
+                    onClick: () => setCompleteConfirmOpen(true),
+                  }] : []),
+                ];
+                const dangerItems = !isCancelled && !isCompleted ? [{
+                  id: "cancel",
+                  label: "Отменить сделку",
+                  destructive: true as const,
+                  onClick: () => {
+                    setCancelReason("");
+                    setCancelRefundType(paidAmount > 0 ? "full" : "none");
+                    setCancelPenaltyAmount("");
+                    setCancelPenaltyReason("");
+                    setCancelDialogOpen(true);
+                  },
+                }] : [];
+                const groups: AppActionMenuGroup[] = [
+                  ...(mainItems.length > 0 ? [{ id: "main", items: mainItems }] : []),
+                  ...(dangerItems.length > 0 ? [{ id: "danger", items: dangerItems }] : []),
+                ];
+                return groups.length > 0 ? (
+                  <AppActionMenu triggerLabel="Действия" groups={groups} />
+                ) : null;
+              })()}
             </div>
           }
         />
 
         {/* KPI cards */}
         <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
-          <AppStatCard title="Общая сумма" value={formatMoney(deal.totalAmount, deal.currency)} />
+          <AppStatCard title="Общая сумма" value={formatMoney(deal.finalAmount, deal.currency)} />
           <AppStatCard
             title="Оплачено"
             value={formatMoney(paidAmount, deal.currency)}
@@ -439,6 +506,60 @@ export default function DealDetailPage() {
           />
           <AppStatCard title="Статус" value={DEAL_STATUS_LABEL[deal.status]} />
         </div>
+
+        {/* Cancellation info */}
+        {isCancelled && deal.cancellation ? (
+          <div className="rounded-xl border border-red-200 bg-red-50 p-5">
+            <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-red-800">
+              Сделка отменена
+            </h3>
+            <div className="space-y-2 text-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-red-700">Причина</span>
+                <span className="font-medium text-red-900">{deal.cancellation.reason}</span>
+              </div>
+              {deal.cancellation.paidAmount > 0 ? (
+                <>
+                  <div className="flex items-center justify-between">
+                    <span className="text-red-700">Было оплачено</span>
+                    <span className="font-medium">{formatMoney(deal.cancellation.paidAmount, deal.currency)}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-red-700">Тип возврата</span>
+                    <span className="font-medium">
+                      {deal.cancellation.refundType === "full" ? "Полный возврат" : deal.cancellation.refundType === "partial" ? "Частичный (со штрафом)" : "Без возврата"}
+                    </span>
+                  </div>
+                  {deal.cancellation.refundAmount > 0 ? (
+                    <div className="flex items-center justify-between">
+                      <span className="text-red-700">К возврату</span>
+                      <span className="font-bold text-red-900">{formatMoney(deal.cancellation.refundAmount, deal.currency)}</span>
+                    </div>
+                  ) : null}
+                  {deal.cancellation.penaltyAmount > 0 ? (
+                    <div className="flex items-center justify-between">
+                      <span className="text-red-700">Штраф</span>
+                      <span className="font-medium">{formatMoney(deal.cancellation.penaltyAmount, deal.currency)}{deal.cancellation.penaltyReason ? ` — ${deal.cancellation.penaltyReason}` : ""}</span>
+                    </div>
+                  ) : null}
+                  <div className="flex items-center justify-between">
+                    <span className="text-red-700">Статус возврата</span>
+                    <AppStatusBadge
+                      label={deal.cancellation.refundStatus === "refunded" ? "Возвращено" : deal.cancellation.refundStatus === "pending" ? "Ожидает возврата" : "Не требуется"}
+                      tone={deal.cancellation.refundStatus === "refunded" ? "success" : deal.cancellation.refundStatus === "pending" ? "warning" : "muted"}
+                    />
+                  </div>
+                </>
+              ) : null}
+              {deal.cancelledAt ? (
+                <div className="flex items-center justify-between">
+                  <span className="text-red-700">Дата отмены</span>
+                  <span className="font-medium">{new Date(deal.cancelledAt).toLocaleDateString("ru-RU")}</span>
+                </div>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
 
         {/* Tabs */}
         <AppTabs tabs={tabs} />
@@ -502,6 +623,127 @@ export default function DealDetailPage() {
           </div>
         </div>
       ) : null}
+
+      {/* Complete deal confirm */}
+      <ConfirmDialog
+        open={completeConfirmOpen}
+        title="Завершить сделку?"
+        message={
+          deal.finalAmount - paidAmount > 0
+            ? `У клиента остаток долга: ${formatMoney(deal.finalAmount - paidAmount, deal.currency)}. Вы уверены, что хотите завершить сделку с непогашенным долгом?`
+            : "Сделка полностью оплачена. Подтвердите завершение."
+        }
+        confirmText={completing ? "Завершение..." : "Завершить"}
+        cancelText="Отмена"
+        destructive={deal.finalAmount - paidAmount > 0}
+        onConfirm={() => {
+          complete(deal.id, {
+            onSuccess: () => setCompleteConfirmOpen(false),
+          });
+        }}
+        onClose={() => setCompleteConfirmOpen(false)}
+      />
+
+      {/* Cancel deal drawer */}
+      <AppDrawerForm
+        open={cancelDialogOpen}
+        title="Отменить сделку"
+        subtitle={paidAmount > 0 ? `Оплачено: ${formatMoney(paidAmount, deal.currency)}` : "Платежей нет"}
+        saveLabel={cancelling ? "Отмена..." : "Отменить сделку"}
+        cancelLabel="Назад"
+        isSaving={cancelling}
+        saveDisabled={paidAmount > 0 && !cancelReason.trim()}
+        onClose={() => setCancelDialogOpen(false)}
+        onSave={() => {
+          cancel(
+            {
+              id: deal.id,
+              input: {
+                reason: cancelReason.trim(),
+                refundType: paidAmount > 0 ? cancelRefundType : "none",
+                penaltyAmount: cancelRefundType === "partial" ? parseFloat(cancelPenaltyAmount) || 0 : undefined,
+                penaltyReason: cancelRefundType === "partial" ? cancelPenaltyReason.trim() || undefined : undefined,
+                force: paidAmount > 0,
+              },
+            },
+            { onSuccess: () => setCancelDialogOpen(false) },
+          );
+        }}
+      >
+        <div className="space-y-4">
+          {paidAmount > 0 ? (
+            <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm">
+              <p className="font-semibold text-red-800">
+                По этой сделке уже оплачено {formatMoney(paidAmount, deal.currency)}
+              </p>
+              <p className="mt-1 text-red-700">
+                Выберите как поступить с оплаченными средствами.
+              </p>
+            </div>
+          ) : null}
+
+          <AppInput
+            label={paidAmount > 0 ? "Причина отмены *" : "Причина отмены"}
+            value={cancelReason}
+            onChangeValue={setCancelReason}
+            placeholder="Клиент отказался от покупки..."
+          />
+
+          {paidAmount > 0 ? (
+            <>
+              <AppSelect
+                id="refund-type"
+                label="Возврат средств"
+                value={cancelRefundType}
+                onChange={(e) => setCancelRefundType(e.target.value as "full" | "partial" | "none")}
+                options={[
+                  { value: "full", label: `Полный возврат — ${formatMoney(paidAmount, deal.currency)}` },
+                  { value: "partial", label: "Частичный возврат (со штрафом)" },
+                  { value: "none", label: "Без возврата (удержание всей суммы)" },
+                ]}
+              />
+
+              {cancelRefundType === "partial" ? (
+                <>
+                  <AppInput
+                    label="Сумма штрафа"
+                    type="number"
+                    value={cancelPenaltyAmount}
+                    onChangeValue={setCancelPenaltyAmount}
+                    placeholder="5000"
+                  />
+                  {cancelPenaltyAmount ? (
+                    <div className="rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm">
+                      <span className="text-muted-foreground">К возврату: </span>
+                      <span className="font-semibold">
+                        {formatMoney(Math.max(0, paidAmount - (parseFloat(cancelPenaltyAmount) || 0)), deal.currency)}
+                      </span>
+                    </div>
+                  ) : null}
+                  <AppInput
+                    label="Причина штрафа"
+                    value={cancelPenaltyReason}
+                    onChangeValue={setCancelPenaltyReason}
+                    placeholder="Штраф за расторжение договора 10%"
+                  />
+                </>
+              ) : null}
+
+              {cancelRefundType === "none" ? (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                  Все оплаченные средства ({formatMoney(paidAmount, deal.currency)}) будут удержаны компанией.
+                </div>
+              ) : null}
+
+              {cancelRefundType === "full" ? (
+                <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
+                  Клиенту будет возвращено {formatMoney(paidAmount, deal.currency)}. Возврат появится в списке ожидающих для бухгалтерии.
+                </div>
+              ) : null}
+            </>
+          ) : null}
+        </div>
+      </AppDrawerForm>
 
       {/* Confirm payment dialog */}
       <ConfirmDialog

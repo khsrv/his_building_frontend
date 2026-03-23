@@ -189,6 +189,7 @@ export const NAVIGATION_ITEMS: readonly NavItem[] = [
     children: [
       { id: "payments-upcoming", labelKey: "nav.payments_upcoming", href: routes.payments, icon: <PaymentsIcon />, permission: "payments.read" },
       { id: "payments-overdue", labelKey: "nav.payments_overdue", href: routes.paymentsOverdue, icon: <PaymentsIcon />, permission: "payments.read" },
+      { id: "refunds", labelKey: "nav.refunds", href: routes.refunds, icon: <PaymentsIcon />, permission: "payments.read" },
     ],
   },
   {

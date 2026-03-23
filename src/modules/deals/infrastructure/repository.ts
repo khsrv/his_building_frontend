@@ -4,7 +4,7 @@ import {
   getResponseItems,
   normalizeApiKeys,
 } from "@/shared/lib/http/api-response";
-import type { Deal, ScheduleItem, CreateDealInput, DealsListParams, ReceivePaymentInput } from "@/modules/deals/domain/deal";
+import type { Deal, ScheduleItem, CreateDealInput, DealsListParams, ReceivePaymentInput, CancelDealInput } from "@/modules/deals/domain/deal";
 import type {
   DealsListResponseDto,
   DealDetailResponseDto,
@@ -77,8 +77,16 @@ export async function completeDeal(id: string): Promise<Deal> {
   return mapDealDtoToDomain(getResponseData<DealDto>(normalizeApiKeys(res)));
 }
 
-export async function cancelDeal(id: string): Promise<Deal> {
-  const res = await apiClient.post<DealDetailResponseDto>(`/api/v1/deals/${id}/cancel`, {});
+export async function cancelDeal(id: string, input?: CancelDealInput | undefined): Promise<Deal> {
+  const body: Record<string, unknown> = {};
+  if (input) {
+    body.reason = input.reason;
+    body.refund_type = input.refundType;
+    body.force = input.force;
+    if (input.penaltyAmount !== undefined) body.penalty_amount = input.penaltyAmount;
+    if (input.penaltyReason !== undefined) body.penalty_reason = input.penaltyReason;
+  }
+  const res = await apiClient.post<DealDetailResponseDto>(`/api/v1/deals/${id}/cancel`, body);
   return mapDealDtoToDomain(getResponseData<DealDto>(normalizeApiKeys(res)));
 }
 
@@ -86,6 +94,12 @@ export async function cancelDeal(id: string): Promise<Deal> {
 
 export async function fetchDealSchedule(dealId: string): Promise<ScheduleItem[]> {
   const res = await apiClient.get<ScheduleResponseDto>(`/api/v1/deals/${dealId}/schedule`);
+  const items = getResponseItems<ScheduleItemDto>(normalizeApiKeys(res));
+  return items.map(mapScheduleItemDtoToDomain);
+}
+
+export async function regenerateSchedule(dealId: string): Promise<ScheduleItem[]> {
+  const res = await apiClient.post<ScheduleResponseDto>(`/api/v1/deals/${dealId}/schedule/regenerate`, {});
   const items = getResponseItems<ScheduleItemDto>(normalizeApiKeys(res));
   return items.map(mapScheduleItemDtoToDomain);
 }
@@ -128,7 +142,13 @@ export async function fetchDealPayments(dealId: string): Promise<Payment[]> {
   return items.map(mapPaymentDto);
 }
 
-export async function receivePayment(input: ReceivePaymentInput): Promise<void> {
+export async function fetchClientPayments(clientId: string): Promise<Payment[]> {
+  const res = await apiClient.get<{ data: { items: PaymentDto[] } }>("/api/v1/payments", { client_id: clientId, limit: 100 });
+  const items = getResponseItems<PaymentDto>(normalizeApiKeys(res));
+  return items.map(mapPaymentDto);
+}
+
+export async function receivePayment(input: ReceivePaymentInput): Promise<Payment> {
   const body: ReceivePaymentRequestDto = {
     deal_id: input.dealId,
     client_id: input.clientId,
@@ -140,7 +160,8 @@ export async function receivePayment(input: ReceivePaymentInput): Promise<void> 
   if (input.barterDescription !== undefined) body.barter_description = input.barterDescription;
   if (input.accountId !== undefined) body.account_id = input.accountId;
   if (input.notes !== undefined) body.notes = input.notes;
-  await apiClient.post<PaymentDetailResponseDto>("/api/v1/payments", body);
+  const res = await apiClient.post<PaymentDetailResponseDto>("/api/v1/payments", body);
+  return mapPaymentDto(getResponseData<PaymentDto>(normalizeApiKeys(res)));
 }
 
 // ─── Client search ────────────────────────────────────────────────────────────

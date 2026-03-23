@@ -46,7 +46,12 @@ interface PropertyDto {
   currency?: string;
   total_units?: number;
   sold_units?: number;
+  available_units?: number;
+  booked_units?: number;
+  reserved_units?: number;
   realization_percent?: number;
+  total_revenue?: number;
+  avg_price_per_sqm?: number;
   construction_start_date?: string | null;
   construction_end_date?: string | null;
   created_at?: string;
@@ -110,11 +115,18 @@ function mapPropertyDto(dto: PropertyDto): Property {
     name: dto.name ?? "",
     address: dto.address ?? "",
     city: dto.city ?? "",
+    district: dto.district ?? "",
     status: isPropertyStatus(rawStatus) ? rawStatus : "planning",
+    propertyType: dto.property_type ?? "",
     currency: dto.currency ?? "USD",
     totalUnits: Number(dto.total_units ?? 0),
     soldUnits: Number(dto.sold_units ?? 0),
+    availableUnits: Number(dto.available_units ?? 0),
+    bookedUnits: Number(dto.booked_units ?? 0),
+    reservedUnits: Number(dto.reserved_units ?? 0),
     realizationPercent: Number(dto.realization_percent ?? 0),
+    totalRevenue: Number(dto.total_revenue ?? 0),
+    avgPricePerSqm: Number(dto.avg_price_per_sqm ?? 0),
     constructionStartDate: dto.construction_start_date ?? null,
     constructionEndDate: dto.construction_end_date ?? null,
     createdAt: dto.created_at ?? "",

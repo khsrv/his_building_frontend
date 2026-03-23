@@ -218,6 +218,44 @@ export default function SettingsCompanyPage() {
               </Box>
             ))}
           </Box>
+
+          {/* Payment settings */}
+          <Box
+            sx={{
+              borderRadius: 3,
+              border: "1px solid",
+              borderColor: "divider",
+              bgcolor: "background.paper",
+              px: 3,
+              py: 1,
+            }}
+          >
+            <Typography variant="h6" sx={{ py: 2, fontWeight: 600 }}>
+              Оплаты
+            </Typography>
+            <Divider />
+            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", py: 2 }}>
+              <Box>
+                <Typography variant="body2" color="text.secondary">
+                  Автоматическое подтверждение платежей
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  При включении платежи подтверждаются сразу без ручной проверки
+                </Typography>
+              </Box>
+              <AppButton
+                label={getSettingValue("auto_confirm_payments") === "false" ? "Выключено" : "Включено"}
+                variant={getSettingValue("auto_confirm_payments") === "false" ? "outline" : "primary"}
+                size="sm"
+                disabled={setSettingMutation.isPending}
+                onClick={() => {
+                  const current = getSettingValue("auto_confirm_payments");
+                  const next = current === "false" ? "true" : "false";
+                  handleSave("auto_confirm_payments", next);
+                }}
+              />
+            </Box>
+          </Box>
         </>
       )}
     </main>

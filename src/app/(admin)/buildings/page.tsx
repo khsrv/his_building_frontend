@@ -196,9 +196,12 @@ export default function BuildingsPage() {
 
   const properties = data?.items ?? [];
   const totalBuildings = data?.total ?? properties.length;
-  const inConstruction = properties.filter((p) => p.status === "construction").length;
-  const suspended = properties.filter((p) => p.status === "suspended").length;
-  const totalFreeUnits = properties.reduce((sum, p) => sum + (p.totalUnits - p.soldUnits), 0);
+  const totalAllUnits = properties.reduce((sum, p) => sum + p.totalUnits, 0);
+  const totalSold = properties.reduce((sum, p) => sum + p.soldUnits, 0);
+  const totalAvailable = properties.reduce((sum, p) => sum + p.availableUnits, 0);
+  const totalBooked = properties.reduce((sum, p) => sum + p.bookedUnits, 0);
+  const totalRevenue = properties.reduce((sum, p) => sum + p.totalRevenue, 0);
+  const overallRealization = totalAllUnits > 0 ? (totalSold / totalAllUnits) * 100 : 0;
 
   // ─── Drawer state ────────────────────────────────────────────────────
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -285,49 +288,88 @@ export default function BuildingsPage() {
 
   // ─── Table columns ──────────────────────────────────────────────────
 
+  const fmtMoney = (v: number) => v > 0 ? `$${v.toLocaleString("ru-RU")}` : "—";
+  const fmtPct = (v: number) => `${v.toFixed(1)}%`;
+
   const columns: readonly AppDataTableColumn<Property>[] = [
     {
       id: "name",
       header: "Название",
-      cell: (row) => row.name,
-      sortAccessor: (row) => row.name,
-      searchAccessor: (row) => row.name,
-    },
-    {
-      id: "address",
-      header: "Адрес",
-      cell: (row) => row.address,
-      searchAccessor: (row) => row.address,
-    },
-    {
-      id: "status",
-      header: "Статус",
       cell: (row) => (
-        <AppStatusBadge
-          label={PROPERTY_STATUS_LABEL[row.status]}
-          tone={PROPERTY_STATUS_TONE[row.status]}
-        />
+        <div>
+          <span className="font-medium">{row.name}</span>
+          {row.address ? (
+            <span className="block text-xs text-muted-foreground">{row.address}</span>
+          ) : null}
+        </div>
       ),
-      sortAccessor: (row) => row.status,
+      sortAccessor: (row) => row.name,
+      searchAccessor: (row) => `${row.name} ${row.address}`,
     },
     {
       id: "totalUnits",
-      header: "Квартиры",
+      header: "Всего",
       cell: (row) => row.totalUnits,
       sortAccessor: (row) => row.totalUnits,
       align: "right",
     },
     {
+      id: "availableUnits",
+      header: "Свободных",
+      cell: (row) => (
+        <span className="text-emerald-600 font-medium">{row.availableUnits}</span>
+      ),
+      sortAccessor: (row) => row.availableUnits,
+      align: "right",
+    },
+    {
+      id: "bookedUnits",
+      header: "Бронь",
+      cell: (row) => (
+        <span className={row.bookedUnits > 0 ? "text-amber-600 font-medium" : "text-muted-foreground"}>
+          {row.bookedUnits}
+        </span>
+      ),
+      sortAccessor: (row) => row.bookedUnits,
+      align: "right",
+    },
+    {
       id: "soldUnits",
       header: "Продано",
-      cell: (row) => row.soldUnits,
+      cell: (row) => (
+        <span className={row.soldUnits > 0 ? "font-semibold" : "text-muted-foreground"}>
+          {row.soldUnits}
+        </span>
+      ),
       sortAccessor: (row) => row.soldUnits,
+      align: "right",
+    },
+    {
+      id: "totalRevenue",
+      header: "Выручка",
+      cell: (row) => (
+        <span className="font-medium">{fmtMoney(row.totalRevenue)}</span>
+      ),
+      sortAccessor: (row) => row.totalRevenue,
+      align: "right",
+    },
+    {
+      id: "avgPrice",
+      header: "Ср. цена/м²",
+      cell: (row) => (
+        <span className="text-muted-foreground">{row.avgPricePerSqm > 0 ? `$${Math.round(row.avgPricePerSqm).toLocaleString("ru-RU")}` : "—"}</span>
+      ),
+      sortAccessor: (row) => row.avgPricePerSqm,
       align: "right",
     },
     {
       id: "realizationPercent",
       header: "Реализация",
-      cell: (row) => `${row.realizationPercent.toFixed(1)}%`,
+      cell: (row) => {
+        const pct = row.realizationPercent;
+        const color = pct >= 70 ? "text-emerald-600" : pct >= 30 ? "text-amber-600" : "text-muted-foreground";
+        return <span className={`font-semibold ${color}`}>{fmtPct(pct)}</span>;
+      },
       sortAccessor: (row) => row.realizationPercent,
       align: "right",
     },
@@ -340,14 +382,19 @@ export default function BuildingsPage() {
             id: "main",
             items: [
               {
-                id: "edit",
-                label: "Редактировать",
-                onClick: () => handleOpenEdit(row),
-              },
-              {
                 id: "detail",
                 label: "Подробнее",
                 href: routes.buildingDetail(row.id),
+              },
+              {
+                id: "chess",
+                label: "Шахматка",
+                href: routes.buildingChessGrid(row.id),
+              },
+              {
+                id: "edit",
+                label: "Редактировать",
+                onClick: () => handleOpenEdit(row),
               },
             ],
           },
@@ -420,10 +467,10 @@ export default function BuildingsPage() {
           <AppKpiGrid
             columns={4}
             items={[
-              { title: "Всего объектов", value: totalBuildings },
-              { title: "В строительстве", value: inConstruction, deltaTone: "warning" },
-              { title: "Приостановлены", value: suspended, deltaTone: "danger" },
-              { title: "Свободных квартир", value: totalFreeUnits, deltaTone: "success" },
+              { title: "Всего квартир", value: totalAllUnits },
+              { title: "Свободных", value: totalAvailable, deltaTone: "success" },
+              { title: "Продано", value: totalSold, delta: `${overallRealization.toFixed(1)}%` },
+              { title: "Общая выручка", value: `$${totalRevenue.toLocaleString("ru-RU")}` },
             ]}
           />
         }

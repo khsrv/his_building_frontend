@@ -25,6 +25,10 @@ export interface Client {
   readonly managerId: string | null;
   readonly managerName: string | null;
   readonly notes: string | null;
+  readonly dealsCount: number;
+  readonly totalAmount: number;
+  readonly totalPaid: number;
+  readonly totalDebt: number;
   readonly createdAt: string;
 }
 
@@ -101,6 +105,7 @@ export interface ClientsListParams {
   source?: ClientSource;
   managerId?: string;
   pipelineStageId?: string;
+  hasDeals?: boolean | undefined;
 }
 
 export interface PipelineBoardParams {

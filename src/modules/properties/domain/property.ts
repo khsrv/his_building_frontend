@@ -13,11 +13,18 @@ export interface Property {
   readonly name: string;
   readonly address: string;
   readonly city: string;
+  readonly district: string;
   readonly status: PropertyStatus;
+  readonly propertyType: string;
   readonly currency: string;
   readonly totalUnits: number;
   readonly soldUnits: number;
+  readonly availableUnits: number;
+  readonly bookedUnits: number;
+  readonly reservedUnits: number;
   readonly realizationPercent: number;
+  readonly totalRevenue: number;
+  readonly avgPricePerSqm: number;
   readonly constructionStartDate: string | null;
   readonly constructionEndDate: string | null;
   readonly createdAt: string;

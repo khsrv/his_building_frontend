@@ -1,9 +1,13 @@
 "use client";
 
 import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { AppDrawerForm, AppInput, AppSelect } from "@/shared/ui";
 import { useReceivePaymentMutation } from "@/modules/deals/presentation/hooks/use-receive-payment-mutation";
 import { useAccountsQuery } from "@/modules/finance/presentation/hooks/use-accounts-query";
+import { useSettingsQuery } from "@/modules/settings/presentation/hooks/use-settings-query";
+import { confirmPayment } from "@/modules/deals/infrastructure/repository";
+import { dealKeys } from "@/modules/deals/presentation/query-keys";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -53,8 +57,11 @@ export function ReceivePaymentDrawer({
   scheduleItemId,
   onClose,
 }: ReceivePaymentDrawerProps) {
-  const { mutateAsync: receivePayment, isPending } = useReceivePaymentMutation(dealId);
+  const queryClient = useQueryClient();
+  const { mutateAsync: receivePaymentMut, isPending } = useReceivePaymentMutation(dealId);
   const { data: accounts } = useAccountsQuery();
+  const { data: settings } = useSettingsQuery();
+  const autoConfirm = settings?.["auto_confirm_payments"] !== "false";
 
   const [amount, setAmount] = useState("");
   const [selectedCurrency, setSelectedCurrency] = useState(currency);
@@ -117,7 +124,7 @@ export function ReceivePaymentDrawer({
 
   const handleSave = async () => {
     if (!validate()) return;
-    const input: Parameters<typeof receivePayment>[0] = {
+    const input: Parameters<typeof receivePaymentMut>[0] = {
       dealId,
       clientId,
       amount: parseFloat(amount),
@@ -130,7 +137,20 @@ export function ReceivePaymentDrawer({
     if (isBarter && barterDescription.trim()) {
       input.barterDescription = barterDescription.trim();
     }
-    await receivePayment(input);
+    const payment = await receivePaymentMut(input);
+    // Auto-confirm if setting enabled (default: true)
+    if (autoConfirm && payment.status === "pending") {
+      try {
+        await confirmPayment(payment.id);
+        // Re-invalidate cache after confirm so UI shows "confirmed"
+        void queryClient.invalidateQueries({ queryKey: dealKeys.detail(dealId) });
+        void queryClient.invalidateQueries({ queryKey: dealKeys.schedule(dealId) });
+        void queryClient.invalidateQueries({ queryKey: dealKeys.payments(dealId) });
+        void queryClient.invalidateQueries({ queryKey: ["payments"] });
+      } catch {
+        // Confirm failed silently — user can confirm manually
+      }
+    }
     handleClose();
   };
 

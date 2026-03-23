@@ -57,6 +57,7 @@ export const enDictionary = {
   "nav.payments": "Payments",
   "nav.payments_upcoming": "Upcoming Payments",
   "nav.payments_overdue": "Overdue Payments",
+  "nav.refunds": "Refunds",
   "nav.calculator": "Calculator",
   "nav.finance": "Finance",
   "nav.finance_ledger": "Ledger",

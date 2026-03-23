@@ -57,6 +57,7 @@ export const uzDictionary = {
   "nav.payments": "To'lovlar",
   "nav.payments_upcoming": "Yaqinlashgan to'lovlar",
   "nav.payments_overdue": "Muddati o'tgan to'lovlar",
+  "nav.refunds": "Qaytarishlar",
   "nav.calculator": "Kalkulyator",
   "nav.finance": "Moliya",
   "nav.finance_ledger": "Jurnal",

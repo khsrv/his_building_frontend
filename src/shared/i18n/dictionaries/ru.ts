@@ -57,6 +57,7 @@ export const ruDictionary = {
   "nav.payments": "Платежи",
   "nav.payments_upcoming": "Ближайшие платежи",
   "nav.payments_overdue": "Просроченные платежи",
+  "nav.refunds": "Возвраты",
   "nav.calculator": "Калькулятор",
   "nav.finance": "Финансы",
   "nav.finance_ledger": "Журнал",

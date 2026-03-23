@@ -30,8 +30,7 @@ export function AppTabs({
 }: AppTabsProps) {
   const fallbackTab = tabs[0]?.id ?? "";
   const [internalTab, setInternalTab] = useState(initialTabId ?? fallbackTab);
-  const selectedTab = initialTabId ?? internalTab;
-  const activeTab = tabs.some((tab) => tab.id === selectedTab) ? selectedTab : fallbackTab;
+  const activeTab = tabs.some((tab) => tab.id === internalTab) ? internalTab : fallbackTab;
 
   const activeContent = useMemo(
     () => tabs.find((tab) => tab.id === activeTab)?.content ?? null,
@@ -39,9 +38,7 @@ export function AppTabs({
   );
 
   const handleChange = (_event: SyntheticEvent, nextTab: string) => {
-    if (!initialTabId) {
-      setInternalTab(nextTab);
-    }
+    setInternalTab(nextTab);
     onTabChange?.(nextTab);
   };
 

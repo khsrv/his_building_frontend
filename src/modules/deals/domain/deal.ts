@@ -42,7 +42,32 @@ export interface Deal {
   readonly completedAt: string | null;
   readonly cancelledAt: string | null;
   readonly cancellationReason: string;
+  readonly paidAmount: number;
+  readonly debtAmount: number;
+  readonly cancellation: DealCancellation | null;
   readonly createdAt: string;
+}
+
+export type RefundType = "full" | "partial" | "none";
+export type RefundStatus = "pending" | "refunded" | "not_required";
+
+export interface DealCancellation {
+  readonly reason: string;
+  readonly refundType: RefundType;
+  readonly paidAmount: number;
+  readonly refundAmount: number;
+  readonly penaltyAmount: number;
+  readonly penaltyReason: string;
+  readonly refundStatus: RefundStatus;
+  readonly refundedAt: string | null;
+}
+
+export interface CancelDealInput {
+  reason: string;
+  refundType: RefundType;
+  penaltyAmount?: number | undefined;
+  penaltyReason?: string | undefined;
+  force: boolean;
 }
 
 export interface ScheduleItem {
