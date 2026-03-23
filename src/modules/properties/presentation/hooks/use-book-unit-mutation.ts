@@ -19,8 +19,9 @@ export function useBookUnitMutation(propertyId: string) {
         clientId: input.clientId,
         comment: input.comment,
       }),
-    onSuccess: () => {
+    onSuccess: (_data, input) => {
       void queryClient.invalidateQueries({ queryKey: propertyKeys.chessboardPrefix(propertyId) });
+      void queryClient.invalidateQueries({ queryKey: propertyKeys.unit(input.unitId) });
     },
   });
 }

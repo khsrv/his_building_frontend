@@ -118,6 +118,9 @@ export interface Unit {
   readonly finishing: string | null;
   readonly description: string | null;
   readonly photoUrls: readonly string[];
+  readonly clientId: string | null;
+  readonly bookedUntil: string | null;
+  readonly comment: string | null;
   readonly createdAt: string;
 }
 

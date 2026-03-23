@@ -45,10 +45,17 @@ const INITIAL_FORM: FormState = {
 
 type FormErrors = Partial<Record<"fullName" | "phone", string>>;
 
+interface CreatedClient {
+  id: string;
+  fullName: string;
+  phone: string;
+}
+
 interface CreateClientDrawerProps {
   open: boolean;
   onClose: () => void;
-  onSuccess?: () => void;
+  /** Called after successful creation with the new client's data */
+  onSuccess?: ((client: CreatedClient) => void) | undefined;
 }
 
 export function CreateClientDrawer({ open, onClose, onSuccess }: CreateClientDrawerProps) {
@@ -101,9 +108,13 @@ export function CreateClientDrawer({ open, onClose, onSuccess }: CreateClientDra
         notes: form.notes.trim() || undefined,
       },
       {
-        onSuccess: () => {
+        onSuccess: (created) => {
           reset();
-          onSuccess?.();
+          onSuccess?.({
+            id: created.id,
+            fullName: created.fullName,
+            phone: created.phone,
+          });
           onClose();
         },
       },

@@ -268,6 +268,9 @@ interface UnitDto {
   finishing: string | null;
   description: string | null;
   photo_urls?: string[] | null;
+  client_id?: string | null;
+  booked_until?: string | null;
+  comment?: string | null;
   created_at: string;
 }
 
@@ -306,6 +309,9 @@ function mapUnitDto(dto: UnitDto): Unit {
     finishing: dto.finishing,
     description: dto.description,
     photoUrls: dto.photo_urls ?? [],
+    clientId: dto.client_id ?? null,
+    bookedUntil: dto.booked_until ?? null,
+    comment: dto.comment ?? null,
     createdAt: dto.created_at,
   };
 }

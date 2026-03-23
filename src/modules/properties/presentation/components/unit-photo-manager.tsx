@@ -7,22 +7,28 @@ import { uploadUnitPhoto, deleteUnitPhoto } from "@/modules/properties/infrastru
 import { propertyKeys } from "@/modules/properties/presentation/query-keys";
 import { normalizeErrorMessage } from "@/shared/lib/errors/normalize-error-message";
 import { useNotifier } from "@/shared/providers/notifier-provider";
+import { PhotoLightbox } from "@/modules/properties/presentation/components/photo-lightbox";
 
 interface UnitPhotoManagerProps {
   unitId: string;
   propertyId: string;
   photoUrls: readonly string[];
+  /** If true, only show photos without upload/delete controls */
+  readOnly?: boolean | undefined;
 }
 
 const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const MAX_FILE_SIZE_MB = 5;
 const MAX_PHOTOS = 10;
 
-export function UnitPhotoManager({ unitId, propertyId, photoUrls }: UnitPhotoManagerProps) {
+export function UnitPhotoManager({ unitId, propertyId, photoUrls, readOnly = false }: UnitPhotoManagerProps) {
   const queryClient = useQueryClient();
   const notifier = useNotifier();
   const [uploading, setUploading] = useState(false);
   const [deletingUrl, setDeletingUrl] = useState<string | null>(null);
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+
+  const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
 
   const handleUpload = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
@@ -71,42 +77,47 @@ export function UnitPhotoManager({ unitId, propertyId, photoUrls }: UnitPhotoMan
     }
   };
 
-  const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
-
   return (
     <div className="space-y-3">
-      <p className="text-sm font-medium">Фотографии ({photoUrls.length}/{MAX_PHOTOS})</p>
+      <p className="text-sm font-medium">
+        Фотографии{!readOnly ? ` (${photoUrls.length}/${MAX_PHOTOS})` : photoUrls.length > 0 ? ` (${photoUrls.length})` : ""}
+      </p>
 
       {photoUrls.length > 0 ? (
         <div className="grid grid-cols-3 gap-2">
-          {photoUrls.map((url) => {
+          {photoUrls.map((url, index) => {
             const fullUrl = url.startsWith("http") ? url : `${apiBase}${url}`;
             return (
               <div className="group relative" key={url}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   alt="Unit photo"
-                  className="h-24 w-full rounded-lg border border-border object-cover"
+                  className="h-24 w-full cursor-pointer rounded-lg border border-border object-cover transition-opacity hover:opacity-80"
                   src={fullUrl}
+                  onClick={() => setLightboxIndex(index)}
                 />
-                <button
-                  className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-danger text-white opacity-0 transition-opacity group-hover:opacity-100 disabled:opacity-50"
-                  disabled={deletingUrl === url}
-                  onClick={() => void handleDelete(url)}
-                  title="Удалить фото"
-                  type="button"
-                >
-                  <svg aria-hidden className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                    <path d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
+                {!readOnly ? (
+                  <button
+                    className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-danger text-white opacity-0 transition-opacity group-hover:opacity-100 disabled:opacity-50"
+                    disabled={deletingUrl === url}
+                    onClick={() => void handleDelete(url)}
+                    title="Удалить фото"
+                    type="button"
+                  >
+                    <svg aria-hidden className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                      <path d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                ) : null}
               </div>
             );
           })}
         </div>
-      ) : null}
+      ) : (
+        <p className="text-xs text-muted-foreground">Нет фотографий</p>
+      )}
 
-      {photoUrls.length < MAX_PHOTOS ? (
+      {!readOnly && photoUrls.length < MAX_PHOTOS ? (
         <label className="flex cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-border bg-card px-4 py-4 text-center transition-colors hover:bg-muted/40">
           <span className="text-sm font-medium text-foreground">
             {uploading ? "Загрузка..." : "Добавить фото"}
@@ -127,6 +138,13 @@ export function UnitPhotoManager({ unitId, propertyId, photoUrls }: UnitPhotoMan
           />
         </label>
       ) : null}
+
+      <PhotoLightbox
+        photos={[...photoUrls]}
+        initialIndex={lightboxIndex ?? 0}
+        open={lightboxIndex !== null}
+        onClose={() => setLightboxIndex(null)}
+      />
     </div>
   );
 }

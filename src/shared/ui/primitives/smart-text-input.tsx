@@ -14,6 +14,7 @@ import { useI18n } from "@/shared/providers/locale-provider";
 export interface SmartTextOption {
   value: string;
   label: string;
+  secondary?: string | undefined;
   keywords?: readonly string[];
 }
 
@@ -35,6 +36,14 @@ interface AppSmartTextInputProps {
   onChangeValue?: (value: string | string[]) => void;
   allowCreate?: boolean;
   onCreateOption?: (query: string) => SmartTextOption | void;
+  /** Async search callback — called on input change, results replace options */
+  onSearch?: ((query: string) => void) | undefined;
+  /** Show loading spinner in dropdown while searching */
+  loading?: boolean | undefined;
+  /** Universal "Create new" button at top of dropdown */
+  onCreateNew?: (() => void) | undefined;
+  /** Label for the "Create new" button */
+  createNewLabel?: string | undefined;
   disabled?: boolean;
   className?: string;
 }
@@ -129,6 +138,10 @@ export function AppSmartTextInput({
   onChangeValue,
   allowCreate = false,
   onCreateOption,
+  onSearch,
+  loading = false,
+  onCreateNew,
+  createNewLabel,
   disabled = false,
   className,
 }: AppSmartTextInputProps) {
@@ -178,6 +191,16 @@ export function AppSmartTextInput({
       return [] as SmartTextOption[];
     }
 
+    // When onSearch is provided, server handles filtering — skip local filter
+    if (onSearch) {
+      return allOptions.filter((option) => {
+        if (isMulti && selectedSet.has(option.value)) {
+          return false;
+        }
+        return true;
+      });
+    }
+
     const search = query.trim().toLowerCase();
 
     return allOptions.filter((option) => {
@@ -195,7 +218,7 @@ export function AppSmartTextInput({
 
       return searchable.includes(search);
     });
-  }, [allOptions, isMulti, query, selectedSet, supportsDropdown]);
+  }, [allOptions, isMulti, onSearch, query, selectedSet, supportsDropdown]);
 
   const canCreateOption = useMemo(() => {
     if (!supportsDropdown || !allowCreate || isSelectOnly) {
@@ -371,6 +394,7 @@ export function AppSmartTextInput({
       setIsOpen(true);
     }
     setHighlightedIndex(0);
+    onSearch?.(nextValue);
   };
 
   const handleInputKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
@@ -544,7 +568,21 @@ export function AppSmartTextInput({
 
         {supportsDropdown && isOpen ? (
           <div className="absolute left-0 right-0 top-[calc(100%+8px)] z-40 overflow-hidden rounded-xl border border-border bg-card shadow-lg">
-            {canCreateOption ? (
+            {onCreateNew ? (
+              <div className="border-b border-border p-2.5">
+                <button
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-3 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+                  onClick={() => {
+                    onCreateNew();
+                    closeDropdown();
+                  }}
+                  type="button"
+                >
+                  <PlusIcon />
+                  <span>{createNewLabel ?? t("smartInput.addValue")}</span>
+                </button>
+              </div>
+            ) : canCreateOption ? (
               <div className="border-b border-border p-2.5">
                 <button
                   className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-3 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
@@ -558,7 +596,14 @@ export function AppSmartTextInput({
             ) : null}
 
             <div className="max-h-64 overflow-auto p-2">
-              {filteredOptions.length === 0 ? (
+              {loading ? (
+                <div className="flex items-center justify-center px-3 py-4">
+                  <svg className="h-5 w-5 animate-spin text-muted-foreground" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                </div>
+              ) : filteredOptions.length === 0 ? (
                 <p className="px-3 py-4 text-sm text-muted-foreground">{t("smartInput.noOptions")}</p>
               ) : (
                 filteredOptions.map((option, index) => {
@@ -574,7 +619,10 @@ export function AppSmartTextInput({
                       onClick={() => selectOption(option)}
                       type="button"
                     >
-                      {option.label}
+                      <span>{option.label}</span>
+                      {option.secondary ? (
+                        <span className="ml-2 text-xs text-muted-foreground">{option.secondary}</span>
+                      ) : null}
                     </button>
                   );
                 })

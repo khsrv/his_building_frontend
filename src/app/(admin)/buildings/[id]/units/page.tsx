@@ -10,7 +10,6 @@ import {
   DialogTitle,
   IconButton,
   Stack,
-  TextField,
   Typography,
 } from "@mui/material";
 import {
@@ -581,13 +580,11 @@ export default function BuildingUnitsPage() {
             value={unitForm.finishing}
             onChange={(e) => setUnitForm((prev) => ({ ...prev, finishing: e.target.value }))}
           />
-          <TextField
+          <AppInput
             label="Описание"
-            multiline
-            minRows={2}
-            fullWidth
             value={unitForm.description}
             onChange={(e) => setUnitForm((prev) => ({ ...prev, description: e.target.value }))}
+            placeholder="Доп. информация"
           />
           {editingUnit ? (
             <UnitPhotoManager

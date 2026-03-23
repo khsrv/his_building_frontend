@@ -2,17 +2,16 @@
 
 import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { TextField } from "@mui/material";
 import {
   AppButton,
-  AppDrawerForm,
-  AppInput,
   AppPageHeader,
-  AppSelect,
+  AppSmartTextInput,
   AppStatCard,
   AppStatePanel,
   AppStatusBadge,
   type AppStatusTone,
+  AppDrawerForm,
+  AppInput,
   ConfirmDialog,
   ShimmerBox,
 } from "@/shared/ui";
@@ -27,7 +26,11 @@ import { useReserveUnitMutation } from "@/modules/properties/presentation/hooks/
 import { useReleaseUnitMutation } from "@/modules/properties/presentation/hooks/use-release-unit-mutation";
 import { useDealsListQuery } from "@/modules/deals/presentation/hooks/use-deals-list-query";
 import { useClientSearchQuery } from "@/modules/deals/presentation/hooks/use-client-search-query";
+import { useClientDetailQuery } from "@/modules/clients/presentation/hooks/use-client-detail-query";
 import { UnitPhotoManager } from "@/modules/properties/presentation/components/unit-photo-manager";
+import { UnitFormDrawer } from "@/modules/properties/presentation/components/unit-form-drawer";
+import type { UnitFormValues } from "@/modules/properties/presentation/components/unit-form-drawer";
+import { CreateClientDrawer } from "@/modules/clients/presentation/components/create-client-drawer";
 import { normalizeErrorMessage } from "@/shared/lib/errors/normalize-error-message";
 import { useNotifier } from "@/shared/providers/notifier-provider";
 import type {
@@ -35,8 +38,6 @@ import type {
   UnitStatus,
   UpdateUnitInput,
 } from "@/modules/properties/domain/property";
-import type { AppSearchableSelectOption } from "@/shared/ui";
-import { AppSearchableSelect } from "@/shared/ui";
 
 // ─── Status helpers ──────────────────────────────────────────────────────────
 
@@ -63,19 +64,10 @@ const UNIT_TYPE_LABELS: Record<string, string> = {
 
 // ─── Edit form state ─────────────────────────────────────────────────────────
 
-interface EditFormState {
-  rooms: string;
-  totalArea: string;
-  livingArea: string;
-  kitchenArea: string;
-  balconyArea: string;
-  pricePerSqm: string;
-  finishing: string;
-  description: string;
-}
-
-function unitToFormState(unit: Unit): EditFormState {
+function unitToFormValues(unit: Unit): UnitFormValues {
   return {
+    unitNumber: unit.unitNumber,
+    unitType: unit.unitType,
     rooms: unit.rooms !== null ? String(unit.rooms) : "",
     totalArea: unit.totalArea !== null ? String(unit.totalArea) : "",
     livingArea: unit.livingArea !== null ? String(unit.livingArea) : "",
@@ -115,6 +107,10 @@ export default function UnitDetailPage() {
   const unit = unitQuery.data;
   const property = propertyQuery.data;
 
+  // Client detail for booked/reserved units
+  const bookingClientQuery = useClientDetailQuery(unit?.clientId ?? "");
+  const bookingClient = bookingClientQuery.data;
+
   const unitNeedsDeal =
     unit?.status === "booked" || unit?.status === "sold";
 
@@ -133,7 +129,9 @@ export default function UnitDetailPage() {
 
   // ─── Local state ────────────────────────────────────────────────────
   const [editOpen, setEditOpen] = useState(false);
-  const [editForm, setEditForm] = useState<EditFormState>({
+  const [editForm, setEditForm] = useState<UnitFormValues>({
+    unitNumber: "",
+    unitType: "apartment",
     rooms: "",
     totalArea: "",
     livingArea: "",
@@ -150,11 +148,12 @@ export default function UnitDetailPage() {
   const [clientSearch, setClientSearch] = useState("");
   const [selectedClientId, setSelectedClientId] = useState("");
   const [comment, setComment] = useState("");
+  const [createClientOpen, setCreateClientOpen] = useState(false);
 
   const { data: clientResults = [], isLoading: clientsSearching } =
     useClientSearchQuery(clientSearch);
-  const clientOptions: AppSearchableSelectOption[] = clientResults.map((c) => ({
-    id: c.id,
+  const clientSmartOptions = clientResults.map((c) => ({
+    value: c.id,
     label: c.fullName,
     secondary: c.phone,
   }));
@@ -163,7 +162,7 @@ export default function UnitDetailPage() {
 
   function handleOpenEdit() {
     if (!unit) return;
-    setEditForm(unitToFormState(unit));
+    setEditForm(unitToFormValues(unit));
     setEditOpen(true);
   }
 
@@ -317,6 +316,31 @@ export default function UnitDetailPage() {
             {UNIT_TYPE_LABELS[unit.unitType] ?? unit.unitType} · Этаж {unit.floorNumber}
           </span>
         </div>
+
+        {/* ─── Booking/Reserve info ──────────────────────────────── */}
+        {(unit.status === "booked" || unit.status === "reserved") && (unit.clientId || unit.comment || unit.bookedUntil) ? (
+          <div className="rounded-xl border border-warning/40 bg-warning/5 p-4">
+            <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+              {unit.status === "booked" ? "Информация о бронировании" : "Информация о резерве"}
+            </h3>
+            <div className="space-y-2 text-sm">
+              {bookingClient ? (
+                <>
+                  <InfoRow label="Клиент" value={bookingClient.fullName} />
+                  <InfoRow label="Телефон" value={bookingClient.phone} />
+                </>
+              ) : unit.clientId ? (
+                <InfoRow label="Клиент" value="Загрузка..." />
+              ) : null}
+              {unit.bookedUntil ? (
+                <InfoRow label="Действует до" value={new Date(unit.bookedUntil).toLocaleDateString("ru-RU")} />
+              ) : null}
+              {unit.comment ? (
+                <InfoRow label="Комментарий" value={unit.comment} />
+              ) : null}
+            </div>
+          </div>
+        ) : null}
 
         {/* ─── Key stats ───────────────────────────────────────────── */}
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -492,78 +516,22 @@ export default function UnitDetailPage() {
         </div>
       </div>
 
-      {/* ─── Edit drawer ──────────────────────────────────────────── */}
-      <AppDrawerForm
+      {/* ─── Edit drawer (shared) ────────────────────────────────── */}
+      <UnitFormDrawer
         open={editOpen}
+        mode="edit"
         title="Редактировать квартиру"
         subtitle={`Квартира ${unit.unitNumber}`}
-        saveLabel="Сохранить"
-        cancelLabel="Отмена"
-        isSaving={updateMutation.isPending}
-        onClose={() => setEditOpen(false)}
+        values={editForm}
+        onChange={setEditForm}
         onSave={handleSaveEdit}
-      >
-        <div className="space-y-4">
-          <AppInput
-            label="Комнаты"
-            type="number"
-            value={editForm.rooms}
-            onChange={(e) => setEditForm((prev) => ({ ...prev, rooms: e.target.value }))}
-          />
-          <AppInput
-            label="Общая площадь, м²"
-            type="number"
-            value={editForm.totalArea}
-            onChange={(e) => setEditForm((prev) => ({ ...prev, totalArea: e.target.value }))}
-          />
-          <AppInput
-            label="Жилая площадь, м²"
-            type="number"
-            value={editForm.livingArea}
-            onChange={(e) => setEditForm((prev) => ({ ...prev, livingArea: e.target.value }))}
-          />
-          <AppInput
-            label="Кухня, м²"
-            type="number"
-            value={editForm.kitchenArea}
-            onChange={(e) => setEditForm((prev) => ({ ...prev, kitchenArea: e.target.value }))}
-          />
-          <AppInput
-            label="Балкон, м²"
-            type="number"
-            value={editForm.balconyArea}
-            onChange={(e) => setEditForm((prev) => ({ ...prev, balconyArea: e.target.value }))}
-          />
-          <AppInput
-            label="Цена за м² ($)"
-            type="number"
-            value={editForm.pricePerSqm}
-            onChange={(e) => setEditForm((prev) => ({ ...prev, pricePerSqm: e.target.value }))}
-            placeholder="1000"
-          />
-          {editForm.totalArea && editForm.pricePerSqm ? (
-            <div className="rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm">
-              <span className="text-muted-foreground">Базовая цена: </span>
-              <span className="font-semibold">
-                ${Math.round(parseFloat(editForm.totalArea) * parseFloat(editForm.pricePerSqm)).toLocaleString("ru-RU")}
-              </span>
-            </div>
-          ) : null}
-          <AppInput
-            label="Отделка"
-            value={editForm.finishing}
-            onChange={(e) => setEditForm((prev) => ({ ...prev, finishing: e.target.value }))}
-          />
-          <TextField
-            label="Описание"
-            multiline
-            minRows={2}
-            fullWidth
-            value={editForm.description}
-            onChange={(e) => setEditForm((prev) => ({ ...prev, description: e.target.value }))}
-          />
-        </div>
-      </AppDrawerForm>
+        onClose={() => setEditOpen(false)}
+        isSaving={updateMutation.isPending}
+        showUnitNumber={false}
+        unitId={unit.id}
+        propertyId={propertyId}
+        photoUrls={unit.photoUrls}
+      />
 
       {/* ─── Book/Reserve drawer ──────────────────────────────────── */}
       <AppDrawerForm
@@ -581,23 +549,18 @@ export default function UnitDetailPage() {
         onSave={() => void handleBookOrReserve()}
       >
         <div className="space-y-4">
-          <div>
-            <p className="mb-1.5 text-sm font-medium">Клиент (необязательно)</p>
-            <AppSearchableSelect
-              options={clientOptions}
-              value={selectedClientId || null}
-              onChange={(id) => setSelectedClientId(id)}
-              triggerLabel="Выберите клиента"
-              dialogTitle="Поиск клиента"
-              searchPlaceholder="Имя или телефон..."
-              loading={clientsSearching}
-              filterFn={(_option, query) => {
-                setClientSearch(query);
-                return true;
-              }}
-              emptyLabel={clientSearch.length < 2 ? "Введите минимум 2 символа" : "Клиент не найден"}
-            />
-          </div>
+          <AppSmartTextInput
+            mode="select"
+            label="Клиент (необязательно)"
+            placeholder="Имя или телефон..."
+            options={clientSmartOptions}
+            value={selectedClientId}
+            onChangeValue={(v) => setSelectedClientId(typeof v === "string" ? v : "")}
+            onSearch={(q) => setClientSearch(q)}
+            loading={clientsSearching}
+            onCreateNew={() => setCreateClientOpen(true)}
+            createNewLabel="Создать клиент"
+          />
           <AppInput
             label="Комментарий"
             value={comment}
@@ -617,6 +580,16 @@ export default function UnitDetailPage() {
         destructive
         onConfirm={handleDelete}
         onClose={() => setDeleteConfirm(false)}
+      />
+
+      {/* ─── Create client drawer ─────────────────────────────────── */}
+      <CreateClientDrawer
+        open={createClientOpen}
+        onClose={() => setCreateClientOpen(false)}
+        onSuccess={(client) => {
+          setSelectedClientId(client.id);
+          setClientSearch("");
+        }}
       />
     </>
   );

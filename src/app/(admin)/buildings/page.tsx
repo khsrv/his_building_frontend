@@ -7,7 +7,6 @@ import {
   Divider,
   Drawer,
   Stack,
-  TextField,
   Typography,
 } from "@mui/material";
 import {
@@ -20,8 +19,6 @@ import {
   AppInput,
   AppKpiGrid,
   AppPageHeader,
-  AppSearchableSelect,
-  type AppSearchableSelectOption,
   AppSelect,
   AppStatePanel,
   AppStatusBadge,
@@ -38,20 +35,20 @@ import { useCreatePropertyMutation } from "@/modules/properties/presentation/hoo
 import { useUpdatePropertyMutation } from "@/modules/properties/presentation/hooks/use-update-property-mutation";
 import { useDeletePropertyMutation } from "@/modules/properties/presentation/hooks/use-delete-property-mutation";
 import { useChessBoardQuery } from "@/modules/properties/presentation/hooks/use-chessboard-query";
-import { useBookUnitMutation } from "@/modules/properties/presentation/hooks/use-book-unit-mutation";
-import { useReleaseUnitMutation } from "@/modules/properties/presentation/hooks/use-release-unit-mutation";
-import { useReserveUnitMutation } from "@/modules/properties/presentation/hooks/use-reserve-unit-mutation";
 import { useCreateUnitMutation } from "@/modules/properties/presentation/hooks/use-create-unit-mutation";
-import { useDeleteUnitMutation } from "@/modules/properties/presentation/hooks/use-delete-unit-mutation";
 
 import { useCreateBlockMutation } from "@/modules/properties/presentation/hooks/use-create-block-mutation";
 import { useDealsListQuery } from "@/modules/deals/presentation/hooks/use-deals-list-query";
-import { useClientSearchQuery } from "@/modules/deals/presentation/hooks/use-client-search-query";
 import { useQueryClient } from "@tanstack/react-query";
 import { createFloor, deleteFloor, duplicateFloor, fetchFloors } from "@/modules/properties/infrastructure/properties-repository";
 import { propertyKeys } from "@/modules/properties/presentation/query-keys";
 import { useNotifier } from "@/shared/providers/notifier-provider";
 import { normalizeErrorMessage } from "@/shared/lib/errors/normalize-error-message";
+import { UnitFormDrawer, EMPTY_UNIT_FORM } from "@/modules/properties/presentation/components/unit-form-drawer";
+import type { UnitFormValues } from "@/modules/properties/presentation/components/unit-form-drawer";
+import { UnitPhotoManager } from "@/modules/properties/presentation/components/unit-photo-manager";
+import { useUnitDetailQuery } from "@/modules/properties/presentation/hooks/use-unit-detail-query";
+import { useClientDetailQuery } from "@/modules/clients/presentation/hooks/use-client-detail-query";
 import type { Property, PropertyStatus, CreatePropertyInput, UpdatePropertyInput, ChessBoardFilters, ChessBlock, ChessFloor, ChessUnit, CreateBlockInput, CreateUnitInput } from "@/modules/properties/domain/property";
 
 // ─── Status helpers ──────────────────────────────────────────────────────────
@@ -131,31 +128,7 @@ const UNIT_TYPE_OPTIONS = [
   { label: "Парковка", value: "parking" },
 ] as const;
 
-interface UnitFormState {
-  unitNumber: string;
-  unitType: string;
-  rooms: string;
-  totalArea: string;
-  livingArea: string;
-  kitchenArea: string;
-  balconyArea: string;
-  pricePerSqm: string;
-  finishing: string;
-  description: string;
-}
-
-const EMPTY_UNIT_FORM: UnitFormState = {
-  unitNumber: "",
-  unitType: "apartment",
-  rooms: "",
-  totalArea: "",
-  livingArea: "",
-  kitchenArea: "",
-  balconyArea: "",
-  pricePerSqm: "",
-  finishing: "",
-  description: "",
-};
+// UnitFormValues & EMPTY_UNIT_FORM imported from shared UnitFormDrawer
 
 async function resolveFloorId(
   propertyId: string,
@@ -544,13 +517,11 @@ export default function BuildingsPage() {
             value={form.constructionEndDate}
             onChange={(e) => setField("constructionEndDate", e.target.value)}
           />
-          <TextField
+          <AppInput
             label="Описание"
-            multiline
-            minRows={3}
-            fullWidth
             value={form.description}
             onChange={(e) => setField("description", e.target.value)}
+            placeholder="Описание объекта"
           />
         </div>
       </AppDrawerForm>
@@ -600,7 +571,7 @@ function ChessViewPage({ properties, isLoadingProperties, isErrorProperties }: C
     block: ChessBlock;
     floor: ChessFloor;
   } | null>(null);
-  const [unitForm, setUnitForm] = useState<UnitFormState>(EMPTY_UNIT_FORM);
+  const [unitForm, setUnitForm] = useState<UnitFormValues>(EMPTY_UNIT_FORM);
 
   // Copy floor state
   const [copyFloorPending, setCopyFloorPending] = useState(false);
@@ -608,15 +579,6 @@ function ChessViewPage({ properties, isLoadingProperties, isErrorProperties }: C
     block: ChessBlock;
     floor: ChessFloor;
   } | null>(null);
-
-  // Delete unit state
-  const [deleteUnitConfirm, setDeleteUnitConfirm] = useState(false);
-
-  // Book/Reserve action state
-  const [actionType, setActionType] = useState<"book" | "reserve" | null>(null);
-  const [actionClientId, setActionClientId] = useState("");
-  const [actionComment, setActionComment] = useState("");
-  const [clientSearch, setClientSearch] = useState("");
 
   // Create block state
   const [createBlockOpen, setCreateBlockOpen] = useState(false);
@@ -640,22 +602,14 @@ function ChessViewPage({ properties, isLoadingProperties, isErrorProperties }: C
   const chessBoardQuery = useChessBoardQuery(activePropertyId, apiFilters);
   const chessBoard = chessBoardQuery.data;
 
-  const bookMutation = useBookUnitMutation(activePropertyId);
-  const releaseMutation = useReleaseUnitMutation(activePropertyId);
-  const reserveMutation = useReserveUnitMutation(activePropertyId);
   const createUnitMutation = useCreateUnitMutation(activePropertyId);
-  const deleteUnitMutation = useDeleteUnitMutation(activePropertyId);
   const createBlockMutation = useCreateBlockMutation(activePropertyId);
 
-
-
-
-  const { data: clientResults = [], isLoading: clientsSearching } = useClientSearchQuery(clientSearch);
-  const clientOptions: AppSearchableSelectOption[] = clientResults.map((c) => ({
-    id: c.id,
-    label: c.fullName,
-    secondary: c.phone,
-  }));
+  // Full unit detail (for photos in drawer)
+  const unitDetailQuery = useUnitDetailQuery(selectedUnit?.id ?? "");
+  const unitDetail = unitDetailQuery.data;
+  const bookingClientQuery = useClientDetailQuery(unitDetail?.clientId ?? "");
+  const bookingClient = bookingClientQuery.data;
 
   const unitNeedsDeal =
     selectedUnit?.status === "booked" ||
@@ -666,9 +620,6 @@ function ChessViewPage({ properties, isLoadingProperties, isErrorProperties }: C
     { unitId: selectedUnit?.id ?? "", limit: 1 },
     Boolean(unitNeedsDeal && selectedUnit?.id),
   );
-
-  const isActionPending =
-    bookMutation.isPending || releaseMutation.isPending || reserveMutation.isPending;
 
   function findUnitWithContext(cellId: string): {
     unit: ChessUnit;
@@ -697,42 +648,6 @@ function ChessViewPage({ properties, isLoadingProperties, isErrorProperties }: C
     setUnitDrawerOpen(false);
     setSelectedUnit(null);
     setSelectedUnitContext(null);
-  }
-
-  function openActionForm(type: "book" | "reserve"): void {
-    setActionType(type);
-    setActionClientId("");
-    setActionComment("");
-    setClientSearch("");
-  }
-
-  function closeActionForm(): void {
-    setActionType(null);
-    setActionClientId("");
-    setActionComment("");
-    setClientSearch("");
-  }
-
-  async function handleSubmitAction(): Promise<void> {
-    if (!selectedUnit || !actionType) return;
-    const payload = {
-      unitId: selectedUnit.id,
-      clientId: actionClientId || undefined,
-      comment: actionComment.trim() || undefined,
-    };
-    if (actionType === "book") {
-      await bookMutation.mutateAsync(payload);
-    } else {
-      await reserveMutation.mutateAsync(payload);
-    }
-    closeActionForm();
-    handleCloseDrawer();
-  }
-
-  async function handleReleaseUnit(): Promise<void> {
-    if (!selectedUnit) return;
-    await releaseMutation.mutateAsync(selectedUnit.id);
-    handleCloseDrawer();
   }
 
   function handleRowAddClick(row: AppColorGridRow): void {
@@ -791,38 +706,6 @@ function ChessViewPage({ properties, isLoadingProperties, isErrorProperties }: C
     setCreateUnitOpen(false);
     setCreateUnitContext(null);
     setUnitForm(EMPTY_UNIT_FORM);
-  }
-
-  async function handleCopyUnit(): Promise<void> {
-    if (!selectedUnit || !selectedUnitContext) return;
-    const { block, floor } = selectedUnitContext;
-
-    const floorId = await resolveFloorId(activePropertyId, block.id, floor);
-    if (!floorId) return;
-
-    const input: CreateUnitInput = {
-      propertyId: activePropertyId,
-      blockId: block.id,
-      floorId,
-      unitType: selectedUnit.unitType,
-      floorNumber: floor.floorNumber,
-    };
-
-    if (selectedUnit.rooms != null) input.rooms = selectedUnit.rooms;
-    if (selectedUnit.totalArea != null) input.totalArea = selectedUnit.totalArea;
-    if (selectedUnit.currentPrice != null) input.basePrice = selectedUnit.currentPrice;
-
-    await createUnitMutation.mutateAsync(input);
-    handleCloseDrawer();
-  }
-
-  async function handleDeleteUnit(): Promise<void> {
-    if (!selectedUnit) return;
-    // Safety: only free units can be deleted
-    if (selectedUnit.status !== "free") return;
-    await deleteUnitMutation.mutateAsync(selectedUnit.id);
-    setDeleteUnitConfirm(false);
-    handleCloseDrawer();
   }
 
   async function handleCopyFloor(): Promise<void> {
@@ -896,9 +779,6 @@ function ChessViewPage({ properties, isLoadingProperties, isErrorProperties }: C
     setBlockFloorsCount("1");
   }
 
-  const setUnitField = (field: keyof UnitFormState, value: string) => {
-    setUnitForm((prev) => ({ ...prev, [field]: value }));
-  };
 
   return (
     <main className="space-y-5 p-4 md:p-6">
@@ -1126,7 +1006,7 @@ function ChessViewPage({ properties, isLoadingProperties, isErrorProperties }: C
         </div>
       )}
 
-      {/* Unit detail drawer */}
+      {/* Unit info drawer (lightweight) */}
       <Drawer anchor="right" open={unitDrawerOpen} onClose={handleCloseDrawer}>
         <Box sx={{ width: "min(420px, 100vw)", display: "flex", flexDirection: "column", height: "100%" }}>
           <Box sx={{ px: 3, py: 2.5 }}>
@@ -1187,6 +1067,53 @@ function ChessViewPage({ properties, isLoadingProperties, isErrorProperties }: C
                   </div>
                 </div>
 
+                {/* Photos from full unit detail */}
+                {unitDetail && unitDetail.photoUrls.length > 0 ? (
+                  <div className="rounded-xl border border-border bg-card p-4">
+                    <UnitPhotoManager
+                      unitId={unitDetail.id}
+                      propertyId={activePropertyId}
+                      photoUrls={unitDetail.photoUrls}
+                      readOnly
+                    />
+                  </div>
+                ) : null}
+
+                {/* Booking/reserve info */}
+                {unitDetail && (unitDetail.status === "booked" || unitDetail.status === "reserved") && (unitDetail.clientId || unitDetail.comment) ? (
+                  <div className="rounded-xl border border-warning/40 bg-warning/5 p-4 text-sm">
+                    <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      {unitDetail.status === "booked" ? "Бронь" : "Резерв"}
+                    </p>
+                    <div className="space-y-1.5">
+                      {bookingClient ? (
+                        <>
+                          <div className="flex items-center justify-between">
+                            <span className="text-muted-foreground">Клиент</span>
+                            <span className="font-semibold">{bookingClient.fullName}</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-muted-foreground">Телефон</span>
+                            <span className="font-semibold">{bookingClient.phone}</span>
+                          </div>
+                        </>
+                      ) : null}
+                      {unitDetail.bookedUntil ? (
+                        <div className="flex items-center justify-between">
+                          <span className="text-muted-foreground">До</span>
+                          <span className="font-semibold">{new Date(unitDetail.bookedUntil).toLocaleDateString("ru-RU")}</span>
+                        </div>
+                      ) : null}
+                      {unitDetail.comment ? (
+                        <div className="flex items-center justify-between">
+                          <span className="text-muted-foreground">Комментарий</span>
+                          <span className="font-semibold">{unitDetail.comment}</span>
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                ) : null}
+
                 {unitNeedsDeal ? (
                   <div className="rounded-xl border border-border bg-card p-4 text-sm">
                     <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -1240,8 +1167,8 @@ function ChessViewPage({ properties, isLoadingProperties, isErrorProperties }: C
           <Stack direction="column" spacing={1.5} sx={{ px: 3, py: 2 }}>
             {selectedUnit ? (
               <AppButton
-                label="Редактировать"
-                variant="outline"
+                label="Подробнее"
+                variant="primary"
                 fullWidth
                 onClick={() => {
                   router.push(routes.unitDetail(activePropertyId, selectedUnit.id));
@@ -1253,23 +1180,13 @@ function ChessViewPage({ properties, isLoadingProperties, isErrorProperties }: C
             {unitNeedsDeal && unitDealQuery.data && unitDealQuery.data.length > 0 ? (
               <AppButton
                 label="Открыть сделку"
-                variant="primary"
+                variant="outline"
                 fullWidth
                 onClick={() => {
                   const deal = unitDealQuery.data[0]!;
                   router.push(routes.dealDetail(deal.id));
                   handleCloseDrawer();
                 }}
-              />
-            ) : null}
-
-            {selectedUnit?.status === "free" ? (
-              <AppButton
-                label="Создать копию квартиры на этот этаж"
-                variant="outline"
-                fullWidth
-                isLoading={createUnitMutation.isPending}
-                onClick={() => void handleCopyUnit()}
               />
             ) : null}
 
@@ -1283,165 +1200,25 @@ function ChessViewPage({ properties, isLoadingProperties, isErrorProperties }: C
         </Box>
       </Drawer>
 
-      {/* Create unit drawer */}
-      <AppDrawerForm
+      {/* Create unit drawer (shared) */}
+      <UnitFormDrawer
         open={createUnitOpen}
+        mode="create"
         title="Новая квартира"
         subtitle={
           createUnitContext
             ? `${createUnitContext.block.name}, Этаж ${createUnitContext.floor.floorNumber}`
-            : ""
+            : undefined
         }
-        saveLabel="Создать"
-        cancelLabel="Отмена"
-        isSaving={createUnitMutation.isPending}
-        saveDisabled={!unitForm.unitNumber.trim()}
+        values={unitForm}
+        onChange={setUnitForm}
+        onSave={() => void handleSaveUnit()}
         onClose={() => {
           setCreateUnitOpen(false);
           setCreateUnitContext(null);
           setUnitForm(EMPTY_UNIT_FORM);
         }}
-        onSave={() => void handleSaveUnit()}
-      >
-        <div className="space-y-4">
-          <AppInput
-            label="Номер квартиры"
-            value={unitForm.unitNumber}
-            onChange={(e) => setUnitField("unitNumber", e.target.value)}
-            required
-          />
-          <AppSelect
-            label="Тип"
-            value={unitForm.unitType}
-            onChange={(e) => setUnitField("unitType", e.target.value)}
-            options={[...UNIT_TYPE_OPTIONS]}
-          />
-          <AppInput
-            label="Количество комнат"
-            value={unitForm.rooms}
-            onChange={(e) => setUnitField("rooms", e.target.value)}
-            type="number"
-            placeholder="1"
-          />
-          <AppInput
-            label="Площадь (м²)"
-            value={unitForm.totalArea}
-            onChange={(e) => setUnitField("totalArea", e.target.value)}
-            type="number"
-            placeholder="42"
-          />
-          <AppInput
-            label="Жилая площадь, м²"
-            value={unitForm.livingArea}
-            onChange={(e) => setUnitField("livingArea", e.target.value)}
-            type="number"
-            placeholder="30"
-          />
-          <AppInput
-            label="Кухня, м²"
-            value={unitForm.kitchenArea}
-            onChange={(e) => setUnitField("kitchenArea", e.target.value)}
-            type="number"
-            placeholder="8"
-          />
-          <AppInput
-            label="Балкон, м²"
-            value={unitForm.balconyArea}
-            onChange={(e) => setUnitField("balconyArea", e.target.value)}
-            type="number"
-            placeholder="4"
-          />
-          <AppInput
-            label="Цена за м² ($)"
-            value={unitForm.pricePerSqm}
-            onChange={(e) => setUnitField("pricePerSqm", e.target.value)}
-            type="number"
-            placeholder="1000"
-          />
-          {unitForm.totalArea && unitForm.pricePerSqm ? (
-            <div className="rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm">
-              <span className="text-muted-foreground">Базовая цена: </span>
-              <span className="font-semibold">
-                ${Math.round(parseFloat(unitForm.totalArea) * parseFloat(unitForm.pricePerSqm)).toLocaleString("ru-RU")}
-              </span>
-            </div>
-          ) : null}
-          <AppInput
-            label="Отделка"
-            value={unitForm.finishing}
-            onChange={(e) => setUnitField("finishing", e.target.value)}
-            placeholder="Черновая"
-          />
-          <AppInput
-            label="Описание"
-            value={unitForm.description}
-            onChange={(e) => setUnitField("description", e.target.value)}
-            placeholder="Доп. информация"
-          />
-        </div>
-      </AppDrawerForm>
-
-      {/* Book / Reserve action drawer */}
-      <AppDrawerForm
-        open={actionType !== null}
-        title={actionType === "book" ? "Забронировать квартиру" : "Резервировать квартиру"}
-        subtitle={`Квартира ${selectedUnit?.unitNumber ?? ""}`}
-        saveLabel={actionType === "book" ? "Забронировать" : "Резервировать"}
-        cancelLabel="Отмена"
-        isSaving={bookMutation.isPending || reserveMutation.isPending}
-        onClose={closeActionForm}
-        onSave={() => void handleSubmitAction()}
-      >
-        <div className="space-y-4">
-          <div>
-            <p className="mb-1.5 text-sm font-medium">Клиент (необязательно)</p>
-            <AppSearchableSelect
-              options={clientOptions}
-              value={actionClientId || null}
-              onChange={(id) => setActionClientId(id)}
-              triggerLabel="Выберите клиента"
-              dialogTitle="Поиск клиента"
-              searchPlaceholder="Имя или телефон..."
-              loading={clientsSearching}
-              filterFn={(_option, query) => {
-                setClientSearch(query);
-                return true;
-              }}
-              emptyLabel={clientSearch.length < 2 ? "Введите минимум 2 символа" : "Клиент не найден"}
-            />
-            {actionClientId ? (
-              <button
-                className="mt-1 text-xs text-muted-foreground hover:text-foreground"
-                onClick={() => setActionClientId("")}
-                type="button"
-              >
-                Очистить выбор
-              </button>
-            ) : null}
-          </div>
-          <AppInput
-            label="Комментарий / причина"
-            value={actionComment}
-            onChange={(e) => setActionComment(e.target.value)}
-            placeholder={
-              actionType === "reserve"
-                ? "Например: Клиент выбрал, ожидает документы"
-                : "Например: Оплата через 3 дня"
-            }
-          />
-        </div>
-      </AppDrawerForm>
-
-      {/* Delete unit confirm */}
-      <ConfirmDialog
-        open={deleteUnitConfirm}
-        title="Удалить квартиру?"
-        message={`Вы уверены, что хотите удалить квартиру ${selectedUnit?.unitNumber ?? ""}? Это действие необратимо.`}
-        confirmText={deleteUnitMutation.isPending ? "Удаление..." : "Удалить"}
-        cancelText="Отмена"
-        destructive
-        onConfirm={() => void handleDeleteUnit()}
-        onClose={() => setDeleteUnitConfirm(false)}
+        isSaving={createUnitMutation.isPending}
       />
 
       {/* Copy floor confirm */}

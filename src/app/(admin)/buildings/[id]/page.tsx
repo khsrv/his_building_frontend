@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { TextField } from "@mui/material";
 import {
   AppButton,
   AppCard,
@@ -917,13 +916,11 @@ export default function BuildingDetailPage() {
               { label: "Приостановлен", value: "suspended" },
             ]}
           />
-          <TextField
+          <AppInput
             label="Описание"
-            multiline
-            minRows={3}
-            fullWidth
             value={editPropertyForm.description}
             onChange={(e) => setEditPropertyForm((prev) => ({ ...prev, description: e.target.value }))}
+            placeholder="Описание объекта"
           />
         </div>
       </AppDrawerForm>
@@ -1068,13 +1065,11 @@ export default function BuildingDetailPage() {
             value={unitForm.finishing}
             onChange={(e) => setUnitForm((prev) => ({ ...prev, finishing: e.target.value }))}
           />
-          <TextField
+          <AppInput
             label="Описание"
-            multiline
-            minRows={2}
-            fullWidth
             value={unitForm.description}
             onChange={(e) => setUnitForm((prev) => ({ ...prev, description: e.target.value }))}
+            placeholder="Доп. информация"
           />
           {editingUnit ? (
             <UnitPhotoManager
