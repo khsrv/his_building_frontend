@@ -95,6 +95,15 @@ export default function CurrenciesPage() {
     return map;
   }, [primaryCurrency, rates]);
 
+  // NBT rate map by code
+  const nbtRateMap = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const r of nbtData?.rates ?? []) {
+      map.set(r.code, r.rate / (r.unit || 1));
+    }
+    return map;
+  }, [nbtData]);
+
   function resetCurrForm() {
     setCurrCode("");
     setCurrName("");
@@ -135,6 +144,7 @@ export default function CurrenciesPage() {
                 primaryCode={primaryCurrency.code}
                 currency={curr}
                 currentRate={latestRates.get(curr.code)}
+                nbtRate={nbtRateMap.get(curr.code)}
                 onSave={(rate) => void handleQuickRateUpdate(primaryCurrency.code, curr.code, rate)}
                 isSaving={createRateMutation.isPending}
               />
@@ -349,12 +359,14 @@ function QuickRateCard({
   primaryCode,
   currency,
   currentRate,
+  nbtRate,
   onSave,
   isSaving,
 }: {
   primaryCode: string;
   currency: Currency;
   currentRate: ExchangeRate | undefined;
+  nbtRate: number | undefined;
   onSave: (rate: number) => void;
   isSaving: boolean;
 }) {
@@ -424,9 +436,14 @@ function QuickRateCard({
         )}
       </div>
 
-      <p className="mt-1 text-xs text-muted-foreground">
-        1 {primaryCode} = {displayRate > 0 ? displayRate.toFixed(4) : "?"} {currency.code}
-      </p>
+      <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
+        <span>1 {primaryCode} = {displayRate > 0 ? displayRate.toFixed(4) : "?"} {currency.code}</span>
+        {nbtRate ? (
+          <span className="rounded bg-muted px-1.5 py-0.5">
+            НБТ: {nbtRate.toFixed(4)}
+          </span>
+        ) : null}
+      </div>
     </div>
   );
 }

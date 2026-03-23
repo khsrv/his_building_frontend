@@ -206,7 +206,6 @@ export const NAVIGATION_ITEMS: readonly NavItem[] = [
     children: [
       { id: "finance-ledger", labelKey: "nav.finance_ledger", href: routes.financeLedger, icon: <FinanceIcon />, permission: "finance.ledger.read" },
       { id: "finance-accounts", labelKey: "nav.finance_accounts", href: routes.financeAccounts, icon: <FinanceIcon />, permission: "finance.accounts.read" },
-      { id: "finance-rates", labelKey: "nav.finance_rates", href: routes.financeExchangeRates, icon: <FinanceIcon />, permission: "finance.exchange_rates.manage" },
       { id: "finance-reports", labelKey: "nav.finance_reports", href: routes.financeReports, icon: <FinanceIcon />, permission: "finance.reports.view" },
       { id: "finance-payable-reminders", labelKey: "nav.finance_payable_reminders", href: routes.financePayableReminders, icon: <FinanceIcon /> },
       { id: "finance-currencies", labelKey: "nav.finance_currencies", href: routes.financeCurrencies, icon: <FinanceIcon />, permission: "finance.exchange_rates.manage" },
