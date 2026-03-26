@@ -15,10 +15,12 @@ import {
   AppStatePanel,
   ShimmerBox,
 } from "@/shared/ui";
+import { IconClients, IconDeals, IconCoins, IconDebt } from "@/shared/ui/icons/kpi-icons";
 import { routes } from "@/shared/constants/routes";
 import { useClientsListQuery } from "@/modules/clients/presentation/hooks/use-clients-list-query";
 import { CreateClientDrawer } from "@/modules/clients/presentation/components/create-client-drawer";
 import type { Client, ClientSource } from "@/modules/clients/domain/client";
+import { usePropertyContext } from "@/shared/providers/property-provider";
 
 // ─── Source helpers ──────────────────────────────────────────────────────────
 
@@ -52,10 +54,12 @@ export default function ClientsPage() {
   const router = useRouter();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [filterType, setFilterType] = useState<string>("with_deals");
+  const { currentPropertyId } = usePropertyContext();
 
   const { data, isLoading, isError, error } = useClientsListQuery({
     page: 1,
     limit: 200,
+    propertyId: currentPropertyId || undefined,
   });
 
   const allClients = data?.items ?? [];
@@ -176,10 +180,10 @@ export default function ClientsPage() {
           <AppKpiGrid
             columns={4}
             items={[
-              { title: "Всего клиентов", value: total },
-              { title: "Со сделками", value: withDeals },
-              { title: "Оплачено", value: fmtMoney(totalRevenue) },
-              { title: "Общий долг", value: fmtMoney(totalDebt), deltaTone: totalDebt > 0 ? "danger" : "success" },
+              { title: "Всего клиентов", value: total, icon: <IconClients /> },
+              { title: "Со сделками", value: withDeals, icon: <IconDeals /> },
+              { title: "Оплачено", value: fmtMoney(totalRevenue), icon: <IconCoins /> },
+              { title: "Общий долг", value: fmtMoney(totalDebt), deltaTone: totalDebt > 0 ? "danger" : "success", icon: <IconDebt /> },
             ]}
           />
         }

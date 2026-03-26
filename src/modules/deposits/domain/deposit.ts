@@ -28,7 +28,7 @@ export interface CreateDepositInput {
   amount: number;
   currency: string;
   accountId?: string | undefined;
-  propertyId?: string | undefined;
+  propertyId: string;
   notes?: string | undefined;
 }
 

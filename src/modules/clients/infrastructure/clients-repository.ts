@@ -219,6 +219,7 @@ export async function fetchClientsList(params?: ClientsListParams): Promise<Clie
   if (params?.source) query["source"] = params.source;
   if (params?.managerId) query["manager_id"] = params.managerId;
   if (params?.pipelineStageId) query["pipeline_stage_id"] = params.pipelineStageId;
+  if (params?.propertyId) query["property_id"] = params.propertyId;
   if (params?.hasDeals !== undefined) query["has_deals"] = params.hasDeals;
 
   const res = await apiClient.get<ClientsListResponseDto>("/api/v1/clients", query);

@@ -13,6 +13,7 @@ import {
   AppStatusBadge,
   type AppStatusTone,
 } from "@/shared/ui";
+import { IconWallet, IconOverdue } from "@/shared/ui/icons/kpi-icons";
 import { routes } from "@/shared/constants/routes";
 import { useAccountsQuery } from "@/modules/finance/presentation/hooks/use-accounts-query";
 import { useTransactionsQuery } from "@/modules/finance/presentation/hooks/use-transactions-query";
@@ -127,11 +128,13 @@ export default function FinancePage() {
       title: `Баланс ${currency}`,
       value: formatMoney(total, currency),
       deltaTone: "success" as const,
+      icon: <IconWallet />,
     })),
     {
       title: "Просроченных платежей",
       value: `${overdueCount}`,
       deltaTone: overdueCount > 0 ? ("danger" as const) : ("muted" as const),
+      icon: <IconOverdue />,
     },
   ];
 

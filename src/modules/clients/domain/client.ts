@@ -105,6 +105,7 @@ export interface ClientsListParams {
   source?: ClientSource;
   managerId?: string;
   pipelineStageId?: string;
+  propertyId?: string | undefined;
   hasDeals?: boolean | undefined;
 }
 

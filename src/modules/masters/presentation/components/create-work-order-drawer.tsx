@@ -8,9 +8,11 @@ import {
   AppSearchableSelect,
   type AppSearchableSelectOption,
 } from "@/shared/ui";
+
 import { useCreateWorkOrderMutation } from "@/modules/masters/presentation/hooks/use-create-work-order-mutation";
 import { useMastersListQuery } from "@/modules/masters/presentation/hooks/use-masters-list-query";
 import { useBuildingsQuery } from "@/modules/buildings/presentation/hooks/use-buildings.query";
+import { usePropertyContext } from "@/shared/providers/property-provider";
 
 interface FormState {
   masterId: string;
@@ -46,7 +48,8 @@ export function CreateWorkOrderDrawer({
   onSuccess,
 }: CreateWorkOrderDrawerProps) {
   const mutation = useCreateWorkOrderMutation();
-  const [form, setForm] = useState<FormState>(INITIAL_FORM);
+  const { currentPropertyId, hasProperty } = usePropertyContext();
+  const [form, setForm] = useState<FormState>({ ...INITIAL_FORM, propertyId: currentPropertyId });
   const [errors, setErrors] = useState<FormErrors>({});
 
   const mastersQuery = useMastersListQuery({ limit: 100 });
@@ -76,7 +79,7 @@ export function CreateWorkOrderDrawer({
   };
 
   const reset = () => {
-    setForm(INITIAL_FORM);
+    setForm({ ...INITIAL_FORM, propertyId: currentPropertyId });
     setErrors({});
   };
 
@@ -148,17 +151,25 @@ export function CreateWorkOrderDrawer({
           }
         />
 
-        <AppSearchableSelect
-          dialogTitle="Выберите объект"
-          options={buildingOptions}
-          value={form.propertyId}
-          onChange={(id) => set("propertyId")(id)}
-          searchPlaceholder="Поиск объекта..."
-          triggerLabel={
-            buildingOptions.find((o) => o.id === form.propertyId)?.label ??
-            "Выберите объект *"
-          }
-        />
+        {hasProperty ? (
+          <AppInput
+            label="Объект *"
+            value={buildingOptions.find((o) => o.id === form.propertyId)?.label ?? ""}
+            disabled
+          />
+        ) : (
+          <AppSearchableSelect
+            dialogTitle="Выберите объект"
+            options={buildingOptions}
+            value={form.propertyId}
+            onChange={(id) => set("propertyId")(id)}
+            searchPlaceholder="Поиск объекта..."
+            triggerLabel={
+              buildingOptions.find((o) => o.id === form.propertyId)?.label ??
+              "Выберите объект *"
+            }
+          />
+        )}
 
         <AppInput
           label="Описание *"

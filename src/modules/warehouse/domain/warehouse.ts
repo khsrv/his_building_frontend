@@ -61,6 +61,7 @@ export interface Material {
   readonly name: string;
   readonly sku: string | null;
   readonly unit: MaterialUnit;
+  readonly propertyId: string | null;
   readonly currentStock: number;
   readonly minStock: number;
   readonly pricePerUnit: number | null;
@@ -118,12 +119,13 @@ export interface CreateSupplierPaymentInput {
   currency: string;
   accountId?: string | undefined;
   notes?: string | undefined;
-  propertyId?: string | undefined;
+  propertyId: string;
 }
 
 export interface CreateMaterialInput {
   name: string;
   unit: MaterialUnit;
+  propertyId?: string | undefined;
   sku?: string | undefined;
   minStock?: number | undefined;
   pricePerUnit?: number | undefined;
@@ -159,12 +161,14 @@ export interface SuppliersListParams {
   page?: number;
   limit?: number;
   search?: string;
+  propertyId?: string | undefined;
 }
 
 export interface MaterialsListParams {
   page?: number;
   limit?: number;
   search?: string;
+  propertyId?: string | undefined;
 }
 
 export interface StockMovementsListParams {
@@ -172,5 +176,6 @@ export interface StockMovementsListParams {
   limit?: number;
   materialId?: string;
   supplierId?: string;
+  propertyId?: string;
   type?: StockMovementType;
 }

@@ -5,12 +5,8 @@ import { Stack } from "@mui/material";
 import { AppDrawerForm, AppInput, AppSelect } from "@/shared/ui";
 import { useCreateSupplierPaymentMutation } from "@/modules/warehouse/presentation/hooks/use-create-supplier-payment-mutation";
 import { usePropertiesListQuery } from "@/modules/properties/presentation/hooks/use-properties-list-query";
-
-const CURRENCY_OPTIONS = [
-  { label: "TJS", value: "TJS" },
-  { label: "USD", value: "USD" },
-  { label: "RUB", value: "RUB" },
-] as const;
+import { useCurrencyOptions } from "@/modules/finance/presentation/hooks/use-currency-options";
+import { usePropertyContext } from "@/shared/providers/property-provider";
 
 interface FormState {
   amount: string;
@@ -26,7 +22,7 @@ const INITIAL_FORM: FormState = {
   notes: "",
 };
 
-type FormErrors = Partial<Record<"amount", string>>;
+type FormErrors = Partial<Record<"amount" | "propertyId", string>>;
 
 interface SupplierPaymentDrawerProps {
   open: boolean;
@@ -43,29 +39,28 @@ export function SupplierPaymentDrawer({
 }: SupplierPaymentDrawerProps) {
   const mutation = useCreateSupplierPaymentMutation(supplierId);
   const { data: propertiesResult } = usePropertiesListQuery();
+  const currencyOptions = useCurrencyOptions();
+  const { currentPropertyId, hasProperty } = usePropertyContext();
   const properties = propertiesResult?.items ?? [];
 
-  const propertyOptions = [
-    { value: "", label: "Без объекта" },
-    ...properties.map((p) => ({ value: p.id, label: p.name })),
-  ];
+  const propertyOptions = properties.map((p) => ({ value: p.id, label: p.name }));
 
-  const [form, setForm] = useState<FormState>(INITIAL_FORM);
+  const [form, setForm] = useState<FormState>({ ...INITIAL_FORM, propertyId: currentPropertyId });
   const [errors, setErrors] = useState<FormErrors>({});
 
   const set = (key: keyof FormState) => (value: string) => {
     setForm((prev) => ({ ...prev, [key]: value }));
-    if (key === "amount") {
+    if (key === "amount" || key === "propertyId") {
       setErrors((prev) => {
         const next = { ...prev };
-        delete next.amount;
+        delete next[key as "amount" | "propertyId"];
         return next;
       });
     }
   };
 
   const reset = () => {
-    setForm(INITIAL_FORM);
+    setForm({ ...INITIAL_FORM, propertyId: currentPropertyId });
     setErrors({});
   };
 
@@ -74,6 +69,9 @@ export function SupplierPaymentDrawer({
     const parsed = parseFloat(form.amount);
     if (!form.amount.trim() || isNaN(parsed) || parsed <= 0) {
       next.amount = "Введите корректную сумму";
+    }
+    if (!form.propertyId) {
+      next.propertyId = "Выберите объект";
     }
     setErrors(next);
     return Object.keys(next).length === 0;
@@ -94,7 +92,7 @@ export function SupplierPaymentDrawer({
         amount: parsed,
         currency: form.currency,
         notes: form.notes.trim() || undefined,
-        propertyId: form.propertyId || undefined,
+        propertyId: form.propertyId,
       },
       {
         onSuccess: () => {
@@ -128,17 +126,26 @@ export function SupplierPaymentDrawer({
         <AppSelect
           id="payment-currency"
           label="Валюта"
-          options={CURRENCY_OPTIONS}
+          options={currencyOptions}
           value={form.currency}
           onChange={(e) => set("currency")(e.target.value)}
         />
-        <AppSelect
-          id="payment-property"
-          label="Объект"
-          options={propertyOptions}
-          value={form.propertyId}
-          onChange={(e) => set("propertyId")(e.target.value)}
-        />
+        {hasProperty ? (
+          <AppInput
+            label="Объект *"
+            value={properties.find((p) => p.id === form.propertyId)?.name ?? ""}
+            disabled
+          />
+        ) : (
+          <AppSelect
+            id="payment-property"
+            label="Объект *"
+            options={propertyOptions}
+            value={form.propertyId}
+            onChange={(e) => set("propertyId")(e.target.value)}
+            {...(errors.propertyId ? { errorText: errors.propertyId } : {})}
+          />
+        )}
         <AppInput
           label="Заметки"
           value={form.notes}

@@ -29,6 +29,7 @@ import {
   ShimmerBox,
 } from "@/shared/ui";
 import type { AppColorGridRow, AppColorGridCell } from "@/shared/ui";
+import { IconBuilding, IconAvailable, IconCoins, IconIncome } from "@/shared/ui/icons/kpi-icons";
 import { routes } from "@/shared/constants/routes";
 import { usePropertiesListQuery } from "@/modules/properties/presentation/hooks/use-properties-list-query";
 import { useCreatePropertyMutation } from "@/modules/properties/presentation/hooks/use-create-property-mutation";
@@ -467,10 +468,10 @@ export default function BuildingsPage() {
           <AppKpiGrid
             columns={4}
             items={[
-              { title: "Всего квартир", value: totalAllUnits },
-              { title: "Свободных", value: totalAvailable, deltaTone: "success" },
-              { title: "Продано", value: totalSold, delta: `${overallRealization.toFixed(1)}%` },
-              { title: "Общая выручка", value: `$${totalRevenue.toLocaleString("ru-RU")}` },
+              { title: "Всего квартир", value: totalAllUnits, icon: <IconBuilding /> },
+              { title: "Свободных", value: totalAvailable, deltaTone: "success", icon: <IconAvailable /> },
+              { title: "Продано", value: totalSold, delta: `${overallRealization.toFixed(1)}%`, icon: <IconCoins /> },
+              { title: "Общая выручка", value: `$${totalRevenue.toLocaleString("ru-RU")}`, icon: <IconIncome /> },
             ]}
           />
         }

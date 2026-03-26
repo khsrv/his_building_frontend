@@ -19,6 +19,7 @@ import { useMaterialsListQuery } from "@/modules/warehouse/presentation/hooks/us
 import { useSuppliersListQuery } from "@/modules/warehouse/presentation/hooks/use-suppliers-list-query";
 import { CreateStockMovementDrawer } from "@/modules/warehouse/presentation/components/create-stock-movement-drawer";
 import type { StockMovement, StockMovementType } from "@/modules/warehouse/domain/warehouse";
+import { usePropertyContext } from "@/shared/providers/property-provider";
 
 const MOVEMENT_TYPE_LABEL: Record<StockMovementType, string> = {
   income: "Приход",
@@ -107,6 +108,7 @@ const columns: readonly AppDataTableColumn<StockMovement>[] = [
 ];
 
 export default function WarehouseMovementsPage() {
+  const { currentPropertyId } = usePropertyContext();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [filterMaterialId, setFilterMaterialId] = useState("");
   const [filterSupplierId, setFilterSupplierId] = useState("");
@@ -124,6 +126,7 @@ export default function WarehouseMovementsPage() {
   } = {
     page: 1,
     limit: 200,
+    ...(currentPropertyId ? { propertyId: currentPropertyId } : {}),
     ...(filterMaterialId ? { materialId: filterMaterialId } : {}),
     ...(filterSupplierId ? { supplierId: filterSupplierId } : {}),
     ...(filterType ? { type: filterType as StockMovementType } : {}),

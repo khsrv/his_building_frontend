@@ -11,6 +11,7 @@ import {
   AppStatePanel,
   AppCurrencyDisplay,
 } from "@/shared/ui";
+import { IconBuilding, IconAvailable, IconDeals, IconOverdue, IconIncome, IconCoins, IconDebt } from "@/shared/ui/icons/kpi-icons";
 import type { AppStatCardProps } from "@/shared/ui";
 import type { AppChartDataPoint, AppChartSeries } from "@/shared/ui/primitives/chart-widget";
 import type { AppDataTableColumn } from "@/shared/ui/primitives/data-table/types";
@@ -84,10 +85,10 @@ export default function PropertyAnalyticsPage() {
   const primaryKpi: readonly AppStatCardProps[] = useMemo(() => {
     if (!data) return [];
     return [
-      { title: "Всего квартир", value: data.units.total },
-      { title: "Свободных", value: data.units.available, deltaTone: "success" as const },
-      { title: "Активных сделок", value: data.deals.active, deltaTone: "info" as const },
-      { title: "Просроченных", value: data.payments.overdueCount, deltaTone: "danger" as const },
+      { title: "Всего квартир", value: data.units.total, icon: <IconBuilding /> },
+      { title: "Свободных", value: data.units.available, deltaTone: "success" as const, icon: <IconAvailable /> },
+      { title: "Активных сделок", value: data.deals.active, deltaTone: "info" as const, icon: <IconDeals /> },
+      { title: "Просроченных", value: data.payments.overdueCount, deltaTone: "danger" as const, icon: <IconOverdue /> },
     ];
   }, [data]);
 
@@ -95,10 +96,10 @@ export default function PropertyAnalyticsPage() {
     if (!data) return [];
     const fmt = new Intl.NumberFormat("ru-RU", { style: "currency", currency: "USD" });
     return [
-      { title: "Выручка всего", value: fmt.format(data.revenue.total) },
-      { title: "За месяц", value: fmt.format(data.revenue.thisMonth), deltaTone: "success" as const },
-      { title: "Дебиторка", value: fmt.format(data.receivables.total), deltaTone: "warning" as const },
-      { title: "Продано", value: data.units.sold, hint: `Забронировано: ${data.units.booked}` },
+      { title: "Выручка всего", value: fmt.format(data.revenue.total), icon: <IconIncome /> },
+      { title: "За месяц", value: fmt.format(data.revenue.thisMonth), deltaTone: "success" as const, icon: <IconCoins /> },
+      { title: "Дебиторка", value: fmt.format(data.receivables.total), deltaTone: "warning" as const, icon: <IconDebt /> },
+      { title: "Продано", value: data.units.sold, hint: `Забронировано: ${data.units.booked}`, icon: <IconBuilding /> },
     ];
   }, [data]);
 

@@ -35,6 +35,10 @@ import type {
   ExchangeRateListParams,
   BarterSellInput,
   BarterSellResult,
+  TransactionSummary,
+  TransactionSummaryParams,
+  UpdateTransactionInput,
+  StornoTransactionInput,
 } from "@/modules/finance/domain/finance";
 
 // ─── DTOs ─────────────────────────────────────────────────────────────────────
@@ -280,6 +284,7 @@ function mapTransactionDto(dto: TransactionDto): Transaction {
     categoryId: dto.category_id,
     categoryName: null, // API does not return joined category name
     description: dto.description,
+    propertyId: dto.property_id ?? null,
     transactionDate: dto.transaction_date,
     createdAt: dto.created_at,
     createdByName: dto.created_by ?? "", // API returns uuid, keep as safe fallback
@@ -369,6 +374,7 @@ export async function fetchTransactions(params?: TransactionListParams): Promise
   };
   if (params?.type) query["type"] = params.type;
   if (params?.accountId) query["account_id"] = params.accountId;
+  if (params?.propertyId) query["property_id"] = params.propertyId;
   if (params?.dateFrom) query["date_from"] = params.dateFrom;
   if (params?.dateTo) query["date_to"] = params.dateTo;
 
@@ -396,6 +402,83 @@ export async function createTransaction(input: CreateTransactionInput): Promise<
 
   const res = await apiClient.post<{ data: TransactionDto }>("/api/v1/transactions", body);
   return mapTransactionDto(getResponseData<TransactionDto>(normalizeApiKeys(res)));
+}
+
+export async function updateTransaction(
+  id: string,
+  input: UpdateTransactionInput,
+): Promise<Transaction> {
+  const body: Record<string, unknown> = {};
+  if (input.amount !== undefined) body["amount"] = input.amount;
+  if (input.description !== undefined) body["description"] = input.description;
+  if (input.categoryId !== undefined) body["category_id"] = input.categoryId;
+  if (input.propertyId !== undefined) body["property_id"] = input.propertyId;
+
+  const res = await apiClient.patch<{ data: TransactionDto }>(
+    `/api/v1/transactions/${id}`,
+    body,
+  );
+  return mapTransactionDto(getResponseData<TransactionDto>(normalizeApiKeys(res)));
+}
+
+export async function deleteTransaction(id: string): Promise<void> {
+  await apiClient.delete(`/api/v1/transactions/${id}`);
+}
+
+export async function stornoTransaction(
+  id: string,
+  input: StornoTransactionInput,
+): Promise<Transaction> {
+  const res = await apiClient.post<{ data: TransactionDto }>(
+    `/api/v1/transactions/${id}/storno`,
+    { reason: input.reason },
+  );
+  return mapTransactionDto(getResponseData<TransactionDto>(normalizeApiKeys(res)));
+}
+
+// ─── Account Detail ──────────────────────────────────────────────────────────
+
+export async function fetchAccountDetail(id: string): Promise<Account> {
+  const res = await apiClient.get<{ data: AccountDto }>(`/api/v1/accounts/${id}`);
+  return mapAccountDto(getResponseData<AccountDto>(normalizeApiKeys(res)));
+}
+
+// ─── Transaction Summary ─────────────────────────────────────────────────────
+
+export async function fetchTransactionSummary(
+  params?: TransactionSummaryParams,
+): Promise<TransactionSummary> {
+  const query: Record<string, string | number | boolean | undefined | null> = {};
+  if (params?.type) query["type"] = params.type;
+  if (params?.dateFrom) query["date_from"] = params.dateFrom;
+  if (params?.dateTo) query["date_to"] = params.dateTo;
+  if (params?.propertyId) query["property_id"] = params.propertyId;
+  if (params?.categoryId) query["category_id"] = params.categoryId;
+
+  const res = await apiClient.get<{ data: unknown }>("/api/v1/transactions/summary", query);
+  const data = getResponseRecord(normalizeApiKeys(res)) ?? {};
+
+  const byCategoryRaw = data["by_category"];
+  const byPropertyRaw = data["by_property"];
+
+  return {
+    totalAmount: Number(data["total_amount"] ?? data["total"] ?? 0),
+    currency: String(data["currency"] ?? "USD"),
+    byCategory: Array.isArray(byCategoryRaw)
+      ? byCategoryRaw.map((item: Record<string, unknown>) => ({
+          categoryId: String(item["category_id"] ?? ""),
+          categoryName: String(item["category_name"] ?? "Без категории"),
+          amount: Number(item["amount"] ?? 0),
+        }))
+      : [],
+    byProperty: Array.isArray(byPropertyRaw)
+      ? byPropertyRaw.map((item: Record<string, unknown>) => ({
+          propertyId: String(item["property_id"] ?? ""),
+          propertyName: String(item["property_name"] ?? "Без объекта"),
+          amount: Number(item["amount"] ?? 0),
+        }))
+      : [],
+  };
 }
 
 // ─── Barter ───────────────────────────────────────────────────────────────────
@@ -496,6 +579,7 @@ export async function fetchCashFlowReport(params?: CashFlowReportParams): Promis
   const query: Record<string, string | number | boolean | undefined | null> = {};
   if (params?.from) query["from"] = params.from;
   if (params?.to) query["to"] = params.to;
+  if (params?.propertyId) query["property_id"] = params.propertyId;
 
   const res = await apiClient.get<CashFlowReportResponseDto>("/api/v1/reports/cash-flow", query);
   const items = getResponseItems<{ date: string; income: number; expense: number; balance: number }>(
@@ -568,6 +652,7 @@ export async function fetchPayableReminders(
   };
   if (params?.status) query["status"] = params.status;
   if (params?.payeeType) query["payee_type"] = params.payeeType;
+  if (params?.propertyId) query["property_id"] = params.propertyId;
 
   const res = await apiClient.get<PayableRemindersListResponseDto>(
     "/api/v1/payable-reminders",

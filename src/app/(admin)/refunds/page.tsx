@@ -15,6 +15,7 @@ import {
   AppStatePanel,
   ShimmerBox,
 } from "@/shared/ui";
+import { IconCategory, IconOverdue, IconDebt } from "@/shared/ui/icons/kpi-icons";
 import { routes } from "@/shared/constants/routes";
 import { useCancellationsQuery } from "@/modules/deals/presentation/hooks/use-cancellations-query";
 import { useMarkRefundedMutation } from "@/modules/deals/presentation/hooks/use-mark-refunded-mutation";
@@ -22,6 +23,7 @@ import { useAccountsQuery } from "@/modules/finance/presentation/hooks/use-accou
 import { useNotifier } from "@/shared/providers/notifier-provider";
 import { normalizeErrorMessage } from "@/shared/lib/errors/normalize-error-message";
 import type { DealCancellationRecord } from "@/modules/deals/domain/refund";
+import { usePropertyContext } from "@/shared/providers/property-provider";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -60,13 +62,15 @@ const PAYMENT_METHOD_OPTIONS = [
 export default function RefundsPage() {
   const router = useRouter();
   const notifier = useNotifier();
+  const { currentPropertyId } = usePropertyContext();
   const [filterStatus, setFilterStatus] = useState<string>("pending");
 
-  const { data: cancellations, isLoading, isError } = useCancellationsQuery(
-    filterStatus || undefined,
-  );
+  const { data: cancellations, isLoading, isError } = useCancellationsQuery({
+    status: filterStatus || undefined,
+    propertyId: currentPropertyId || undefined,
+  });
   const markRefundedMutation = useMarkRefundedMutation();
-  const { data: accounts } = useAccountsQuery();
+  const { data: accounts } = useAccountsQuery(currentPropertyId || undefined);
 
   // Refund drawer
   const [refundTarget, setRefundTarget] = useState<DealCancellationRecord | null>(null);
@@ -127,9 +131,9 @@ export default function RefundsPage() {
           <AppKpiGrid
             columns={3}
             items={[
-              { title: "Всего записей", value: items.length },
-              { title: "Ожидают возврата", value: pendingCount, deltaTone: "warning" },
-              { title: "Сумма к возврату", value: fmtMoney(pendingTotal), deltaTone: "danger" },
+              { title: "Всего записей", value: items.length, icon: <IconCategory /> },
+              { title: "Ожидают возврата", value: pendingCount, deltaTone: "warning", icon: <IconOverdue /> },
+              { title: "Сумма к возврату", value: fmtMoney(pendingTotal), deltaTone: "danger", icon: <IconDebt /> },
             ]}
           />
         }

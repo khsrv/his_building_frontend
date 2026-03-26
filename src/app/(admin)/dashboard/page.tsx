@@ -1,462 +1,466 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import Link from "next/link";
+import { useState, useMemo, useCallback } from "react";
+import { useRouter } from "next/navigation";
+import { Box, Chip, LinearProgress, Paper, Stack, Typography } from "@mui/material";
 import {
   AppButton,
   AppPageHeader,
   AppKpiGrid,
   AppChartWidget,
   AppSelect,
-  AppDataTable,
-  ShimmerBox,
   AppStatePanel,
-  AppCurrencyDisplay,
+  AppDateRangePicker,
 } from "@/shared/ui";
+import type { AppStatCardProps, AppDateRangeValue } from "@/shared/ui";
+import type { AppChartSeries } from "@/shared/ui/primitives/chart-widget";
 import { routes } from "@/shared/constants/routes";
-import type { AppStatCardProps } from "@/shared/ui";
-import type { AppChartDataPoint, AppChartSeries } from "@/shared/ui/primitives/chart-widget";
-import type { AppDataTableColumn } from "@/shared/ui/primitives/data-table/types";
-import type { ManagerKpiItem } from "@/modules/dashboard/domain/dashboard";
-import { useDashboardSummaryQuery } from "@/modules/dashboard/presentation/hooks/use-dashboard-summary-query";
-import { useDashboardSalesQuery } from "@/modules/dashboard/presentation/hooks/use-dashboard-sales-query";
-import { useDashboardManagerKpiQuery } from "@/modules/dashboard/presentation/hooks/use-dashboard-manager-kpi-query";
+import { useFullDashboardQuery } from "@/modules/dashboard/presentation/hooks/use-full-dashboard-query";
+import type { FullDashboardParams } from "@/modules/dashboard/domain/dashboard";
 import { useDashboardPropertiesQuery } from "@/modules/dashboard/presentation/hooks/use-dashboard-properties-query";
-import { useDashboardExportMutation } from "@/modules/dashboard/presentation/hooks/use-dashboard-export-mutation";
+import { useCreateExchangeRateMutation } from "@/modules/finance/presentation/hooks/use-create-exchange-rate-mutation";
+import { useCancelReminderMutation } from "@/modules/finance/presentation/hooks/use-cancel-reminder-mutation";
+import { usePropertyContext } from "@/shared/providers/property-provider";
+import {
+  IconIncome,
+  IconExpense,
+  IconProfit,
+  IconDebt,
+  IconBuilding,
+  IconAvailable,
+  IconDeals,
+  IconOverdue,
+} from "@/shared/ui/icons/kpi-icons";
 
-// ─── Date helpers ─────────────────────────────────────────────────────────────
+// ─── Currency flags ─────────────────────────────────────────────────────────
 
-function formatDate(date: Date): string {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
-}
-
-function getSixMonthsAgo(): string {
-  const d = new Date();
-  d.setMonth(d.getMonth() - 6);
-  return formatDate(d);
-}
-
-// ─── Currency formatter ───────────────────────────────────────────────────────
-
-function formatCurrencyShort(value: number): string {
-  if (value >= 1_000_000) {
-    return `${(value / 1_000_000).toFixed(1)}M`;
-  }
-  if (value >= 1_000) {
-    return `${(value / 1_000).toFixed(0)}k`;
-  }
-  return String(value);
-}
-
-// ─── Manager KPI table columns ────────────────────────────────────────────────
-
-const MANAGER_COLUMNS: readonly AppDataTableColumn<ManagerKpiItem>[] = [
-  {
-    id: "managerName",
-    header: "Менеджер",
-    cell: (row) => row.managerName,
-    searchAccessor: (row) => row.managerName,
-    sortAccessor: (row) => row.managerName,
-  },
-  {
-    id: "dealsCount",
-    header: "Сделок",
-    cell: (row) => row.dealsCount,
-    sortAccessor: (row) => row.dealsCount,
-    align: "right",
-  },
-  {
-    id: "totalAmount",
-    header: "Выручка",
-    cell: (row) => (
-      <AppCurrencyDisplay amount={row.totalAmount} currency="USD" size="sm" />
-    ),
-    sortAccessor: (row) => row.totalAmount,
-    align: "right",
-  },
-  {
-    id: "clientCount",
-    header: "Клиентов",
-    cell: (row) => row.clientCount,
-    sortAccessor: (row) => row.clientCount,
-    align: "right",
-  },
-];
-
-// ─── Sales chart series ────────────────────────────────────────────────────────
-
-const SALES_SERIES: readonly AppChartSeries[] = [
-  { key: "amount", label: "Выручка", color: "#3B82F6" },
-];
-
-// ─── Pie chart series ────────────────────────────────────────────────────────
-
-const PAYMENT_TYPE_LABELS: Record<string, string> = {
-  full_payment: "Полная оплата",
-  installment: "Рассрочка",
-  mortgage: "Ипотека",
-  barter: "Бартер",
-  combined: "Комбинированная",
+const CURRENCY_META: Record<string, { flag: string }> = {
+  USD: { flag: "🇺🇸" }, TJS: { flag: "🇹🇯" }, RUB: { flag: "🇷🇺" }, UZS: { flag: "🇺🇿" },
+  EUR: { flag: "🇪🇺" }, GBP: { flag: "🇬🇧" }, CNY: { flag: "🇨🇳" }, KZT: { flag: "🇰🇿" },
+  KGS: { flag: "🇰🇬" }, AED: { flag: "🇦🇪" }, TRY: { flag: "🇹🇷" },
 };
 
-// ─── Funnel component ────────────────────────────────────────────────────────
+function getCurrencyFlag(code: string): string {
+  return CURRENCY_META[code]?.flag ?? "💱";
+}
 
-function ConversionFunnel({ stages }: { stages: readonly { name: string; count: number; color: string }[] }) {
-  const maxCount = Math.max(...stages.map((s) => s.count), 1);
+// ─── Helpers ────────────────────────────────────────────────────────────────
 
+function formatMoney(amount: number, currency?: string): string {
+  return `${amount.toLocaleString("ru-RU")}${currency ? ` ${currency}` : ""}`;
+}
+
+function formatDate(iso: string): string {
+  const parts = iso.slice(0, 10).split("-");
+  if (parts.length < 3) return iso;
+  return `${parts[2]}.${parts[1]}.${parts[0]}`;
+}
+
+function dateToIso(d: Date | null): string {
+  return d ? d.toISOString().slice(0, 10) : "";
+}
+
+function todayIso(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function isOverdue(dueDate: string): boolean {
+  return dueDate < todayIso();
+}
+
+const CATEGORY_COLORS = ["#f59e0b", "#ef4444", "#3b82f6", "#10b981", "#8b5cf6", "#ec4899", "#6366f1", "#14b8a6"] as const;
+
+function getDefaultDateRange(): AppDateRangeValue {
+  const end = new Date();
+  const start = new Date();
+  start.setDate(start.getDate() - 30);
+  return { startDate: start, endDate: end };
+}
+
+// ─── Section header with "See all" link ─────────────────────────────────────
+
+function SectionHeader({ title, count, onClick }: { title: string; count?: number; onClick?: () => void }) {
   return (
-    <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
-      <p className="mb-4 text-sm font-semibold text-foreground">Воронка конверсии</p>
-      {stages.length === 0 ? (
-        <p className="py-6 text-center text-sm text-muted-foreground">Нет данных</p>
-      ) : (
-        <div className="space-y-2">
-          {stages.map((stage, i) => {
-            const widthPct = Math.max((stage.count / maxCount) * 100, 12);
-            return (
-              <div key={stage.name} className="flex items-center gap-3">
-                <span className="w-28 shrink-0 truncate text-xs text-muted-foreground">
-                  {stage.name}
-                </span>
-                <div className="relative flex-1">
-                  <div
-                    className="flex h-8 items-center justify-end rounded-md px-2 text-xs font-semibold text-white transition-all"
-                    style={{
-                      width: `${widthPct}%`,
-                      backgroundColor: stage.color || `hsl(${210 - i * 30}, 70%, 50%)`,
-                    }}
-                  >
-                    {stage.count}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
+    <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
+      <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+        <Typography variant="h6" fontWeight={700}>{title}</Typography>
+        {count !== undefined && <Chip label={count} size="small" variant="outlined" sx={{ height: 22, fontSize: 12 }} />}
+      </Box>
+      {onClick && (
+        <AppButton label="Все →" size="sm" variant="text" onClick={onClick} />
       )}
-    </div>
+    </Box>
   );
 }
 
-// ─── Skeleton loader ─────────────────────────────────────────────────────────
-
-function KpiSkeleton() {
-  return (
-    <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-      {Array.from({ length: 4 }).map((_, i) => (
-        <ShimmerBox key={i} className="h-24" />
-      ))}
-    </div>
-  );
-}
-
-// ─── Page Component ───────────────────────────────────────────────────────────
+// ─── Page Component ─────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
-  const [selectedPropertyId, setSelectedPropertyId] = useState<string>("");
-  const [exportNote, setExportNote] = useState<string | null>(null);
+  const router = useRouter();
 
-  const dateFrom = useMemo(() => getSixMonthsAgo(), []);
-  const dateTo = useMemo(() => formatDate(new Date()), []);
+  // ── Filter state ──────────────────────────────────────────────────────────
+  const { currentPropertyId: selectedPropertyId } = usePropertyContext();
+  const [dateRange, setDateRange] = useState<AppDateRangeValue>(getDefaultDateRange);
 
-  const activePropertyId = selectedPropertyId !== "" ? selectedPropertyId : undefined;
+  // ── Exchange rate edit state ───────────────────────────────────────────────
+  const [editingRateId, setEditingRateId] = useState<string | null>(null);
+  const [editRateValue, setEditRateValue] = useState<string>("");
+  const [editRateFromCurrency, setEditRateFromCurrency] = useState<string>("");
+  const [editRateToCurrency, setEditRateToCurrency] = useState<string>("");
 
-  const propertiesQuery = useDashboardPropertiesQuery();
-  const summaryQuery = useDashboardSummaryQuery(activePropertyId);
-  const salesQuery = useDashboardSalesQuery(dateFrom, dateTo, activePropertyId);
-  const managerKpiQuery = useDashboardManagerKpiQuery();
-  const exportMutation = useDashboardExportMutation();
+  // ── Donut chart toggle ────────────────────────────────────────────────────
+  const [chartMode, setChartMode] = useState<"expense" | "income">("expense");
 
-  // ─── Property filter options ──────────────────────────────────────────────
+  // ── Data fetching ─────────────────────────────────────────────────────────
+  const params = useMemo<FullDashboardParams>(
+    () => ({
+      propertyId: selectedPropertyId || undefined,
+      dateFrom: dateToIso(dateRange.startDate),
+      dateTo: dateToIso(dateRange.endDate),
+    }),
+    [selectedPropertyId, dateRange],
+  );
 
-  const propertyOptions = useMemo(() => {
-    const base = [{ value: "", label: "Все объекты" }];
-    if (!propertiesQuery.data) return base;
+  const { data: dashboard, isLoading, isError } = useFullDashboardQuery(params);
+  const { data: properties } = useDashboardPropertiesQuery();
+  const createRateMutation = useCreateExchangeRateMutation();
+  const cancelReminderMutation = useCancelReminderMutation();
+
+
+  // ── Exchange rate editing ─────────────────────────────────────────────────
+  const startEditRate = useCallback((rate: { id: string; fromCurrency: string; toCurrency: string; rate: number }) => {
+    setEditingRateId(rate.id);
+    setEditRateValue(String(rate.rate));
+    setEditRateFromCurrency(rate.fromCurrency);
+    setEditRateToCurrency(rate.toCurrency);
+  }, []);
+
+  const handleSaveRate = useCallback(() => {
+    const parsed = parseFloat(editRateValue);
+    if (Number.isNaN(parsed) || parsed <= 0) return;
+    createRateMutation.mutate(
+      { fromCurrency: editRateFromCurrency, toCurrency: editRateToCurrency, rate: parsed, effectiveDate: todayIso() },
+      { onSuccess: () => { setEditingRateId(null); setEditRateValue(""); } },
+    );
+  }, [editRateValue, editRateFromCurrency, editRateToCurrency, createRateMutation]);
+
+  // ── KPI Rows ──────────────────────────────────────────────────────────────
+  const kpiRow1: readonly AppStatCardProps[] = useMemo(() => {
+    const s = dashboard?.summary;
     return [
-      ...base,
-      ...propertiesQuery.data.map((p) => ({ value: p.id, label: p.name })),
+      { title: "Доход", value: s ? formatMoney(s.totalRevenue, "USD") : "—", deltaTone: "success" as const, icon: <IconIncome />, onClick: () => router.push(routes.financeLedger), style: { cursor: "pointer" } },
+      { title: "Расход", value: s ? formatMoney(s.totalExpense, "USD") : "—", deltaTone: "danger" as const, icon: <IconExpense />, onClick: () => router.push(routes.expenses), style: { cursor: "pointer" } },
+      { title: "Прибыль", value: s ? formatMoney(s.netProfit, "USD") : "—", deltaTone: s && s.netProfit >= 0 ? ("success" as const) : ("danger" as const), icon: <IconProfit />, onClick: () => router.push(routes.financeLedger), style: { cursor: "pointer" } },
+      { title: "Дебиторка", value: s ? formatMoney(s.totalDebt, "USD") : "—", deltaTone: "warning" as const, icon: <IconDebt />, onClick: () => router.push(routes.paymentsOverdue), style: { cursor: "pointer" } },
     ];
-  }, [propertiesQuery.data]);
+  }, [dashboard?.summary, router]);
 
-  // ─── KPI data ─────────────────────────────────────────────────────────────
-
-  const summary = summaryQuery.data;
-  const sales = salesQuery.data;
-
-  const primaryKpiItems: readonly AppStatCardProps[] = useMemo(() => {
-    const items: AppStatCardProps[] = [
-      {
-        title: "Всего квартир",
-        value: summary?.totalUnits ?? "—",
-        hint: "По всем объектам",
-      },
-      {
-        title: "Свободных",
-        value: summary?.availableUnits ?? "—",
-        deltaTone: "success" as const,
-        ...(summary ? { delta: `${summary.availableUnits} доступно` } : {}),
-      },
-      {
-        title: "Активных сделок",
-        value: summary?.activeDeals ?? "—",
-        deltaTone: "info" as const,
-        ...(summary ? { delta: `Клиентов: ${summary.totalClients}` } : {}),
-      },
-      {
-        title: "Просроченных платежей",
-        value: summary?.overdueCount ?? "—",
-        deltaTone: "danger" as const,
-        ...(summary?.overdueCount ? { delta: "Требует внимания" } : {}),
-      },
+  const kpiRow2: readonly AppStatCardProps[] = useMemo(() => {
+    const s = dashboard?.summary;
+    const fmtArea = (area: number) => `${area.toLocaleString("ru-RU")} м²`;
+    return [
+      { title: "Всего квартир", value: s ? `${s.totalUnits} шт.` : "—", ...(s ? { hint: fmtArea(s.totalArea) } : {}), icon: <IconBuilding />, onClick: () => router.push(routes.buildings), style: { cursor: "pointer" } },
+      { title: "Свободных", value: s ? `${s.availableUnits} шт.` : "—", ...(s ? { hint: fmtArea(s.availableArea) } : {}), deltaTone: "success" as const, icon: <IconAvailable />, onClick: () => router.push(routes.buildings), style: { cursor: "pointer" } },
+      { title: "Все сделки", value: s ? `${s.totalDealsCount} шт.` : "—", ...(s ? { hint: fmtArea(s.totalDealsArea) } : {}), deltaTone: "info" as const, icon: <IconDeals />, onClick: () => router.push(routes.deals), style: { cursor: "pointer" } },
+      { title: "Ср. цена за м²", value: s ? formatMoney(Math.round(s.averagePricePerSqm), "USD") : "—", deltaTone: "muted" as const, icon: <IconProfit />, onClick: () => router.push(routes.deals), style: { cursor: "pointer" } },
     ];
-    return items;
-  }, [summary]);
+  }, [dashboard?.summary, router]);
 
-  const secondaryKpiItems: readonly AppStatCardProps[] = useMemo(() => {
-    const fmt = new Intl.NumberFormat("ru-RU", { style: "currency", currency: "USD" });
-    const items: AppStatCardProps[] = [
-      {
-        title: "Выручка всего",
-        value: summary ? fmt.format(summary.totalRevenue) : "—",
-        hint: "С начала работы",
-      },
-      {
-        title: "Баланс счёта",
-        value: summary ? fmt.format(summary.accountBalance) : "—",
-        deltaTone: "success" as const,
-      },
-      {
-        title: "Дебиторка",
-        value: summary ? fmt.format(summary.totalDebt) : "—",
-        deltaTone: "warning" as const,
-        ...(summary?.totalDebt ? { delta: "Ожидает погашения" } : {}),
-      },
-      {
-        title: "Забронировано",
-        value: summary?.bookedUnits ?? "—",
-        hint: `Резерв: ${summary?.reservedUnits ?? "—"}`,
-      },
-    ];
-    return items;
-  }, [summary]);
-
-  // ─── Sales chart data ─────────────────────────────────────────────────────
-
-  const salesChartData: readonly AppChartDataPoint[] = useMemo(() => {
-    if (!sales) return [];
-    return sales.monthlySales.map((item) => ({
-      label: item.month,
-      amount: item.totalAmount,
+  // ── Donut chart data ──────────────────────────────────────────────────────
+  const donutData = useMemo(() => {
+    if (chartMode === "expense") {
+      return (dashboard?.expensesByCategory ?? []).map((item, idx) => ({
+        label: item.categoryName,
+        value: item.amount,
+        color: CATEGORY_COLORS[idx % CATEGORY_COLORS.length] as string,
+      }));
+    }
+    return (dashboard?.incomeBySource ?? []).map((item, idx) => ({
+      label: item.label,
+      value: item.amount,
+      color: CATEGORY_COLORS[idx % CATEGORY_COLORS.length] as string,
     }));
-  }, [sales]);
+  }, [dashboard, chartMode]);
 
-  // ─── Unit status pie chart data ──────────────────────────────────────────
+  const donutSeries: readonly AppChartSeries[] = useMemo(
+    () => [{ key: "value", label: chartMode === "expense" ? "Расход" : "Доход", color: "#f59e0b" }],
+    [chartMode],
+  );
 
-  const unitStatusPieData: readonly AppChartDataPoint[] = useMemo(() => {
-    if (!summary) return [];
-    return [
-      { label: "Свободно", value: summary.availableUnits },
-      { label: "Забронировано", value: summary.bookedUnits },
-      { label: "Резерв", value: summary.reservedUnits },
-      { label: "Продано", value: summary.soldUnits },
-    ].filter((d) => d.value > 0);
-  }, [summary]);
+  // ── Max amounts for progress bars ─────────────────────────────────────────
+  const expenseMaxAmount = useMemo(() => Math.max(...(dashboard?.expensesByCategory ?? []).map((e) => e.amount), 1), [dashboard]);
+  const incomeMaxAmount = useMemo(() => Math.max(...(dashboard?.incomeBySource ?? []).map((i) => i.amount), 1), [dashboard]);
 
-  const unitStatusSeries: readonly AppChartSeries[] = useMemo(() => [
-    { key: "value", label: "Квартиры" },
-  ], []);
+  // ── Property name map ────────────────────────────────────────────────────
+  const propertyNameMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const p of properties ?? []) {
+      map.set(p.id, p.name);
+    }
+    return map;
+  }, [properties]);
 
-  // ─── Funnel data from sales API ──────────────────────────────────────────
+  // ── Loading / Error ───────────────────────────────────────────────────────
+  if (isLoading) {
+    return (
+      <main className="space-y-6 p-4 md:p-6">
+        <AppPageHeader title="Панель управления" breadcrumbs={[{ id: "dashboard", label: "Панель" }]} />
+        <AppStatePanel tone="empty" title="Загрузка..." description="Загружаем данные панели." />
+      </main>
+    );
+  }
 
-  const funnelStages = useMemo(() => {
-    if (!sales) return [];
-    const fc = sales.funnelConversion;
-    return [
-      { name: "Лиды", count: fc.totalLeads, color: "#3B82F6" },
-      { name: "Сделки", count: fc.totalDeals, color: "#10B981" },
-    ];
-  }, [sales]);
+  if (isError) {
+    return (
+      <main className="space-y-6 p-4 md:p-6">
+        <AppPageHeader title="Панель управления" breadcrumbs={[{ id: "dashboard", label: "Панель" }]} />
+        <AppStatePanel tone="error" title="Ошибка" description="Не удалось загрузить данные панели." />
+      </main>
+    );
+  }
 
-  // ─── Payment type breakdown ─────────────────────────────────────────────
-
-  const paymentTypePieData: readonly AppChartDataPoint[] = useMemo(() => {
-    if (!sales) return [];
-    return sales.byPaymentType.map((item) => ({
-      label: PAYMENT_TYPE_LABELS[item.paymentType] ?? item.paymentType,
-      value: item.count,
-    }));
-  }, [sales]);
-
-  const paymentTypeSeries: readonly AppChartSeries[] = useMemo(() => [
-    { key: "value", label: "Сделки" },
-  ], []);
-
-  // ─── Manager KPI table data ───────────────────────────────────────────────
-
-  const managerKpiData: readonly ManagerKpiItem[] = managerKpiQuery.data ?? [];
+  // ── Safe defaults ─────────────────────────────────────────────────────────
+  const allAccounts = dashboard?.accounts ?? [];
+  // Filter accounts: when a property is selected, show its accounts + global (null)
+  const accounts = selectedPropertyId
+    ? allAccounts.filter((a) => a.propertyId === selectedPropertyId || a.propertyId === null)
+    : allAccounts;
+  const expensesByCategory = dashboard?.expensesByCategory ?? [];
+  const incomeBySource = dashboard?.incomeBySource ?? [];
+  const upcomingPayments = dashboard?.upcomingPayments ?? [];
+  const overduePayments = dashboard?.overduePayments ?? [];
+  const pendingReminders = (dashboard?.pendingReminders ?? []).filter((r) => !isOverdue(r.dueDate) || r.dueDate >= todayIso().slice(0, 7));
+  const exchangeRates = dashboard?.exchangeRates ?? [];
 
   return (
-    <main className="space-y-6 p-4 md:p-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <AppPageHeader
-          title="Панель управления"
-          subtitle="Обзор ключевых показателей Hisob Building"
-        />
+    <main className="space-y-5 p-4 md:p-6">
+      {/* ── 1. Header ──────────────────────────────────────────────────────── */}
+      <AppPageHeader
+        title="Панель управления"
+        breadcrumbs={[{ id: "dashboard", label: "Панель" }]}
+        actions={
+          <AppDateRangePicker value={dateRange} onApply={setDateRange} />
+        }
+      />
 
-        <div className="flex items-end gap-2">
-          <div className="w-full sm:w-64">
-            <AppSelect
-              id="property-filter"
-              label="Объект"
-              value={selectedPropertyId}
-              options={propertyOptions}
-              onChange={(e) => setSelectedPropertyId(e.target.value)}
-            />
-          </div>
-          <AppButton
-            label={exportMutation.isPending ? "Экспорт..." : "Экспорт"}
-            variant="outline"
-            onClick={() => {
-              const exportInput = activePropertyId
-                ? { format: "json" as const, propertyId: activePropertyId }
-                : { format: "json" as const };
-              exportMutation.mutate(
-                exportInput,
-                {
-                  onSuccess: (result) => {
-                    setExportNote(result.note || "Экспорт выполнен");
-                  },
-                  onError: () => {
-                    setExportNote("Не удалось выполнить экспорт");
-                  },
-                },
+      {/* ── 2. KPI Rows ────────────────────────────────────────────────────── */}
+      <AppKpiGrid items={kpiRow1} columns={4} />
+      <AppKpiGrid items={kpiRow2} columns={4} />
+
+      {/* ── 3. Exchange Rates + Accounts + Reminders ───────────────────────── */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        {/* Exchange Rates */}
+        <Paper sx={{ p: 3, cursor: "pointer" }} onClick={(e) => { if (!(e.target as HTMLElement).closest("input, button")) router.push(routes.financeCurrencies); }}>
+          <SectionHeader title="Курсы валют" onClick={() => router.push(routes.financeCurrencies)} />
+          {exchangeRates.length === 0 ? (
+            <Typography variant="body2" color="text.secondary" sx={{ py: 2, textAlign: "center" }}>Нет данных о курсах</Typography>
+          ) : (
+            exchangeRates
+              .filter((r) => r.fromCurrency !== r.toCurrency)
+              .filter((r, _i, arr) => {
+                if (r.fromCurrency === "USD") return true;
+                return !arr.some((o) => o.fromCurrency === r.toCurrency && o.toCurrency === r.fromCurrency);
+              })
+              .map((rate) => (
+                <Box key={rate.id} sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", py: 1.5, borderBottom: "1px solid", borderColor: "divider", "&:last-child": { borderBottom: "none" } }}>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                    <Typography sx={{ fontSize: 20, lineHeight: 1 }}>{getCurrencyFlag(rate.fromCurrency)}</Typography>
+                    <Typography variant="body2" fontWeight={600}>{rate.fromCurrency}</Typography>
+                    <Typography variant="body2" color="text.secondary">→</Typography>
+                    <Typography sx={{ fontSize: 20, lineHeight: 1 }}>{getCurrencyFlag(rate.toCurrency)}</Typography>
+                    <Typography variant="body2" fontWeight={600}>{rate.toCurrency}</Typography>
+                  </Box>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }} onClick={(e) => e.stopPropagation()}>
+                    {editingRateId === rate.id ? (
+                      <>
+                        <input type="number" value={editRateValue} onChange={(e) => setEditRateValue(e.target.value)} style={{ width: 90, padding: "4px 8px", border: "2px solid #F5B301", borderRadius: 8, fontSize: 15, fontWeight: 700, outline: "none" }} />
+                        <AppButton label="OK" size="sm" variant="primary" onClick={handleSaveRate} />
+                        <AppButton label="✕" size="sm" variant="text" onClick={() => setEditingRateId(null)} />
+                      </>
+                    ) : (
+                      <>
+                        <Typography variant="h6" fontWeight={700} sx={{ minWidth: 60, textAlign: "right" }}>{rate.rate.toLocaleString("ru-RU")}</Typography>
+                        <AppButton label="✎" size="sm" variant="text" onClick={() => startEditRate(rate)} />
+                      </>
+                    )}
+                  </Box>
+                </Box>
+              ))
+          )}
+        </Paper>
+
+        {/* Account Balances */}
+        <Paper sx={{ p: 3 }}>
+          <SectionHeader title="Счета" onClick={() => router.push(routes.financeAccounts)} />
+          {accounts.length === 0 ? (
+            <Typography variant="body2" color="text.secondary" sx={{ py: 2, textAlign: "center" }}>Нет счетов</Typography>
+          ) : (
+            accounts.map((acc) => {
+              const propName = acc.propertyId ? propertyNameMap.get(acc.propertyId) ?? null : null;
+              return (
+                <Box key={acc.id} onClick={() => router.push(routes.financeAccountDetail(acc.id))} sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", py: 1.5, px: 1, borderRadius: 1.5, cursor: "pointer", "&:hover": { bgcolor: "action.hover" }, borderBottom: "1px solid", borderColor: "divider" }}>
+                  <Box sx={{ minWidth: 0, flex: 1, mr: 1 }}>
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                      <Typography variant="body2" fontWeight={600} noWrap>{acc.name}</Typography>
+                      <Chip
+                        label={propName ?? "Общий"}
+                        size="small"
+                        variant="outlined"
+                        color={propName ? "primary" : "default"}
+                        sx={{ height: 20, fontSize: 11 }}
+                      />
+                    </Box>
+                    <Typography variant="caption" color="text.secondary">{acc.type === "cash_register" ? "Касса" : acc.type === "bank_account" ? "Банк" : "Кошелёк"}</Typography>
+                  </Box>
+                  <Typography variant="body1" fontWeight={700} sx={{ whiteSpace: "nowrap" }}>{formatMoney(acc.balance, acc.currency)}</Typography>
+                </Box>
               );
-            }}
-          />
-          {activePropertyId ? (
-            <Link
-              href={routes.dashboardPropertyAnalytics(activePropertyId)}
-              className="mb-1 shrink-0 text-xs font-medium text-primary hover:underline"
-            >
-              Подробнее &rarr;
-            </Link>
-          ) : null}
-        </div>
+            })
+          )}
+        </Paper>
+
+        {/* Reminders */}
+        <Paper sx={{ p: 3 }}>
+          <SectionHeader title="Напоминалки" count={pendingReminders.length} onClick={() => router.push(routes.financePayableReminders)} />
+          {pendingReminders.length === 0 ? (
+            <Typography variant="body2" color="text.secondary" sx={{ py: 2, textAlign: "center" }}>Нет активных напоминаний</Typography>
+          ) : (
+            pendingReminders.slice(0, 5).map((item) => (
+              <Box key={item.id} sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", py: 1.5, borderBottom: "1px solid", borderColor: "divider" }}>
+                <Box sx={{ flex: 1, minWidth: 0, mr: 1 }}>
+                  <Typography variant="body2" fontWeight={600} noWrap>{item.payeeName}</Typography>
+                  <Typography variant="caption" color="text.secondary" noWrap>
+                    {item.description} · до {formatDate(item.dueDate)}
+                  </Typography>
+                </Box>
+                <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                  <Typography variant="body2" fontWeight={700} sx={{ whiteSpace: "nowrap" }}>{formatMoney(item.amount, item.currency)}</Typography>
+                  <AppButton label="✕" size="sm" variant="text" onClick={() => cancelReminderMutation.mutate(item.id)} />
+                </Box>
+              </Box>
+            ))
+          )}
+          <Box sx={{ mt: 2 }}>
+            <AppButton label="+ Новая напоминалка" size="sm" variant="outline" onClick={() => router.push(routes.financePayableReminders)} />
+          </Box>
+        </Paper>
       </div>
 
-      {exportNote ? (
-        <AppStatePanel
-          tone="empty"
-          title="Экспорт dashboard"
-          description={exportNote}
-        />
-      ) : null}
+      {/* ── 4. Expenses + Income + Donut Chart ─────────────────────────────── */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        {/* Expenses by category */}
+        <Paper sx={{ p: 3 }}>
+          <SectionHeader title="Расходы по категориям" onClick={() => router.push(routes.expenses)} />
+          {expensesByCategory.length === 0 ? (
+            <Typography variant="body2" color="text.secondary" sx={{ py: 2, textAlign: "center" }}>Нет данных</Typography>
+          ) : (
+            expensesByCategory.map((item, idx) => {
+              const pct = Math.round((item.amount / expenseMaxAmount) * 100);
+              const color = CATEGORY_COLORS[idx % CATEGORY_COLORS.length];
+              return (
+                <Box key={item.categoryId} sx={{ mb: 1.5 }}>
+                  <Box sx={{ display: "flex", justifyContent: "space-between", mb: 0.5 }}>
+                    <Typography variant="body2" fontWeight={600}>{item.categoryName}</Typography>
+                    <Typography variant="body2" fontWeight={700}>{formatMoney(item.amount, "USD")}</Typography>
+                  </Box>
+                  <LinearProgress variant="determinate" value={pct} sx={{ height: 6, borderRadius: 3, bgcolor: "grey.200", "& .MuiLinearProgress-bar": { bgcolor: color, borderRadius: 3 } }} />
+                </Box>
+              );
+            })
+          )}
+        </Paper>
 
-      {/* Primary KPI row */}
-      {summaryQuery.isLoading ? (
-        <KpiSkeleton />
-      ) : summaryQuery.isError ? (
-        <AppStatePanel
-          tone="error"
-          title="Ошибка загрузки"
-          description="Не удалось загрузить данные сводки. Попробуйте обновить страницу."
-        />
-      ) : (
-        <AppKpiGrid items={primaryKpiItems} columns={4} />
-      )}
+        {/* Income by source */}
+        <Paper sx={{ p: 3 }}>
+          <SectionHeader title="Источники дохода" onClick={() => router.push(routes.financeLedger)} />
+          {incomeBySource.length === 0 ? (
+            <Typography variant="body2" color="text.secondary" sx={{ py: 2, textAlign: "center" }}>Нет данных</Typography>
+          ) : (
+            incomeBySource.map((item, idx) => {
+              const pct = Math.round((item.amount / incomeMaxAmount) * 100);
+              const color = CATEGORY_COLORS[idx % CATEGORY_COLORS.length];
+              return (
+                <Box key={item.source} sx={{ mb: 1.5 }}>
+                  <Box sx={{ display: "flex", justifyContent: "space-between", mb: 0.5 }}>
+                    <Typography variant="body2" fontWeight={600}>{item.label}</Typography>
+                    <Typography variant="body2" fontWeight={700}>{formatMoney(item.amount, "USD")}</Typography>
+                  </Box>
+                  <LinearProgress variant="determinate" value={pct} sx={{ height: 6, borderRadius: 3, bgcolor: "grey.200", "& .MuiLinearProgress-bar": { bgcolor: color, borderRadius: 3 } }} />
+                </Box>
+              );
+            })
+          )}
+        </Paper>
 
-      {/* Secondary KPI row */}
-      {summaryQuery.isLoading ? (
-        <KpiSkeleton />
-      ) : summaryQuery.isError ? null : (
-        <AppKpiGrid items={secondaryKpiItems} columns={4} />
-      )}
-
-      {/* Sales chart */}
-      <div className="grid grid-cols-1 gap-4">
-        {salesQuery.isLoading ? (
-          <ShimmerBox className="h-72 rounded-xl" />
-        ) : salesQuery.isError ? (
-          <AppStatePanel
-            tone="error"
-            title="Ошибка графика"
-            description="Не удалось загрузить данные продаж."
-          />
-        ) : (
-          <AppChartWidget
-            type="bar"
-            title="Выручка по месяцам"
-            data={salesChartData}
-            series={SALES_SERIES}
-            height={280}
-            formatValue={formatCurrencyShort}
-          />
-        )}
+        {/* Donut chart with toggle */}
+        <Paper sx={{ p: 3, display: "flex", flexDirection: "column" }}>
+          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
+            <Typography variant="h6" fontWeight={700}>
+              {chartMode === "expense" ? "Расходы" : "Доходы"}
+            </Typography>
+            <Stack direction="row" spacing={0.5}>
+              <AppButton label="Расход" size="sm" variant={chartMode === "expense" ? "primary" : "text"} onClick={() => setChartMode("expense")} />
+              <AppButton label="Доход" size="sm" variant={chartMode === "income" ? "primary" : "text"} onClick={() => setChartMode("income")} />
+            </Stack>
+          </Box>
+          {donutData.length === 0 ? (
+            <Typography variant="body2" color="text.secondary" sx={{ py: 4, textAlign: "center" }}>Нет данных</Typography>
+          ) : (
+            <Box sx={{ flex: 1, minHeight: 250 }}>
+              <AppChartWidget
+                type="doughnut"
+                title=""
+                data={donutData}
+                series={donutSeries}
+                height={250}
+                showLegend={false}
+              />
+            </Box>
+          )}
+        </Paper>
       </div>
 
-      {/* Pie chart (unit statuses) + Funnel (sales conversion) */}
+      {/* ── 5. Upcoming + Overdue (2 columns) ──────────────────────────────── */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        {summaryQuery.isLoading ? (
-          <ShimmerBox className="h-72 rounded-xl" />
-        ) : unitStatusPieData.length > 0 ? (
-          <AppChartWidget
-            type="doughnut"
-            title="Квартиры по статусу"
-            data={unitStatusPieData}
-            series={unitStatusSeries}
-            height={280}
-            showLegend
-          />
-        ) : (
-          <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
-            <p className="mb-3 text-sm font-semibold text-foreground">Квартиры по статусу</p>
-            <p className="py-12 text-center text-sm text-muted-foreground">Нет данных</p>
-          </div>
-        )}
+        {/* Upcoming payments */}
+        <Paper sx={{ p: 3 }}>
+          <SectionHeader title="Ближайшие платежи" count={upcomingPayments.length} onClick={() => router.push(routes.payments)} />
+          {upcomingPayments.length === 0 ? (
+            <Typography variant="body2" color="text.secondary" sx={{ py: 2, textAlign: "center" }}>Нет ближайших платежей</Typography>
+          ) : (
+            upcomingPayments.map((item) => (
+              <Box key={item.id} onClick={() => router.push(routes.dealDetail(item.dealId))} sx={{ py: 1.5, borderBottom: "1px solid", borderColor: "divider", cursor: "pointer", "&:hover": { bgcolor: "action.hover" } }}>
+                <Box sx={{ display: "flex", justifyContent: "space-between" }}>
+                  <Typography variant="body2" fontWeight={600}>{item.clientName}</Typography>
+                  <Typography variant="body2" fontWeight={700}>{formatMoney(item.amount, item.currency)}</Typography>
+                </Box>
+                <Typography variant="caption" color="text.secondary">
+                  {item.dealNumber} · кв. {item.unitNumber} · через {item.daysLeft ?? 0} дн.
+                </Typography>
+              </Box>
+            ))
+          )}
+        </Paper>
 
-        {salesQuery.isLoading ? (
-          <ShimmerBox className="h-72 rounded-xl" />
-        ) : (
-          <ConversionFunnel stages={funnelStages} />
-        )}
-      </div>
-
-      {/* Payment type breakdown */}
-      {sales && sales.byPaymentType.length > 0 ? (
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <AppChartWidget
-            type="doughnut"
-            title="Сделки по типу оплаты"
-            data={paymentTypePieData}
-            series={paymentTypeSeries}
-            height={280}
-            showLegend
-          />
-        </div>
-      ) : null}
-
-      {/* Manager KPI table */}
-      <div>
-        {managerKpiQuery.isLoading ? (
-          <ShimmerBox className="h-64 rounded-xl" />
-        ) : managerKpiQuery.isError ? (
-          <AppStatePanel
-            tone="error"
-            title="Ошибка загрузки"
-            description="Не удалось загрузить KPI менеджеров."
-          />
-        ) : (
-          <AppDataTable
-            title="KPI менеджеров"
-            data={managerKpiData}
-            columns={MANAGER_COLUMNS}
-            rowKey={(row) => row.managerId}
-            searchPlaceholder="Поиск по менеджеру..."
-          />
-        )}
+        {/* Overdue payments */}
+        <Paper sx={{ p: 3 }}>
+          <SectionHeader title="Просроченные" count={overduePayments.length} onClick={() => router.push(routes.paymentsOverdue)} />
+          {overduePayments.length === 0 ? (
+            <Typography variant="body2" color="text.secondary" sx={{ py: 2, textAlign: "center" }}>Нет просроченных платежей</Typography>
+          ) : (
+            overduePayments.map((item) => (
+              <Box key={item.id} onClick={() => router.push(routes.dealDetail(item.dealId))} sx={{ py: 1.5, borderBottom: "1px solid", borderColor: "divider", cursor: "pointer", "&:hover": { bgcolor: "action.hover" } }}>
+                <Box sx={{ display: "flex", justifyContent: "space-between" }}>
+                  <Typography variant="body2" fontWeight={600}>{item.clientName}</Typography>
+                  <Typography variant="body2" fontWeight={700} color="error.main">{formatMoney(item.amount, item.currency)}</Typography>
+                </Box>
+                <Typography variant="caption" color="error.main">
+                  {item.dealNumber} · кв. {item.unitNumber} · просрочено {item.daysOverdue ?? 0} дн.
+                </Typography>
+              </Box>
+            ))
+          )}
+        </Paper>
       </div>
     </main>
   );

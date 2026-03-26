@@ -7,6 +7,7 @@ import { NotifierProvider } from "@/shared/providers/notifier-provider";
 import { QueryProvider } from "@/shared/providers/query-provider";
 import { ThemeProvider } from "@/shared/providers/theme-provider";
 import { ToastProvider } from "@/shared/providers/toast-provider";
+import { PropertyProvider } from "@/shared/providers/property-provider";
 
 interface AppProvidersProps {
   children: ReactNode;
@@ -19,7 +20,9 @@ export function AppProviders({ children }: AppProvidersProps) {
         <MuiProvider>
           <NotifierProvider>
             <QueryProvider>
-              <ToastProvider>{children}</ToastProvider>
+              <PropertyProvider>
+                <ToastProvider>{children}</ToastProvider>
+              </PropertyProvider>
             </QueryProvider>
           </NotifierProvider>
         </MuiProvider>

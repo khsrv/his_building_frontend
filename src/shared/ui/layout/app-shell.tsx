@@ -4,16 +4,19 @@ import { useCallback, useMemo, useState, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Drawer from "@mui/material/Drawer";
 import IconButton from "@mui/material/IconButton";
+import { useQuery } from "@tanstack/react-query";
 import { NAVIGATION_ITEMS, type NavItem } from "@/shared/constants/navigation";
 import { routes } from "@/shared/constants/routes";
 import { useI18n } from "@/shared/providers/locale-provider";
 import { useThemeMode } from "@/shared/providers/theme-provider";
+import { usePropertyContext } from "@/shared/providers/property-provider";
 import { useAuth } from "@/modules/auth/presentation/hooks/use-auth";
 import { roleHasPermission } from "@/shared/types/permissions";
 import type { UserRole } from "@/shared/types/permissions";
 import type { AppSidebarItem } from "@/shared/ui/layout/app-sidebar";
 import { AppSidebar } from "@/shared/ui/layout/app-sidebar";
 import { AppTopBar, type AppTopBarAction } from "@/shared/ui/layout/app-top-bar";
+import { fetchPropertiesList } from "@/modules/properties/infrastructure/properties-repository";
 
 interface AppShellProps {
   children: ReactNode;
@@ -224,6 +227,14 @@ function findActiveItemId(items: readonly NavItem[], pathname: string): string |
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
+function BuildingIcon() {
+  return (
+    <svg aria-hidden className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+      <path d="M3 21h18M5 21V7l7-4 7 4v14M9 9h1M14 9h1M9 13h1M14 13h1M9 17h1M14 17h1" />
+    </svg>
+  );
+}
+
 export function AppShell({ children }: AppShellProps) {
   const { t, locale, setLocale } = useI18n();
   const { mode, resolvedMode, setMode } = useThemeMode();
@@ -231,6 +242,18 @@ export function AppShell({ children }: AppShellProps) {
   const router = useRouter();
   const pathname = usePathname();
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
+  const { currentPropertyId, setCurrentPropertyId } = usePropertyContext();
+
+  const isSuperAdmin = user?.roles.includes("super_admin") ?? false;
+
+  // Fetch properties for global selector (skip for super_admin — no tenant context)
+  const { data: propertiesData } = useQuery({
+    queryKey: ["properties", "global-selector"],
+    queryFn: () => fetchPropertiesList({ limit: 100 }),
+    staleTime: 5 * 60 * 1000,
+    enabled: !isSuperAdmin,
+  });
+  const globalProperties = propertiesData?.items ?? [];
 
   const handleMobileDrawerToggle = useCallback(() => {
     setMobileDrawerOpen((prev) => !prev);
@@ -370,7 +393,7 @@ export function AppShell({ children }: AppShellProps) {
             actions={topBarActions}
             className="mb-4"
             leftSlot={
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-2">
                 <IconButton
                   aria-label="Open menu"
                   className="md:!hidden"
@@ -383,6 +406,23 @@ export function AppShell({ children }: AppShellProps) {
                 >
                   <MenuIcon />
                 </IconButton>
+                {/* Global property selector — hidden for super_admin (no tenant) */}
+                {!isSuperAdmin && (
+                  <div className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-2 py-1">
+                    <BuildingIcon />
+                    <select
+                      value={currentPropertyId}
+                      onChange={(e) => setCurrentPropertyId(e.target.value)}
+                      className="bg-transparent text-sm font-medium text-foreground outline-none cursor-pointer min-w-[120px] max-w-[200px]"
+                      aria-label={t("topbar.property" as never)}
+                    >
+                      <option value="">Все объекты</option>
+                      {globalProperties.map((p) => (
+                        <option key={p.id} value={p.id}>{p.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
               </div>
             }
             profile={{

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Box, Chip, Divider, Grid, Typography } from "@mui/material";
 
 function BankIcon() {
@@ -37,13 +38,16 @@ import {
   AppStatePanel,
   ShimmerBox,
 } from "@/shared/ui";
+import { IconWallet } from "@/shared/ui/icons/kpi-icons";
 import { routes } from "@/shared/constants/routes";
 import { useAccountsQuery } from "@/modules/finance/presentation/hooks/use-accounts-query";
 import { useCreateAccountMutation } from "@/modules/finance/presentation/hooks/use-create-account-mutation";
 import { usePropertiesListQuery } from "@/modules/properties/presentation/hooks/use-properties-list-query";
 import { BarterSellDrawer } from "@/modules/finance/presentation/components/barter-sell-drawer";
 import { BarterWriteOffDrawer } from "@/modules/finance/presentation/components/barter-write-off-drawer";
+import { useCurrencyOptions } from "@/modules/finance/presentation/hooks/use-currency-options";
 import type { AccountType, Account } from "@/modules/finance/domain/finance";
+import { usePropertyContext } from "@/shared/providers/property-provider";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -53,11 +57,6 @@ const ACCOUNT_TYPE_OPTIONS = [
   { value: "mobile_wallet" as AccountType, label: "Мобильный кошелёк" },
 ] as const;
 
-const CURRENCY_OPTIONS = [
-  { value: "TJS", label: "TJS — Сомони" },
-  { value: "USD", label: "USD — Доллар" },
-  { value: "RUB", label: "RUB — Рубль" },
-] as const;
 
 function isBarterAccount(account: Account): boolean {
   return account.name.toLowerCase().includes("бартер");
@@ -83,12 +82,15 @@ function formatBalance(balance: number, currency: string): string {
 function MoneyAccountCard({
   account,
   propertyName,
+  onClick,
 }: {
   account: Account;
   propertyName: string | null;
+  onClick: () => void;
 }) {
   return (
     <Box
+      onClick={onClick}
       sx={{
         borderRadius: 3,
         border: "1px solid",
@@ -100,6 +102,9 @@ function MoneyAccountCard({
         flexDirection: "column",
         gap: 1,
         height: "100%",
+        cursor: "pointer",
+        transition: "all 0.15s ease",
+        "&:hover": { borderColor: "primary.main", boxShadow: 3 },
       }}
     >
       <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
@@ -140,14 +145,17 @@ function BarterAccountCard({
   propertyName,
   onSell,
   onWriteOff,
+  onClick,
 }: {
   account: Account;
   propertyName: string | null;
   onSell: () => void;
   onWriteOff: () => void;
+  onClick: () => void;
 }) {
   return (
     <Box
+      onClick={onClick}
       sx={{
         borderRadius: 3,
         border: "1px solid",
@@ -159,6 +167,9 @@ function BarterAccountCard({
         flexDirection: "column",
         gap: 1,
         height: "100%",
+        cursor: "pointer",
+        transition: "all 0.15s ease",
+        "&:hover": { borderColor: "warning.dark", boxShadow: 3 },
       }}
     >
       <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
@@ -221,13 +232,18 @@ const INITIAL_FORM: CreateFormState = {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function FinanceAccountsPage() {
-  const { data: accounts, isLoading, isError } = useAccountsQuery();
+  const router = useRouter();
+  const currencyOptions = useCurrencyOptions();
   const createMutation = useCreateAccountMutation();
   const { data: propertiesResult } = usePropertiesListQuery();
   const properties = propertiesResult?.items ?? [];
 
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [form, setForm] = useState<CreateFormState>(INITIAL_FORM);
+
+  // Property filter from global context — sent to API for server-side filtering
+  const { currentPropertyId } = usePropertyContext();
+  const { data: accounts, isLoading, isError } = useAccountsQuery(currentPropertyId || undefined);
 
   // Barter action state
   const [sellTarget, setSellTarget] = useState<Account | null>(null);
@@ -258,18 +274,21 @@ export default function FinanceAccountsPage() {
     title: `Итого ${currency}`,
     value: formatBalance(total, currency),
     deltaTone: "success" as const,
+    icon: <IconWallet />,
   }));
 
   const barterSummaryItems = Object.entries(barterByCurrency).map(([currency, total]) => ({
     title: `Бартер ${currency}`,
     value: formatBalance(total, currency),
     deltaTone: "warning" as const,
+    icon: <IconWallet />,
   }));
 
   const propertyOptions = [
     { value: "", label: "Общий (без объекта)" },
     ...properties.map((p) => ({ value: p.id, label: p.name })),
   ];
+
 
   function handleOpen() {
     setForm(INITIAL_FORM);
@@ -390,6 +409,7 @@ export default function FinanceAccountsPage() {
                 <MoneyAccountCard
                   account={account}
                   propertyName={account.propertyId ? (propertyNameMap.get(account.propertyId) ?? null) : null}
+                  onClick={() => router.push(routes.financeAccountDetail(account.id))}
                 />
               </Grid>
             ))}
@@ -413,6 +433,7 @@ export default function FinanceAccountsPage() {
                   propertyName={account.propertyId ? (propertyNameMap.get(account.propertyId) ?? null) : null}
                   onSell={() => setSellTarget(account)}
                   onWriteOff={() => setWriteOffTarget(account)}
+                  onClick={() => router.push(routes.financeAccountDetail(account.id))}
                 />
               </Grid>
             ))}
@@ -449,7 +470,7 @@ export default function FinanceAccountsPage() {
           <AppSelect
             label="Валюта *"
             id="account-currency"
-            options={CURRENCY_OPTIONS}
+            options={currencyOptions}
             value={form.currency}
             onChange={(e) => setForm((prev) => ({ ...prev, currency: e.target.value }))}
           />

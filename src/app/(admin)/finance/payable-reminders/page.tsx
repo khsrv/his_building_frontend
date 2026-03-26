@@ -20,12 +20,14 @@ import { usePayableRemindersQuery } from "@/modules/finance/presentation/hooks/u
 import { useCreatePayableReminderMutation } from "@/modules/finance/presentation/hooks/use-create-payable-reminder-mutation";
 import { useMarkReminderPaidMutation } from "@/modules/finance/presentation/hooks/use-mark-reminder-paid-mutation";
 import { useCancelReminderMutation } from "@/modules/finance/presentation/hooks/use-cancel-reminder-mutation";
+import { useCurrencyOptions } from "@/modules/finance/presentation/hooks/use-currency-options";
 import type {
   PayableReminder,
   PayeeType,
   ReminderStatus,
   PayableReminderListParams,
 } from "@/modules/finance/domain/finance";
+import { usePropertyContext } from "@/shared/providers/property-provider";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -70,11 +72,6 @@ const PAYEE_TYPE_OPTIONS = [
   { value: "other" as PayeeType, label: "Другое" },
 ] as const;
 
-const CURRENCY_OPTIONS = [
-  { value: "TJS", label: "TJS — Сомони" },
-  { value: "USD", label: "USD — Доллар" },
-  { value: "RUB", label: "RUB — Рубль" },
-] as const;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -117,11 +114,14 @@ const INITIAL_FORM: CreateFormState = {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function PayableRemindersPage() {
+  const currencyOptions = useCurrencyOptions();
+  const { currentPropertyId } = usePropertyContext();
   const [filterStatus, setFilterStatus] = useState<string>("");
   const [filterPayeeType, setFilterPayeeType] = useState<string>("");
 
   const params: PayableReminderListParams = {
     limit: 100,
+    ...(currentPropertyId ? { propertyId: currentPropertyId } : {}),
     ...(filterStatus ? { status: filterStatus as ReminderStatus } : {}),
     ...(filterPayeeType ? { payeeType: filterPayeeType as PayeeType } : {}),
   };
@@ -379,7 +379,7 @@ export default function PayableRemindersPage() {
           <AppSelect
             label="Валюта *"
             id="reminder-currency"
-            options={CURRENCY_OPTIONS}
+            options={currencyOptions}
             value={form.currency}
             onChange={(e) => setForm((prev) => ({ ...prev, currency: e.target.value }))}
           />

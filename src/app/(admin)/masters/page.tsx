@@ -13,6 +13,7 @@ import {
 } from "@/shared/ui";
 import { routes } from "@/shared/constants/routes";
 import { useMastersListQuery } from "@/modules/masters/presentation/hooks/use-masters-list-query";
+import { usePropertyContext } from "@/shared/providers/property-provider";
 import { CreateMasterDrawer } from "@/modules/masters/presentation/components/create-master-drawer";
 import type { Master, MasterType } from "@/modules/masters/domain/master";
 
@@ -74,9 +75,10 @@ const columns: readonly AppDataTableColumn<Master>[] = [
 ];
 
 export default function MastersPage() {
+  const { currentPropertyId } = usePropertyContext();
   const [drawerOpen, setDrawerOpen] = useState(false);
 
-  const { data, isError, error } = useMastersListQuery({ page: 1, limit: 100 });
+  const { data, isError, error } = useMastersListQuery({ page: 1, limit: 100, propertyId: currentPropertyId || undefined });
 
   const masters = data?.items ?? [];
 

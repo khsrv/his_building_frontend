@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   AppButton,
@@ -13,9 +12,10 @@ import {
   AppStatusBadge,
   type AppStatusTone,
 } from "@/shared/ui";
+import { IconDeals, IconCategory } from "@/shared/ui/icons/kpi-icons";
 import { routes } from "@/shared/constants/routes";
 import { useEnrichedDealsListQuery } from "@/modules/deals/presentation/hooks/use-enriched-deals-list-query";
-import { CreateDealDrawer } from "@/modules/deals/presentation/components/create-deal-drawer";
+import { usePropertyContext } from "@/shared/providers/property-provider";
 import type { Deal, DealStatus, DealPaymentType } from "@/modules/deals/domain/deal";
 
 // ─── Status helpers ───────────────────────────────────────────────────────────
@@ -135,9 +135,11 @@ const columns: readonly AppDataTableColumn<Deal>[] = [
 
 export default function DealsPage() {
   const router = useRouter();
-  const [drawerOpen, setDrawerOpen] = useState(false);
+  const { currentPropertyId } = usePropertyContext();
 
-  const { data = [], error } = useEnrichedDealsListQuery();
+  const { data = [], error } = useEnrichedDealsListQuery(
+    currentPropertyId ? { propertyId: currentPropertyId, limit: 200 } : { limit: 200 },
+  );
 
   const activeCount = data.filter((d) => d.status === "active").length;
   const draftCount = data.filter((d) => d.status === "draft").length;
@@ -161,7 +163,7 @@ export default function DealsPage() {
                   label="Новая сделка"
                   variant="primary"
                   size="md"
-                  onClick={() => setDrawerOpen(true)}
+                  onClick={() => router.push(routes.dealCreate)}
                 />
               }
             />
@@ -170,10 +172,10 @@ export default function DealsPage() {
             <AppKpiGrid
               columns={4}
               items={[
-                { title: "Активных", value: activeCount, deltaTone: "info" },
-                { title: "Черновиков", value: draftCount, deltaTone: "default" },
-                { title: "Завершённых", value: completedCount, deltaTone: "success" },
-                { title: "Отменённых", value: cancelledCount, deltaTone: "danger" },
+                { title: "Активных", value: activeCount, deltaTone: "info", icon: <IconDeals /> },
+                { title: "Черновиков", value: draftCount, deltaTone: "default", icon: <IconCategory /> },
+                { title: "Завершённых", value: completedCount, deltaTone: "success", icon: <IconCategory /> },
+                { title: "Отменённых", value: cancelledCount, deltaTone: "danger", icon: <IconCategory /> },
               ]}
             />
           }
@@ -199,8 +201,6 @@ export default function DealsPage() {
           }
         />
       </main>
-
-      <CreateDealDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} />
     </>
   );
 }

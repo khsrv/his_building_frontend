@@ -570,6 +570,7 @@ export default function DealDetailPage() {
         dealId={deal.id}
         clientId={deal.clientId}
         currency={deal.currency}
+        propertyId={deal.propertyId}
         onClose={() => setPaymentDrawerOpen(false)}
       />
 

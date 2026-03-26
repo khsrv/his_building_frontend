@@ -15,6 +15,7 @@ import { routes } from "@/shared/constants/routes";
 import { useMaterialsListQuery } from "@/modules/warehouse/presentation/hooks/use-materials-list-query";
 import { CreateMaterialDrawer } from "@/modules/warehouse/presentation/components/create-material-drawer";
 import type { Material, MaterialUnit } from "@/modules/warehouse/domain/warehouse";
+import { usePropertyContext } from "@/shared/providers/property-provider";
 
 const UNIT_LABEL: Record<MaterialUnit, string> = {
   tonne: "Тонна",
@@ -87,11 +88,13 @@ const columns: readonly AppDataTableColumn<Material>[] = [
 ];
 
 export default function WarehouseMaterialsPage() {
+  const { currentPropertyId } = usePropertyContext();
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   const { data, isError, error } = useMaterialsListQuery({
     page: 1,
     limit: 200,
+    propertyId: currentPropertyId || undefined,
   });
 
   const materials = data?.items ?? [];

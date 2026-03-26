@@ -17,6 +17,7 @@ import { usePropertiesQuery } from "@/modules/deals/presentation/hooks/use-prope
 import { useAvailableUnitsQuery } from "@/modules/deals/presentation/hooks/use-available-units-query";
 import { useClientSearchQuery } from "@/modules/deals/presentation/hooks/use-client-search-query";
 import type { DealPaymentType } from "@/modules/deals/domain/deal";
+import { useCurrencyOptions } from "@/modules/finance/presentation/hooks/use-currency-options";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -43,12 +44,6 @@ const INSTALLMENT_FREQUENCY_OPTIONS: readonly { value: string; label: string }[]
   { value: "custom", label: "Произвольно" },
 ];
 
-const CURRENCY_OPTIONS: readonly { value: string; label: string }[] = [
-  { value: "USD", label: "USD" },
-  { value: "TJS", label: "TJS" },
-  { value: "RUB", label: "RUB" },
-  { value: "EUR", label: "EUR" },
-];
 
 function formatMoney(amount: number, currency: string): string {
   return (
@@ -114,6 +109,7 @@ interface CreateDealDrawerProps {
 
 export function CreateDealDrawer({ open, onClose }: CreateDealDrawerProps) {
   const router = useRouter();
+  const currencyOptions = useCurrencyOptions();
   const [activeStep, setActiveStep] = useState(0);
   const [form, setForm] = useState<FormState>(DEFAULT_FORM);
   const [errors, setErrors] = useState<FormErrors>({});
@@ -326,7 +322,7 @@ export function CreateDealDrawer({ open, onClose }: CreateDealDrawerProps) {
           <AppSelect
             id="currency-select"
             label="Валюта"
-            options={CURRENCY_OPTIONS}
+            options={currencyOptions}
             value={form.currency}
             onChange={(e) => setField("currency", e.target.value)}
           />

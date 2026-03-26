@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Box, Stack } from "@mui/material";
 import {
+  AppActionMenu,
   AppButton,
   AppDataTable,
   type AppDataTableColumn,
@@ -14,12 +15,20 @@ import {
   AppStatePanel,
   AppStatusBadge,
   type AppStatusTone,
+  ConfirmDialog,
 } from "@/shared/ui";
+import { IconIncome, IconExpense, IconProfit } from "@/shared/ui/icons/kpi-icons";
 import { routes } from "@/shared/constants/routes";
 import { useTransactionsQuery } from "@/modules/finance/presentation/hooks/use-transactions-query";
 import { useCreateTransactionMutation } from "@/modules/finance/presentation/hooks/use-create-transaction-mutation";
+import { useUpdateTransactionMutation } from "@/modules/finance/presentation/hooks/use-update-transaction-mutation";
+import { useDeleteTransactionMutation } from "@/modules/finance/presentation/hooks/use-delete-transaction-mutation";
+import { useStornoTransactionMutation } from "@/modules/finance/presentation/hooks/use-storno-transaction-mutation";
 import { useAccountsQuery } from "@/modules/finance/presentation/hooks/use-accounts-query";
 import { useExpenseCategoriesQuery } from "@/modules/finance/presentation/hooks/use-expense-categories-query";
+import { useCurrencyOptions } from "@/modules/finance/presentation/hooks/use-currency-options";
+import { usePropertiesListQuery } from "@/modules/properties/presentation/hooks/use-properties-list-query";
+import { usePropertyContext } from "@/shared/providers/property-provider";
 import type {
   Transaction,
   TransactionType,
@@ -53,11 +62,6 @@ const TRANSACTION_TYPE_OPTIONS = [
   { value: "transfer" as TransactionType, label: "Перевод" },
 ] as const;
 
-const CURRENCY_OPTIONS = [
-  { value: "TJS", label: "TJS — Сомони" },
-  { value: "USD", label: "USD — Доллар" },
-  { value: "RUB", label: "RUB — Рубль" },
-] as const;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -70,74 +74,118 @@ function formatDate(iso: string): string {
   return iso.slice(0, 10);
 }
 
-// ─── Columns ──────────────────────────────────────────────────────────────────
+const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 
-const columns: readonly AppDataTableColumn<Transaction>[] = [
-  {
-    id: "transactionDate",
-    header: "Дата",
-    cell: (row) => formatDate(row.transactionDate),
-    sortAccessor: (row) => row.transactionDate,
-  },
-  {
-    id: "type",
-    header: "Тип",
-    cell: (row) => (
-      <AppStatusBadge
-        label={TRANSACTION_TYPE_LABEL[row.type]}
-        tone={TRANSACTION_TYPE_TONE[row.type]}
-      />
-    ),
-    sortAccessor: (row) => row.type,
-  },
-  {
-    id: "description",
-    header: "Описание",
-    cell: (row) => row.description,
-    searchAccessor: (row) => row.description,
-  },
-  {
-    id: "accountName",
-    header: "Счёт",
-    cell: (row) =>
-      row.toAccountName
-        ? `${row.accountName} → ${row.toAccountName}`
-        : row.accountName,
-    searchAccessor: (row) => row.accountName,
-  },
-  {
-    id: "categoryName",
-    header: "Категория",
-    cell: (row) => row.categoryName ?? "—",
-    searchAccessor: (row) => row.categoryName ?? "",
-  },
-  {
-    id: "amount",
-    header: "Сумма",
-    cell: (row) => (
-      <span
-        style={{
-          color:
-            row.type === "income"
-              ? "var(--color-success, #16a34a)"
-              : row.type === "expense"
-                ? "var(--color-danger, #dc2626)"
-                : undefined,
-          fontWeight: 600,
-        }}
-      >
-        {formatAmount(row.amount, row.currency, row.type)}
-      </span>
-    ),
-    sortAccessor: (row) => row.amount,
-    align: "right",
-  },
-  {
-    id: "createdByName",
-    header: "Кто создал",
-    cell: (row) => row.createdByName,
-  },
-];
+function isWithin30Days(dateStr: string): boolean {
+  const created = new Date(dateStr).getTime();
+  return Date.now() - created < THIRTY_DAYS_MS;
+}
+
+// ─── Columns factory ────────────────────────────────────────────────────────
+
+function buildColumns(actions: {
+  onEdit: (tx: Transaction) => void;
+  onDelete: (tx: Transaction) => void;
+  onStorno: (tx: Transaction) => void;
+}): readonly AppDataTableColumn<Transaction>[] {
+  return [
+    {
+      id: "transactionDate",
+      header: "Дата",
+      cell: (row) => formatDate(row.transactionDate),
+      sortAccessor: (row) => row.transactionDate,
+    },
+    {
+      id: "type",
+      header: "Тип",
+      cell: (row) => (
+        <AppStatusBadge
+          label={TRANSACTION_TYPE_LABEL[row.type]}
+          tone={TRANSACTION_TYPE_TONE[row.type]}
+        />
+      ),
+      sortAccessor: (row) => row.type,
+    },
+    {
+      id: "description",
+      header: "Описание",
+      cell: (row) => row.description,
+      searchAccessor: (row) => row.description,
+    },
+    {
+      id: "accountName",
+      header: "Счёт",
+      cell: (row) =>
+        row.toAccountName
+          ? `${row.accountName} → ${row.toAccountName}`
+          : row.accountName,
+      searchAccessor: (row) => row.accountName,
+    },
+    {
+      id: "categoryName",
+      header: "Категория",
+      cell: (row) => row.categoryName ?? "—",
+      searchAccessor: (row) => row.categoryName ?? "",
+    },
+    {
+      id: "amount",
+      header: "Сумма",
+      cell: (row) => (
+        <span
+          style={{
+            color:
+              row.type === "income"
+                ? "var(--color-success, #16a34a)"
+                : row.type === "expense"
+                  ? "var(--color-danger, #dc2626)"
+                  : undefined,
+            fontWeight: 600,
+          }}
+        >
+          {formatAmount(row.amount, row.currency, row.type)}
+        </span>
+      ),
+      sortAccessor: (row) => row.amount,
+      align: "right",
+    },
+    {
+      id: "createdByName",
+      header: "Кто создал",
+      cell: (row) => row.createdByName,
+    },
+    {
+      id: "actions",
+      header: "",
+      cell: (row) => {
+        const editable = isWithin30Days(row.createdAt);
+        return (
+          <AppActionMenu
+            triggerLabel="Действия"
+            align="right"
+            groups={[
+              ...(editable
+                ? [{
+                    id: "edit",
+                    items: [
+                      { id: "edit", label: "Редактировать", onClick: () => actions.onEdit(row) },
+                      { id: "delete", label: "Удалить", destructive: true, onClick: () => actions.onDelete(row) },
+                    ],
+                  }]
+                : []),
+              // TODO: раскомментировать когда понадобится сторно
+              // {
+              //   id: "storno",
+              //   items: [
+              //     { id: "storno", label: "Сторно", onClick: () => actions.onStorno(row) },
+              //   ],
+              // },
+            ]}
+          />
+        );
+      },
+    },
+  ];
+}
 
 // ─── Form state ───────────────────────────────────────────────────────────────
 
@@ -150,6 +198,7 @@ interface CreateFormState {
   categoryId: string;
   description: string;
   transactionDate: string;
+  propertyId: string;
 }
 
 function todayIso(): string {
@@ -165,11 +214,14 @@ const INITIAL_FORM: CreateFormState = {
   categoryId: "",
   description: "",
   transactionDate: todayIso(),
+  propertyId: "",
 };
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function FinanceLedgerPage() {
+  const currencyOptions = useCurrencyOptions();
+  const { currentPropertyId, hasProperty } = usePropertyContext();
   // Filters
   const [filterType, setFilterType] = useState<string>("");
   const [filterAccountId, setFilterAccountId] = useState<string>("");
@@ -178,6 +230,7 @@ export default function FinanceLedgerPage() {
 
   const params: TransactionListParams = {
     limit: 100,
+    ...(currentPropertyId ? { propertyId: currentPropertyId } : {}),
     ...(filterType ? { type: filterType as TransactionType } : {}),
     ...(filterAccountId ? { accountId: filterAccountId } : {}),
     ...(filterDateFrom ? { dateFrom: filterDateFrom } : {}),
@@ -185,9 +238,14 @@ export default function FinanceLedgerPage() {
   };
 
   const { data: rawTransactions, isLoading, isError } = useTransactionsQuery(params);
-  const { data: accounts } = useAccountsQuery();
+  const { data: accounts } = useAccountsQuery(currentPropertyId || undefined);
   const { data: categories } = useExpenseCategoriesQuery();
+  const { data: propertiesResult } = usePropertiesListQuery();
+  const propertiesList = propertiesResult?.items ?? [];
   const createMutation = useCreateTransactionMutation();
+  const updateMutation = useUpdateTransactionMutation();
+  const deleteMutation = useDeleteTransactionMutation();
+  const stornoMutation = useStornoTransactionMutation();
 
   // Build lookup maps for name resolution
   const accountNameMap = useMemo(() => {
@@ -220,6 +278,80 @@ export default function FinanceLedgerPage() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [form, setForm] = useState<CreateFormState>(INITIAL_FORM);
 
+  // ── Edit state ────────────────────────────────────────────────────────────
+  const [editDrawerOpen, setEditDrawerOpen] = useState(false);
+  const [editingTx, setEditingTx] = useState<Transaction | null>(null);
+  const [editForm, setEditForm] = useState({ amount: "", description: "", categoryId: "" });
+
+  // ── Delete confirm state ──────────────────────────────────────────────────
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [deletingTx, setDeletingTx] = useState<Transaction | null>(null);
+
+  // ── Storno state ──────────────────────────────────────────────────────────
+  const [stornoDrawerOpen, setStornoDrawerOpen] = useState(false);
+  const [stornoTx, setStornoTx] = useState<Transaction | null>(null);
+  const [stornoReason, setStornoReason] = useState("");
+
+  // ── Action handlers ───────────────────────────────────────────────────────
+  const handleEditOpen = useCallback((tx: Transaction) => {
+    setEditingTx(tx);
+    setEditForm({
+      amount: String(tx.amount),
+      description: tx.description,
+      categoryId: tx.categoryId ?? "",
+    });
+    setEditDrawerOpen(true);
+  }, []);
+
+  const handleEditSave = useCallback(() => {
+    if (!editingTx) return;
+    const amount = parseFloat(editForm.amount);
+    if (isNaN(amount) || amount <= 0) return;
+    updateMutation.mutate(
+      {
+        id: editingTx.id,
+        input: {
+          amount,
+          description: editForm.description.trim() || undefined,
+          ...(editForm.categoryId ? { categoryId: editForm.categoryId } : {}),
+        },
+      },
+      { onSuccess: () => { setEditDrawerOpen(false); setEditingTx(null); } },
+    );
+  }, [editingTx, editForm, updateMutation]);
+
+  const handleDeleteOpen = useCallback((tx: Transaction) => {
+    setDeletingTx(tx);
+    setDeleteConfirmOpen(true);
+  }, []);
+
+  const handleDeleteConfirm = useCallback(() => {
+    if (!deletingTx) return;
+    deleteMutation.mutate(deletingTx.id, {
+      onSuccess: () => { setDeleteConfirmOpen(false); setDeletingTx(null); },
+    });
+  }, [deletingTx, deleteMutation]);
+
+  const handleStornoOpen = useCallback((tx: Transaction) => {
+    setStornoTx(tx);
+    setStornoReason("");
+    setStornoDrawerOpen(true);
+  }, []);
+
+  const handleStornoSave = useCallback(() => {
+    if (!stornoTx || !stornoReason.trim()) return;
+    stornoMutation.mutate(
+      { id: stornoTx.id, input: { reason: stornoReason.trim() } },
+      { onSuccess: () => { setStornoDrawerOpen(false); setStornoTx(null); } },
+    );
+  }, [stornoTx, stornoReason, stornoMutation]);
+
+  // ── Columns with actions ──────────────────────────────────────────────────
+  const columns = useMemo(
+    () => buildColumns({ onEdit: handleEditOpen, onDelete: handleDeleteOpen, onStorno: handleStornoOpen }),
+    [handleEditOpen, handleDeleteOpen, handleStornoOpen],
+  );
+
   // KPI summary
   const income = (transactions ?? [])
     .filter((t) => t.type === "income")
@@ -234,11 +366,19 @@ export default function FinanceLedgerPage() {
     ...(accounts ?? []).map((a) => ({ value: a.id, label: a.name })),
   ];
 
-  const accountSelectOptions = (accounts ?? []).map((a) => ({ value: a.id, label: a.name }));
+  // For the create form: filter accounts by form's propertyId (show property-specific + global)
+  const formAccountOptions = form.propertyId
+    ? (accounts ?? []).filter((a) => a.propertyId === form.propertyId || a.propertyId === null)
+    : (accounts ?? []);
+  const accountSelectOptions = formAccountOptions.map((a) => ({ value: a.id, label: a.name }));
   const categorySelectOptions = (categories ?? []).map((c) => ({ value: c.id, label: c.name }));
+  const propertySelectOptions = [
+    { value: "", label: "Без привязки к объекту" },
+    ...propertiesList.map((p) => ({ value: p.id, label: p.name })),
+  ];
 
   function handleOpen() {
-    setForm(INITIAL_FORM);
+    setForm({ ...INITIAL_FORM, propertyId: currentPropertyId });
     setDrawerOpen(true);
   }
 
@@ -251,6 +391,7 @@ export default function FinanceLedgerPage() {
     if (!form.amount || isNaN(amount) || amount <= 0) return;
     if (!form.accountId) return;
     if (!form.description.trim()) return;
+    if (!form.propertyId) return;
 
     const txInput: import("@/modules/finance/domain/finance").CreateTransactionInput = {
       type: form.type,
@@ -259,6 +400,7 @@ export default function FinanceLedgerPage() {
       accountId: form.accountId,
       description: form.description.trim(),
       transactionDate: form.transactionDate,
+      propertyId: form.propertyId,
     };
     if (form.type === "transfer" && form.toAccountId) {
       txInput.toAccountId = form.toAccountId;
@@ -283,6 +425,7 @@ export default function FinanceLedgerPage() {
     isNaN(parseFloat(form.amount)) ||
     parseFloat(form.amount) <= 0 ||
     !form.accountId ||
+    !form.propertyId ||
     !form.description.trim() ||
     createMutation.isPending;
 
@@ -303,12 +446,13 @@ export default function FinanceLedgerPage() {
       <AppKpiGrid
         columns={3}
         items={[
-          { title: "Доходы (период)", value: `${income.toLocaleString("ru-RU")} сум`, deltaTone: "success" },
-          { title: "Расходы (период)", value: `${expense.toLocaleString("ru-RU")} сум`, deltaTone: "danger" },
+          { title: "Доходы (период)", value: `${income.toLocaleString("ru-RU")} сум`, deltaTone: "success", icon: <IconIncome /> },
+          { title: "Расходы (период)", value: `${expense.toLocaleString("ru-RU")} сум`, deltaTone: "danger", icon: <IconExpense /> },
           {
             title: "Баланс (период)",
             value: `${balance.toLocaleString("ru-RU")} сум`,
             deltaTone: balance >= 0 ? "success" : "danger",
+            icon: <IconProfit />,
           },
         ]}
       />
@@ -410,7 +554,7 @@ export default function FinanceLedgerPage() {
           <AppSelect
             label="Валюта *"
             id="tx-currency"
-            options={CURRENCY_OPTIONS}
+            options={currencyOptions}
             value={form.currency}
             onChange={(e) => setForm((prev) => ({ ...prev, currency: e.target.value }))}
           />
@@ -457,6 +601,104 @@ export default function FinanceLedgerPage() {
             value={form.transactionDate}
             onChangeValue={(v) => setForm((prev) => ({ ...prev, transactionDate: v }))}
           />
+          {hasProperty ? (
+            <AppInput
+              label="Объект *"
+              value={propertiesList.find((p) => p.id === form.propertyId)?.name ?? ""}
+              disabled
+            />
+          ) : (
+            <AppSelect
+              label="Объект *"
+              id="tx-property"
+              options={propertySelectOptions.filter((o) => o.value !== "")}
+              value={form.propertyId}
+              onChange={(e) => setForm((prev) => ({ ...prev, propertyId: e.target.value }))}
+            />
+          )}
+        </Box>
+      </AppDrawerForm>
+
+      {/* Edit drawer */}
+      <AppDrawerForm
+        open={editDrawerOpen}
+        title="Редактировать операцию"
+        subtitle={editingTx ? `${TRANSACTION_TYPE_LABEL[editingTx.type]} — ${formatDate(editingTx.transactionDate)}` : ""}
+        saveLabel="Сохранить"
+        cancelLabel="Отмена"
+        isSaving={updateMutation.isPending}
+        saveDisabled={!editForm.amount || isNaN(parseFloat(editForm.amount)) || parseFloat(editForm.amount) <= 0 || updateMutation.isPending}
+        onClose={() => { setEditDrawerOpen(false); setEditingTx(null); }}
+        onSave={handleEditSave}
+      >
+        <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+          <AppInput
+            label="Сумма *"
+            type="number"
+            value={editForm.amount}
+            onChangeValue={(v) => setEditForm((prev) => ({ ...prev, amount: v }))}
+            placeholder="0.00"
+          />
+          <AppInput
+            label="Описание"
+            value={editForm.description}
+            onChangeValue={(v) => setEditForm((prev) => ({ ...prev, description: v }))}
+            placeholder="Описание операции"
+          />
+          {categorySelectOptions.length > 0 && (
+            <AppSelect
+              label="Категория"
+              id="edit-tx-category"
+              options={[{ value: "", label: "Без категории" }, ...categorySelectOptions]}
+              value={editForm.categoryId}
+              onChange={(e) => setEditForm((prev) => ({ ...prev, categoryId: e.target.value }))}
+            />
+          )}
+        </Box>
+      </AppDrawerForm>
+
+      {/* Delete confirmation */}
+      <ConfirmDialog
+        open={deleteConfirmOpen}
+        title="Удалить операцию?"
+        message={deletingTx ? `${TRANSACTION_TYPE_LABEL[deletingTx.type]}: ${deletingTx.amount.toLocaleString("ru-RU")} ${deletingTx.currency} — ${deletingTx.description}. Баланс счёта будет автоматически откатан.` : ""}
+        confirmText="Удалить"
+        cancelText="Отмена"
+        destructive
+        onConfirm={handleDeleteConfirm}
+        onClose={() => { setDeleteConfirmOpen(false); setDeletingTx(null); }}
+      />
+
+      {/* Storno drawer */}
+      <AppDrawerForm
+        open={stornoDrawerOpen}
+        title="Сторно операции"
+        subtitle={stornoTx ? `${TRANSACTION_TYPE_LABEL[stornoTx.type]}: ${stornoTx.amount.toLocaleString("ru-RU")} ${stornoTx.currency}` : ""}
+        saveLabel="Выполнить сторно"
+        cancelLabel="Отмена"
+        isSaving={stornoMutation.isPending}
+        saveDisabled={!stornoReason.trim() || stornoMutation.isPending}
+        onClose={() => { setStornoDrawerOpen(false); setStornoTx(null); }}
+        onSave={handleStornoSave}
+      >
+        <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+          <AppInput
+            label="Причина сторно *"
+            value={stornoReason}
+            onChangeValue={setStornoReason}
+            placeholder="Укажите причину сторнирования"
+          />
+          {stornoTx && (
+            <Box sx={{ p: 2, bgcolor: "action.hover", borderRadius: 1.5, fontSize: 14 }}>
+              <p><strong>Тип:</strong> {TRANSACTION_TYPE_LABEL[stornoTx.type]}</p>
+              <p><strong>Сумма:</strong> {stornoTx.amount.toLocaleString("ru-RU")} {stornoTx.currency}</p>
+              <p><strong>Описание:</strong> {stornoTx.description}</p>
+              <p><strong>Дата:</strong> {formatDate(stornoTx.transactionDate)}</p>
+              <p style={{ marginTop: 8, color: "var(--color-warning, #d97706)", fontSize: 13 }}>
+                Будет создана обратная операция с пометкой [СТОРНО].
+              </p>
+            </Box>
+          )}
         </Box>
       </AppDrawerForm>
     </main>

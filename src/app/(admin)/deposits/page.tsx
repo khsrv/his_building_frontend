@@ -13,6 +13,7 @@ import {
   AppStatusBadge,
   type AppStatusTone,
 } from "@/shared/ui";
+import { IconDeals, IconCoins, IconCategory } from "@/shared/ui/icons/kpi-icons";
 import { routes } from "@/shared/constants/routes";
 import { useDepositsListQuery } from "@/modules/deposits/presentation/hooks/use-deposits-list-query";
 import { usePropertiesListQuery } from "@/modules/properties/presentation/hooks/use-properties-list-query";
@@ -20,6 +21,7 @@ import { CreateDepositDrawer } from "@/modules/deposits/presentation/components/
 import { ReturnDepositDialog } from "@/modules/deposits/presentation/components/return-deposit-dialog";
 import { ApplyDepositDialog } from "@/modules/deposits/presentation/components/apply-deposit-dialog";
 import type { Deposit, DepositStatus, DepositsListParams } from "@/modules/deposits/domain/deposit";
+import { usePropertyContext } from "@/shared/providers/property-provider";
 
 // ─── Status helpers ───────────────────────────────────────────────────────────
 
@@ -54,9 +56,10 @@ function truncate(text: string, maxLen: number): string {
 // ─── Page ────────────────────────────────────────────────────────────────────
 
 export default function DepositsPage() {
-  // Filters
+  // Filters — propertyId from global context
+  const { currentPropertyId } = usePropertyContext();
   const [statusFilter, setStatusFilter] = useState<DepositStatus | "">("");
-  const [propertyFilter, setPropertyFilter] = useState("");
+  const propertyFilter = currentPropertyId;
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
 
@@ -78,10 +81,6 @@ export default function DepositsPage() {
     properties.map((p) => [p.id, p.name] as [string, string]),
   );
 
-  const propertyFilterOptions = [
-    { value: "", label: "Все объекты" },
-    ...properties.map((p) => ({ value: p.id, label: p.name })),
-  ];
 
   // Drawers/dialogs
   const [createOpen, setCreateOpen] = useState(false);
@@ -215,14 +214,15 @@ export default function DepositsPage() {
               <AppKpiGrid
                 columns={4}
                 items={[
-                  { title: "Активных", value: activeDeposits.length, deltaTone: "warning" },
+                  { title: "Активных", value: activeDeposits.length, deltaTone: "warning", icon: <IconDeals /> },
                   {
                     title: "Сумма активных",
                     value: activeTotal > 0 ? formatMoney(activeTotal, "UZS") : "0",
                     deltaTone: "warning",
+                    icon: <IconCoins />,
                   },
-                  { title: "Зачтённых", value: appliedDeposits.length, deltaTone: "success" },
-                  { title: "Возвращённых", value: returnedDeposits.length, deltaTone: "default" },
+                  { title: "Зачтённых", value: appliedDeposits.length, deltaTone: "success", icon: <IconCategory /> },
+                  { title: "Возвращённых", value: returnedDeposits.length, deltaTone: "default", icon: <IconCategory /> },
                 ]}
               />
               <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -232,13 +232,6 @@ export default function DepositsPage() {
                   options={STATUS_FILTER_OPTIONS}
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value as DepositStatus | "")}
-                />
-                <AppSelect
-                  id="deposit-property-filter"
-                  label="Объект"
-                  options={propertyFilterOptions}
-                  value={propertyFilter}
-                  onChange={(e) => setPropertyFilter(e.target.value)}
                 />
                 <div>
                   <label className="mb-1 block text-xs font-medium text-muted-foreground">

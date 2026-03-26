@@ -15,6 +15,7 @@ import {
   type AppStatusTone,
 } from "@/shared/ui";
 import { routes } from "@/shared/constants/routes";
+import { usePropertyContext } from "@/shared/providers/property-provider";
 import { useWorkOrdersListQuery } from "@/modules/masters/presentation/hooks/use-work-orders-list-query";
 import { useMastersListQuery } from "@/modules/masters/presentation/hooks/use-masters-list-query";
 import { useStartWorkOrderMutation, useAcceptWorkOrderMutation } from "@/modules/masters/presentation/hooks/use-work-order-actions-mutation";
@@ -45,6 +46,7 @@ const STATUS_FILTER_OPTIONS = [
 ];
 
 export default function WorkOrdersPage() {
+  const { currentPropertyId } = usePropertyContext();
   const [createDrawerOpen, setCreateDrawerOpen] = useState(false);
   const [completeTarget, setCompleteTarget] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState("");
@@ -62,6 +64,7 @@ export default function WorkOrdersPage() {
   } = {
     page: 1,
     limit: 200,
+    ...(currentPropertyId ? { propertyId: currentPropertyId } : {}),
     ...(filterStatus ? { status: filterStatus as WorkOrderStatus } : {}),
     ...(filterMasterId ? { masterId: filterMasterId } : {}),
   };

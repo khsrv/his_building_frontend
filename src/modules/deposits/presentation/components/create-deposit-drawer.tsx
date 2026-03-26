@@ -7,12 +7,8 @@ import { useCreateDepositMutation } from "@/modules/deposits/presentation/hooks/
 import { useClientsListQuery } from "@/modules/clients/presentation/hooks/use-clients-list-query";
 import { useAccountsQuery } from "@/modules/finance/presentation/hooks/use-accounts-query";
 import { usePropertiesListQuery } from "@/modules/properties/presentation/hooks/use-properties-list-query";
-
-const CURRENCY_OPTIONS = [
-  { value: "UZS", label: "UZS" },
-  { value: "USD", label: "USD" },
-  { value: "EUR", label: "EUR" },
-] as const;
+import { useCurrencyOptions } from "@/modules/finance/presentation/hooks/use-currency-options";
+import { usePropertyContext } from "@/shared/providers/property-provider";
 
 interface FormState {
   depositorName: string;
@@ -25,7 +21,7 @@ interface FormState {
   notes: string;
 }
 
-type FormErrors = Partial<Record<"depositorName" | "amount", string>>;
+type FormErrors = Partial<Record<"depositorName" | "amount" | "propertyId", string>>;
 
 interface CreateDepositDrawerProps {
   open: boolean;
@@ -34,9 +30,11 @@ interface CreateDepositDrawerProps {
 
 export function CreateDepositDrawer({ open, onClose }: CreateDepositDrawerProps) {
   const mutation = useCreateDepositMutation();
+  const currencyOptions = useCurrencyOptions();
+  const { currentPropertyId, hasProperty } = usePropertyContext();
   const { data: clientsResult } = useClientsListQuery({ limit: 200 });
   const clients = clientsResult?.items ?? [];
-  const { data: accounts = [] } = useAccountsQuery();
+  const { data: accounts = [] } = useAccountsQuery(currentPropertyId || undefined);
   const { data: propertiesResult } = usePropertiesListQuery();
   const properties = propertiesResult?.items ?? [];
 
@@ -47,7 +45,7 @@ export function CreateDepositDrawer({ open, onClose }: CreateDepositDrawerProps)
     amount: "",
     currency: "UZS",
     accountId: "",
-    propertyId: "",
+    propertyId: currentPropertyId,
     notes: "",
   });
   const [errors, setErrors] = useState<FormErrors>({});
@@ -63,10 +61,7 @@ export function CreateDepositDrawer({ open, onClose }: CreateDepositDrawerProps)
     ...accounts.map((a) => ({ value: a.id, label: `${a.name} (${a.currency})` })),
   ];
 
-  const propertyOptions = [
-    { value: "", label: "Без объекта" },
-    ...properties.map((p) => ({ value: p.id, label: p.name })),
-  ];
+  const propertyOptions = properties.map((p) => ({ value: p.id, label: p.name }));
 
   // Auto-fill depositor info when client is selected
   useEffect(() => {
@@ -92,7 +87,7 @@ export function CreateDepositDrawer({ open, onClose }: CreateDepositDrawerProps)
       amount: "",
       currency: "UZS",
       accountId: "",
-      propertyId: "",
+      propertyId: currentPropertyId,
       notes: "",
     });
     setErrors({});
@@ -106,6 +101,9 @@ export function CreateDepositDrawer({ open, onClose }: CreateDepositDrawerProps)
     const amountNum = parseFloat(form.amount);
     if (!form.amount || isNaN(amountNum) || amountNum <= 0) {
       next.amount = "Введите корректную сумму";
+    }
+    if (!form.propertyId) {
+      next.propertyId = "Выберите объект";
     }
     setErrors(next);
     return Object.keys(next).length === 0;
@@ -126,7 +124,7 @@ export function CreateDepositDrawer({ open, onClose }: CreateDepositDrawerProps)
         depositorPhone: form.depositorPhone.trim() || undefined,
         clientId: form.clientId || undefined,
         accountId: form.accountId || undefined,
-        propertyId: form.propertyId || undefined,
+        propertyId: form.propertyId,
         notes: form.notes.trim() || undefined,
       },
       {
@@ -189,7 +187,7 @@ export function CreateDepositDrawer({ open, onClose }: CreateDepositDrawerProps)
           <AppSelect
             id="deposit-currency"
             label="Валюта *"
-            options={CURRENCY_OPTIONS}
+            options={currencyOptions}
             value={form.currency}
             onChange={(e) => set("currency")(e.target.value)}
           />
@@ -201,13 +199,22 @@ export function CreateDepositDrawer({ open, onClose }: CreateDepositDrawerProps)
           value={form.accountId}
           onChange={(e) => set("accountId")(e.target.value)}
         />
-        <AppSelect
-          id="deposit-property"
-          label="Объект"
-          options={propertyOptions}
-          value={form.propertyId}
-          onChange={(e) => set("propertyId")(e.target.value)}
-        />
+        {hasProperty ? (
+          <AppInput
+            label="Объект *"
+            value={properties.find((p) => p.id === form.propertyId)?.name ?? ""}
+            disabled
+          />
+        ) : (
+          <AppSelect
+            id="deposit-property"
+            label="Объект *"
+            options={propertyOptions}
+            value={form.propertyId}
+            onChange={(e) => set("propertyId")(e.target.value)}
+            {...(errors.propertyId ? { errorText: errors.propertyId } : {})}
+          />
+        )}
         <AppInput
           label="Заметки"
           value={form.notes}

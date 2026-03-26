@@ -42,9 +42,10 @@ function mapCancellationDto(dto: CancellationDto): DealCancellationRecord {
   };
 }
 
-export async function fetchCancellations(status?: string | undefined): Promise<DealCancellationRecord[]> {
+export async function fetchCancellations(status?: string | undefined, propertyId?: string | undefined): Promise<DealCancellationRecord[]> {
   const query: Record<string, string> = {};
   if (status) query["status"] = status;
+  if (propertyId) query["property_id"] = propertyId;
   const res = await apiClient.get<unknown>("/api/v1/deal-cancellations", query);
   const items = getResponseItems<CancellationDto>(normalizeApiKeys(res));
   return items.map(mapCancellationDto);

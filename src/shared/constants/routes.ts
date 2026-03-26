@@ -47,8 +47,14 @@ export const routes = {
   // Deposits
   deposits: "/deposits",
 
+  // Expenses
+  expenses: "/expenses",
+  expenseCategories: "/expenses/categories",
+  expenseByProperty: "/expenses/by-property",
+
   // Finance
   finance: "/finance",
+  financeAccountDetail: (id: string) => `/finance/accounts/${id}` as const,
   financeLedger: "/finance/ledger",
   financeAccounts: "/finance/accounts",
   financeExchangeRates: "/finance/exchange-rates",

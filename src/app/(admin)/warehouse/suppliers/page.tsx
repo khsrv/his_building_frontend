@@ -15,6 +15,7 @@ import { useSupplierBalancesQuery } from "@/modules/warehouse/presentation/hooks
 import { CreateSupplierDrawer } from "@/modules/warehouse/presentation/components/create-supplier-drawer";
 import { SupplierDetailDialog } from "@/modules/warehouse/presentation/components/supplier-detail-dialog";
 import type { Supplier, SupplierBalance } from "@/modules/warehouse/domain/warehouse";
+import { usePropertyContext } from "@/shared/providers/property-provider";
 
 const columns: readonly AppDataTableColumn<Supplier>[] = [
   {
@@ -81,12 +82,14 @@ const balanceColumns: readonly AppDataTableColumn<SupplierBalance>[] = [
 ];
 
 export default function WarehouseSuppliersPage() {
+  const { currentPropertyId } = usePropertyContext();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
 
   const { data, isError, error } = useSuppliersListQuery({
     page: 1,
     limit: 100,
+    propertyId: currentPropertyId || undefined,
   });
   const balancesQuery = useSupplierBalancesQuery();
 

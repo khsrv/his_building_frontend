@@ -17,9 +17,11 @@ import type { AppDataTableColumn } from "@/shared/ui/primitives/data-table/types
 import type { AppActionMenuGroup } from "@/shared/ui/primitives/action-menu";
 import { routes } from "@/shared/constants/routes";
 import { useTenantsListQuery } from "@/modules/admin/presentation/hooks/use-tenants-list-query";
+import { AppSelect } from "@/shared/ui";
 import { useCreateTenantMutation } from "@/modules/admin/presentation/hooks/use-create-tenant-mutation";
+import { useCreateTenantUserMutation } from "@/modules/admin/presentation/hooks/use-create-tenant-user-mutation";
 import { useTenantActionsMutation } from "@/modules/admin/presentation/hooks/use-tenant-actions-mutation";
-import type { Tenant } from "@/modules/admin/domain/admin";
+import type { Tenant, BackendRole } from "@/modules/admin/domain/admin";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -59,11 +61,34 @@ interface SubscriptionFormState {
 
 const INITIAL_SUB_FORM: SubscriptionFormState = { plan: "", expiresAt: "" };
 
+interface CreateUserFormState {
+  email: string;
+  password: string;
+  fullName: string;
+  role: BackendRole;
+}
+
+const INITIAL_USER_FORM: CreateUserFormState = {
+  email: "",
+  password: "",
+  fullName: "",
+  role: "company_admin",
+};
+
+const ROLE_OPTIONS: { value: BackendRole; label: string }[] = [
+  { value: "company_admin", label: "Администратор компании" },
+  { value: "sales_head", label: "Начальник продаж" },
+  { value: "manager", label: "Менеджер" },
+  { value: "accountant", label: "Бухгалтер" },
+  { value: "cashier", label: "Кассир" },
+];
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function AdminTenantsPage() {
   const { data, isLoading, isError } = useTenantsListQuery({ limit: 100 });
   const createMutation = useCreateTenantMutation();
+  const createUserMutation = useCreateTenantUserMutation();
   const actionsMutation = useTenantActionsMutation();
 
   // Create drawer
@@ -76,6 +101,11 @@ export default function AdminTenantsPage() {
   // Subscription dialog
   const [subDialogState, setSubDialogState] = useState<SubscriptionDialogState | null>(null);
   const [subForm, setSubForm] = useState<SubscriptionFormState>(INITIAL_SUB_FORM);
+
+  // Create user drawer
+  const [userDrawerTenant, setUserDrawerTenant] = useState<{ id: string; name: string } | null>(null);
+  const [userForm, setUserForm] = useState<CreateUserFormState>(INITIAL_USER_FORM);
+  const [userErrors, setUserErrors] = useState<Partial<Record<"email" | "password" | "fullName", string>>>({});
 
   const tenants = data?.items ?? [];
 
@@ -144,6 +174,15 @@ export default function AdminTenantsPage() {
             },
           },
           {
+            id: "add-user",
+            label: "Добавить пользователя",
+            onClick: () => {
+              setUserDrawerTenant({ id: row.id, name: row.name });
+              setUserForm(INITIAL_USER_FORM);
+              setUserErrors({});
+            },
+          },
+          {
             id: "set-subscription",
             label: "Назначить тариф",
             onClick: () => {
@@ -158,14 +197,35 @@ export default function AdminTenantsPage() {
 
   // ─── Handlers ──────────────────────────────────────────────────────────────
 
+  const [createError, setCreateError] = useState("");
+
+  function nameToSlug(name: string): string {
+    return name
+      .toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, "")
+      .replace(/\s+/g, "-")
+      .replace(/-+/g, "-")
+      .replace(/^-|-$/g, "")
+      || `tenant-${Date.now()}`;
+  }
+
   function handleCreateSave() {
-    if (!createForm.name.trim() || !createForm.slug.trim()) return;
+    const name = createForm.name.trim();
+    if (!name || name.length < 2) {
+      setCreateError("Введите название (минимум 2 символа)");
+      return;
+    }
+    setCreateError("");
+
+    const slug = nameToSlug(name);
+
     createMutation.mutate(
-      { name: createForm.name.trim(), slug: createForm.slug.trim() },
+      { name, slug },
       {
         onSuccess: () => {
           setCreateDrawerOpen(false);
           setCreateForm(INITIAL_CREATE_FORM);
+          setCreateError("");
         },
       },
     );
@@ -193,6 +253,41 @@ export default function AdminTenantsPage() {
         onSuccess: () => {
           setSubDialogState(null);
           setSubForm(INITIAL_SUB_FORM);
+        },
+      },
+    );
+  }
+
+  function handleCreateUserSave() {
+    if (!userDrawerTenant) return;
+    const nextErrors: typeof userErrors = {};
+    if (!userForm.fullName.trim() || userForm.fullName.trim().length < 2) {
+      nextErrors.fullName = "Минимум 2 символа";
+    }
+    if (!userForm.email.trim() || !userForm.email.includes("@")) {
+      nextErrors.email = "Введите корректный email";
+    }
+    if (!userForm.password || userForm.password.length < 8) {
+      nextErrors.password = "Минимум 8 символов";
+    }
+    setUserErrors(nextErrors);
+    if (Object.keys(nextErrors).length > 0) return;
+
+    createUserMutation.mutate(
+      {
+        tenantId: userDrawerTenant.id,
+        input: {
+          email: userForm.email.trim(),
+          password: userForm.password,
+          fullName: userForm.fullName.trim(),
+          role: userForm.role,
+        },
+      },
+      {
+        onSuccess: () => {
+          setUserDrawerTenant(null);
+          setUserForm(INITIAL_USER_FORM);
+          setUserErrors({});
         },
       },
     );
@@ -253,36 +348,22 @@ export default function AdminTenantsPage() {
       {/* Create tenant drawer */}
       <AppDrawerForm
         open={createDrawerOpen}
-        title="Создать тенант"
-        subtitle="Укажите название и slug новой компании"
+        title="Создать застройщика"
+        subtitle="Укажите название компании"
         saveLabel="Создать"
         cancelLabel="Отмена"
         isSaving={createMutation.isPending}
-        saveDisabled={
-          !createForm.name.trim() ||
-          !createForm.slug.trim() ||
-          createMutation.isPending
-        }
-        onClose={() => setCreateDrawerOpen(false)}
+        saveDisabled={!createForm.name.trim() || createForm.name.trim().length < 2 || createMutation.isPending}
+        onClose={() => { setCreateDrawerOpen(false); setCreateError(""); }}
         onSave={handleCreateSave}
       >
         <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
           <AppInput
-            label="Название *"
+            label="Название компании *"
             value={createForm.name}
-            onChangeValue={(v) => setCreateForm((prev) => ({ ...prev, name: v }))}
+            onChangeValue={(v) => { setCreateForm((prev) => ({ ...prev, name: v })); setCreateError(""); }}
             placeholder="ООО Строй Инвест"
-          />
-          <AppInput
-            label="Slug *"
-            value={createForm.slug}
-            onChangeValue={(v) =>
-              setCreateForm((prev) => ({
-                ...prev,
-                slug: v.toLowerCase().replace(/\s+/g, "-"),
-              }))
-            }
-            placeholder="stroy-invest"
+            {...(createError ? { errorText: createError } : {})}
           />
         </Box>
       </AppDrawerForm>
@@ -345,6 +426,52 @@ export default function AdminTenantsPage() {
           />
         </DialogActions>
       </Dialog>
+
+      {/* Create tenant user drawer */}
+      <AppDrawerForm
+        open={userDrawerTenant !== null}
+        title="Добавить пользователя"
+        subtitle={userDrawerTenant ? `Тенант: ${userDrawerTenant.name}` : ""}
+        saveLabel="Создать пользователя"
+        cancelLabel="Отмена"
+        isSaving={createUserMutation.isPending}
+        saveDisabled={createUserMutation.isPending}
+        onClose={() => { setUserDrawerTenant(null); setUserErrors({}); }}
+        onSave={handleCreateUserSave}
+      >
+        <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+          <AppInput
+            label="ФИО *"
+            value={userForm.fullName}
+            onChangeValue={(v) => { setUserForm((p) => ({ ...p, fullName: v })); setUserErrors((p) => { const n = { ...p }; delete n.fullName; return n; }); }}
+            placeholder="Иванов Иван Иванович"
+            {...(userErrors.fullName ? { errorText: userErrors.fullName } : {})}
+          />
+          <AppInput
+            label="Email *"
+            type="email"
+            value={userForm.email}
+            onChangeValue={(v) => { setUserForm((p) => ({ ...p, email: v })); setUserErrors((p) => { const n = { ...p }; delete n.email; return n; }); }}
+            placeholder="admin@company.com"
+            {...(userErrors.email ? { errorText: userErrors.email } : {})}
+          />
+          <AppInput
+            label="Пароль *"
+            type="password"
+            value={userForm.password}
+            onChangeValue={(v) => { setUserForm((p) => ({ ...p, password: v })); setUserErrors((p) => { const n = { ...p }; delete n.password; return n; }); }}
+            placeholder="Минимум 8 символов"
+            {...(userErrors.password ? { errorText: userErrors.password } : {})}
+          />
+          <AppSelect
+            id="tenant-user-role"
+            label="Роль *"
+            options={ROLE_OPTIONS}
+            value={userForm.role}
+            onChange={(e) => setUserForm((p) => ({ ...p, role: e.target.value as BackendRole }))}
+          />
+        </Box>
+      </AppDrawerForm>
     </main>
   );
 }

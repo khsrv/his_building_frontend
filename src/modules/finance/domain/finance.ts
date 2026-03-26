@@ -28,6 +28,7 @@ export interface Transaction {
   readonly categoryId: string | null;
   readonly categoryName: string | null;
   readonly description: string;
+  readonly propertyId: string | null;
   readonly transactionDate: string;
   readonly createdAt: string;
   readonly createdByName: string;
@@ -91,6 +92,31 @@ export interface PayableReminder {
   readonly createdAt: string;
 }
 
+// ─── Transaction Summary ─────────────────────────────────────────────────────
+
+export interface TransactionSummary {
+  readonly totalAmount: number;
+  readonly currency: string;
+  readonly byCategory: readonly {
+    readonly categoryId: string;
+    readonly categoryName: string;
+    readonly amount: number;
+  }[];
+  readonly byProperty: readonly {
+    readonly propertyId: string;
+    readonly propertyName: string;
+    readonly amount: number;
+  }[];
+}
+
+export interface TransactionSummaryParams {
+  type?: TransactionType | undefined;
+  dateFrom?: string | undefined;
+  dateTo?: string | undefined;
+  propertyId?: string | undefined;
+  categoryId?: string | undefined;
+}
+
 // ─── Input types for mutations ────────────────────────────────────────────────
 
 export interface CreateAccountInput {
@@ -122,7 +148,7 @@ export interface CreateTransactionInput {
   description: string;
   transactionDate: string;
   referenceId?: string | undefined;
-  propertyId?: string | undefined;
+  propertyId: string;
 }
 
 export interface BarterSellInput {
@@ -150,11 +176,23 @@ export interface CreatePayableReminderInput {
   accountId?: string | undefined;
 }
 
+export interface UpdateTransactionInput {
+  amount?: number | undefined;
+  description?: string | undefined;
+  categoryId?: string | undefined;
+  propertyId?: string | undefined;
+}
+
+export interface StornoTransactionInput {
+  reason: string;
+}
+
 // ─── Query param types ────────────────────────────────────────────────────────
 
 export interface TransactionListParams {
   type?: TransactionType | undefined;
   accountId?: string | undefined;
+  propertyId?: string | undefined;
   dateFrom?: string | undefined;
   dateTo?: string | undefined;
   page?: number | undefined;
@@ -164,6 +202,7 @@ export interface TransactionListParams {
 export interface PayableReminderListParams {
   status?: ReminderStatus | undefined;
   payeeType?: PayeeType | undefined;
+  propertyId?: string | undefined;
   page?: number | undefined;
   limit?: number | undefined;
 }
@@ -177,6 +216,7 @@ export interface IncomeExpenseReportParams {
 export interface CashFlowReportParams {
   from?: string | undefined;
   to?: string | undefined;
+  propertyId?: string | undefined;
 }
 
 // ─── Currency types ──────────────────────────────────────────────────────────

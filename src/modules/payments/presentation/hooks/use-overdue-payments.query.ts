@@ -7,12 +7,19 @@ import type { OverduePaymentDto, OverduePaymentsResponseDto } from "@/modules/pa
 import { mapOverduePaymentDto } from "@/modules/payments/infrastructure/mappers";
 import { paymentsQueryKeys } from "@/modules/payments/presentation/query-keys";
 
-export function useOverduePaymentsQuery() {
+interface OverduePaymentsParams {
+  propertyId?: string | undefined;
+}
+
+export function useOverduePaymentsQuery(params?: OverduePaymentsParams) {
   return useQuery({
-    queryKey: paymentsQueryKeys.overdue(),
+    queryKey: [...paymentsQueryKeys.overdue(), params?.propertyId ?? "all"] as const,
     queryFn: async () => {
+      const query: Record<string, string | undefined> = {};
+      if (params?.propertyId) query["property_id"] = params.propertyId;
       const response = await apiClient.get<OverduePaymentsResponseDto>(
         "/api/v1/payments/overdue",
+        query,
       );
       const items = getResponseItems<OverduePaymentDto>(normalizeApiKeys(response));
       return items.filter((item) => Boolean(item?.id)).map(mapOverduePaymentDto);

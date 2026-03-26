@@ -7,12 +7,8 @@ import { useCreateTransactionMutation } from "@/modules/finance/presentation/hoo
 import { useExpenseCategoriesQuery } from "@/modules/finance/presentation/hooks/use-expense-categories-query";
 import { usePropertiesListQuery } from "@/modules/properties/presentation/hooks/use-properties-list-query";
 import type { Account } from "@/modules/finance/domain/finance";
-
-const CURRENCY_OPTIONS = [
-  { value: "TJS", label: "TJS" },
-  { value: "USD", label: "USD" },
-  { value: "RUB", label: "RUB" },
-] as const;
+import { useCurrencyOptions } from "@/modules/finance/presentation/hooks/use-currency-options";
+import { usePropertyContext } from "@/shared/providers/property-provider";
 
 interface FormState {
   amount: string;
@@ -38,12 +34,14 @@ export function BarterWriteOffDrawer({
   const mutation = useCreateTransactionMutation();
   const { data: categories = [] } = useExpenseCategoriesQuery();
   const { data: propertiesResult } = usePropertiesListQuery();
+  const currencyOptions = useCurrencyOptions();
+  const { currentPropertyId, hasProperty } = usePropertyContext();
   const properties = propertiesResult?.items ?? [];
 
   const [form, setForm] = useState<FormState>({
     amount: "",
     currency: barterAccount.currency,
-    propertyId: "",
+    propertyId: currentPropertyId,
     categoryId: "",
     description: "",
   });
@@ -66,7 +64,7 @@ export function BarterWriteOffDrawer({
     setForm({
       amount: "",
       currency: barterAccount.currency,
-      propertyId: "",
+      propertyId: currentPropertyId,
       categoryId: "",
       description: "",
     });
@@ -148,18 +146,26 @@ export function BarterWriteOffDrawer({
         <AppSelect
           id="writeoff-currency"
           label="Валюта"
-          options={CURRENCY_OPTIONS}
+          options={currencyOptions}
           value={form.currency}
           onChange={(e) => set("currency")(e.target.value)}
         />
-        <AppSelect
-          id="writeoff-property"
-          label="Объект *"
-          options={propertyOptions}
-          value={form.propertyId}
-          onChange={(e) => set("propertyId")(e.target.value)}
-          {...(errors.propertyId ? { errorText: errors.propertyId } : {})}
-        />
+        {hasProperty ? (
+          <AppInput
+            label="Объект *"
+            value={properties.find((p) => p.id === form.propertyId)?.name ?? ""}
+            onChangeValue={() => {/* read-only */}}
+          />
+        ) : (
+          <AppSelect
+            id="writeoff-property"
+            label="Объект *"
+            options={propertyOptions}
+            value={form.propertyId}
+            onChange={(e) => set("propertyId")(e.target.value)}
+            {...(errors.propertyId ? { errorText: errors.propertyId } : {})}
+          />
+        )}
         <AppSelect
           id="writeoff-category"
           label="Категория расхода"

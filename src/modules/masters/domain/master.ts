@@ -90,6 +90,7 @@ export interface MastersListParams {
   page?: number;
   limit?: number;
   search?: string;
+  propertyId?: string | undefined;
 }
 
 export interface WorkOrdersListParams {

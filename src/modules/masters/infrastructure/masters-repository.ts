@@ -143,6 +143,7 @@ export async function fetchMastersList(
     limit: params?.limit ?? 20,
   };
   if (params?.search) query["search"] = params.search;
+  if (params?.propertyId) query["property_id"] = params.propertyId;
 
   const res = await apiClient.get<PaginatedResponseDto<MasterDto>>("/api/v1/masters", query);
   const normalized = normalizeApiKeys(res);

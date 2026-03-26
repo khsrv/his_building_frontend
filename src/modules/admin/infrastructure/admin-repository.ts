@@ -16,6 +16,7 @@ import type {
   UpdateUserRoleInput,
   ToggleCanLoginInput,
   CreateTenantInput,
+  CreateTenantUserInput,
   UpdateTenantInput,
   SetSubscriptionInput,
   SetSettingInput,
@@ -285,6 +286,25 @@ export async function setSubscription(
     body,
   );
   return mapTenantDto(getResponseData<TenantDto>(normalizeApiKeys(res)));
+}
+
+// ─── Tenant Users (super-admin) ──────────────────────────────────────────────
+
+export async function createTenantUser(
+  tenantId: string,
+  input: CreateTenantUserInput,
+): Promise<AdminUser> {
+  const body: Record<string, unknown> = {
+    email: input.email,
+    password: input.password,
+    full_name: input.fullName,
+    role: input.role,
+  };
+  const res = await apiClient.post<{ data: UserDto }>(
+    `/api/v1/super-admin/tenants/${tenantId}/users`,
+    body,
+  );
+  return mapUserDto(getResponseData<UserDto>(normalizeApiKeys(res)));
 }
 
 // ─── Settings ─────────────────────────────────────────────────────────────────

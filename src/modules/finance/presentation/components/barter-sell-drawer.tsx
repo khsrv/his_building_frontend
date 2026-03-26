@@ -6,12 +6,8 @@ import { AppDrawerForm, AppInput, AppSelect } from "@/shared/ui";
 import { useSellBarterMutation } from "@/modules/finance/presentation/hooks/use-sell-barter-mutation";
 import { usePropertiesListQuery } from "@/modules/properties/presentation/hooks/use-properties-list-query";
 import type { Account, BarterSellResult } from "@/modules/finance/domain/finance";
-
-const CURRENCY_OPTIONS = [
-  { value: "TJS", label: "TJS" },
-  { value: "USD", label: "USD" },
-  { value: "RUB", label: "RUB" },
-] as const;
+import { useCurrencyOptions } from "@/modules/finance/presentation/hooks/use-currency-options";
+import { usePropertyContext } from "@/shared/providers/property-provider";
 
 function formatMoney(n: number, currency: string): string {
   return `${n.toLocaleString("ru-RU")} ${currency}`;
@@ -43,6 +39,8 @@ export function BarterSellDrawer({
 }: BarterSellDrawerProps) {
   const mutation = useSellBarterMutation();
   const { data: propertiesResult } = usePropertiesListQuery();
+  const currencyOptions = useCurrencyOptions();
+  const { currentPropertyId } = usePropertyContext();
   const properties = propertiesResult?.items ?? [];
 
   const [form, setForm] = useState<FormState>({
@@ -51,7 +49,7 @@ export function BarterSellDrawer({
     cashAccountId: cashAccounts[0]?.id ?? "",
     currency: barterAccount.currency,
     description: "",
-    propertyId: "",
+    propertyId: currentPropertyId,
   });
   const [errors, setErrors] = useState<FormErrors>({});
   const [result, setResult] = useState<BarterSellResult | null>(null);
@@ -84,7 +82,7 @@ export function BarterSellDrawer({
       cashAccountId: cashAccounts[0]?.id ?? "",
       currency: barterAccount.currency,
       description: "",
-      propertyId: "",
+      propertyId: currentPropertyId,
     });
     setErrors({});
     setResult(null);
@@ -215,7 +213,7 @@ export function BarterSellDrawer({
         <AppSelect
           id="barter-sell-currency"
           label="Валюта"
-          options={CURRENCY_OPTIONS}
+          options={currencyOptions}
           value={form.currency}
           onChange={(e) => set("currency")(e.target.value)}
         />

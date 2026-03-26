@@ -13,9 +13,11 @@ import {
   AppStatusBadge,
   ShimmerBox,
 } from "@/shared/ui";
+import { IconOverdue, IconDebt } from "@/shared/ui/icons/kpi-icons";
 import { routes } from "@/shared/constants/routes";
 import type { OverduePayment } from "@/modules/payments/domain/entities";
 import { useOverduePaymentsQuery } from "@/modules/payments/presentation/hooks/use-overdue-payments.query";
+import { usePropertyContext } from "@/shared/providers/property-provider";
 
 // ─── Date formatter ──────────────────────────────────────────────────────────
 
@@ -131,7 +133,10 @@ const columns: readonly AppDataTableColumn<OverduePayment>[] = [
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function OverduePaymentsPage() {
-  const { data, isLoading, isError, refetch } = useOverduePaymentsQuery();
+  const { currentPropertyId } = usePropertyContext();
+  const { data, isLoading, isError, refetch } = useOverduePaymentsQuery(
+    currentPropertyId ? { propertyId: currentPropertyId } : undefined,
+  );
 
   const totalCount = data?.length ?? 0;
   const totalAmount = data?.reduce((sum, p) => sum + p.remainingAmount, 0) ?? 0;
@@ -164,6 +169,7 @@ export default function OverduePaymentsPage() {
                 </Typography>
               ),
               deltaTone: "danger",
+              icon: <IconOverdue />,
             },
             {
               title: "Общая сумма долга",
@@ -173,6 +179,7 @@ export default function OverduePaymentsPage() {
                 </Typography>
               ),
               deltaTone: "danger",
+              icon: <IconDebt />,
             },
           ]}
         />

@@ -247,7 +247,7 @@ function RangeDay(props: RangeDayProps) {
         px: 0.25,
         borderRadius: 0,
         ...(inRange && !outsideCurrentMonth
-          ? { bgcolor: "secondary.light" }
+          ? { bgcolor: "primary.light" }
           : null),
         ...(isStart && !outsideCurrentMonth
           ? { borderTopLeftRadius: 999, borderBottomLeftRadius: 999 }
@@ -272,13 +272,13 @@ function RangeDay(props: RangeDayProps) {
           },
           ...(isStart || isEnd
             ? {
-                bgcolor: "secondary.main !important",
-                color: "secondary.contrastText !important",
+                bgcolor: "primary.main !important",
+                color: "primary.contrastText !important",
               }
             : null),
           ...(!isStart && !isEnd && inRange
             ? {
-                color: "secondary.main",
+                color: "primary.dark",
               }
             : null),
         }}

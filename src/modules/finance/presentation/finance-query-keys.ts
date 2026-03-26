@@ -1,5 +1,6 @@
 import type {
   TransactionListParams,
+  TransactionSummaryParams,
   PayableReminderListParams,
   IncomeExpenseReportParams,
   CashFlowReportParams,
@@ -12,11 +13,16 @@ export const financeKeys = {
 
   // Accounts
   accounts: (params?: AccountListParams) => ["finance", "accounts", params] as const,
+  accountDetail: (id: string) => ["finance", "accounts", id] as const,
 
   // Transactions
   transactions: () => ["finance", "transactions"] as const,
   transactionList: (params?: TransactionListParams) =>
     ["finance", "transactions", "list", params] as const,
+
+  // Transaction summary
+  transactionSummary: (params?: TransactionSummaryParams) =>
+    ["finance", "transactions", "summary", params] as const,
 
   // Expense categories
   expenseCategories: () => ["finance", "expense-categories"] as const,

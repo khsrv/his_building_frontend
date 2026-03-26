@@ -65,6 +65,13 @@ export interface UpdateTenantInput {
   locale?: string | undefined;
 }
 
+export interface CreateTenantUserInput {
+  email: string;
+  password: string;
+  fullName: string;
+  role: BackendRole;
+}
+
 export interface SetSubscriptionInput {
   plan: string;
   expiresAt: string;

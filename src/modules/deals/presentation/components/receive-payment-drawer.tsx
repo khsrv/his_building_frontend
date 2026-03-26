@@ -8,6 +8,7 @@ import { useAccountsQuery } from "@/modules/finance/presentation/hooks/use-accou
 import { useSettingsQuery } from "@/modules/settings/presentation/hooks/use-settings-query";
 import { confirmPayment } from "@/modules/deals/infrastructure/repository";
 import { dealKeys } from "@/modules/deals/presentation/query-keys";
+import { useCurrencyOptions } from "@/modules/finance/presentation/hooks/use-currency-options";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -18,13 +19,6 @@ const PAYMENT_METHOD_OPTIONS: readonly { value: PaymentMethod; label: string }[]
   { value: "bank_transfer", label: "Банковский перевод" },
   { value: "mobile", label: "Мобильный платёж" },
   { value: "barter", label: "Бартер" },
-];
-
-const CURRENCY_OPTIONS: readonly { value: string; label: string }[] = [
-  { value: "USD", label: "USD" },
-  { value: "TJS", label: "TJS" },
-  { value: "RUB", label: "RUB" },
-  { value: "EUR", label: "EUR" },
 ];
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -43,6 +37,7 @@ interface ReceivePaymentDrawerProps {
   dealId: string;
   clientId: string;
   currency: string;
+  propertyId?: string;
   scheduleItemId?: string;
   onClose: () => void;
 }
@@ -54,13 +49,16 @@ export function ReceivePaymentDrawer({
   dealId,
   clientId,
   currency,
+  propertyId,
   scheduleItemId,
   onClose,
 }: ReceivePaymentDrawerProps) {
   const queryClient = useQueryClient();
   const { mutateAsync: receivePaymentMut, isPending } = useReceivePaymentMutation(dealId);
-  const { data: accounts } = useAccountsQuery();
+  // When propertyId is provided, fetch only accounts for that property (API returns property-specific + global)
+  const { data: accounts } = useAccountsQuery(propertyId);
   const { data: settings } = useSettingsQuery();
+  const currencyOptions = useCurrencyOptions();
   const autoConfirm = settings?.["auto_confirm_payments"] !== "false";
 
   const [amount, setAmount] = useState("");
@@ -177,7 +175,7 @@ export function ReceivePaymentDrawer({
           <AppSelect
             id="recv-currency"
             label="Валюта"
-            options={CURRENCY_OPTIONS}
+            options={currencyOptions}
             value={selectedCurrency}
             onChange={(e) => setSelectedCurrency(e.target.value)}
           />

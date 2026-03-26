@@ -4,6 +4,8 @@ import { useState } from "react";
 import { Stack } from "@mui/material";
 import { AppDrawerForm, AppInput, AppSelect } from "@/shared/ui";
 import { useCreateMaterialMutation } from "@/modules/warehouse/presentation/hooks/use-create-material-mutation";
+import { usePropertyContext } from "@/shared/providers/property-provider";
+import { usePropertiesListQuery } from "@/modules/properties/presentation/hooks/use-properties-list-query";
 import type { MaterialUnit } from "@/modules/warehouse/domain/warehouse";
 
 const UNIT_OPTIONS: Array<{ label: string; value: MaterialUnit }> = [
@@ -24,6 +26,7 @@ function isMaterialUnit(value: string): value is MaterialUnit {
 interface FormState {
   name: string;
   unit: MaterialUnit;
+  propertyId: string;
   minStock: string;
   description: string;
 }
@@ -31,6 +34,7 @@ interface FormState {
 const INITIAL_FORM: FormState = {
   name: "",
   unit: "piece",
+  propertyId: "",
   minStock: "0",
   description: "",
 };
@@ -49,7 +53,10 @@ export function CreateMaterialDrawer({
   onSuccess,
 }: CreateMaterialDrawerProps) {
   const mutation = useCreateMaterialMutation();
-  const [form, setForm] = useState<FormState>(INITIAL_FORM);
+  const { currentPropertyId, hasProperty } = usePropertyContext();
+  const { data: propertiesResult } = usePropertiesListQuery();
+  const properties = propertiesResult?.items ?? [];
+  const [form, setForm] = useState<FormState>({ ...INITIAL_FORM, propertyId: currentPropertyId });
   const [errors, setErrors] = useState<FormErrors>({});
 
   const set = (key: keyof FormState) => (value: string) => {
@@ -64,7 +71,7 @@ export function CreateMaterialDrawer({
   };
 
   const reset = () => {
-    setForm(INITIAL_FORM);
+    setForm({ ...INITIAL_FORM, propertyId: currentPropertyId });
     setErrors({});
   };
 
@@ -89,6 +96,7 @@ export function CreateMaterialDrawer({
       {
         name: form.name.trim(),
         unit: form.unit,
+        propertyId: form.propertyId || undefined,
         minStock: isNaN(minStockNum) ? undefined : minStockNum,
         description: form.description.trim() || undefined,
       },
@@ -130,6 +138,24 @@ export function CreateMaterialDrawer({
             if (isMaterialUnit(v)) set("unit")(v);
           }}
         />
+        {hasProperty ? (
+          <AppInput
+            label="Объект"
+            value={properties.find((p) => p.id === form.propertyId)?.name ?? "Общий"}
+            disabled
+          />
+        ) : (
+          <AppSelect
+            id="material-property"
+            label="Объект"
+            options={[
+              { value: "", label: "Общий (без привязки)" },
+              ...properties.map((p) => ({ value: p.id, label: p.name })),
+            ]}
+            value={form.propertyId}
+            onChange={(e) => set("propertyId")(e.target.value)}
+          />
+        )}
         <AppInput
           label="Минимальный остаток"
           type="number"

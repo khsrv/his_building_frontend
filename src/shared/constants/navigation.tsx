@@ -168,11 +168,14 @@ export const NAVIGATION_ITEMS: readonly NavItem[] = [
     permission: "clients.read",
   },
   {
-    id: "cashier",
-    labelKey: "nav.cashier",
-    href: routes.cashier,
-    icon: <CashierIcon />,
-    permission: "deals.create",
+    id: "expenses",
+    labelKey: "nav.expenses",
+    icon: <FinanceIcon />,
+    permission: "finance.ledger.read" as PermissionCode,
+    children: [
+      { id: "expenses-list", labelKey: "nav.expenses_list", href: routes.expenses, icon: <FinanceIcon />, permission: "finance.ledger.read" as PermissionCode },
+      { id: "expenses-categories", labelKey: "nav.expenses_categories", href: routes.financeCategories, icon: <FinanceIcon />, permission: "finance.ledger.read" as PermissionCode },
+    ],
   },
   {
     id: "deals",
@@ -193,10 +196,11 @@ export const NAVIGATION_ITEMS: readonly NavItem[] = [
     ],
   },
   {
-    id: "calculator",
-    labelKey: "nav.calculator",
-    href: routes.calculator,
-    icon: <CalculatorIcon />,
+    id: "finance-accounts",
+    labelKey: "nav.finance_accounts",
+    href: routes.financeAccounts,
+    icon: <CashierIcon />,
+    permission: "finance.accounts.read",
   },
   {
     id: "finance",
@@ -204,21 +208,13 @@ export const NAVIGATION_ITEMS: readonly NavItem[] = [
     icon: <FinanceIcon />,
     permission: "finance.ledger.read",
     children: [
+      { id: "calculator", labelKey: "nav.calculator", href: routes.calculator, icon: <CalculatorIcon /> },
       { id: "finance-ledger", labelKey: "nav.finance_ledger", href: routes.financeLedger, icon: <FinanceIcon />, permission: "finance.ledger.read" },
-      { id: "finance-accounts", labelKey: "nav.finance_accounts", href: routes.financeAccounts, icon: <FinanceIcon />, permission: "finance.accounts.read" },
       { id: "finance-reports", labelKey: "nav.finance_reports", href: routes.financeReports, icon: <FinanceIcon />, permission: "finance.reports.view" },
       { id: "finance-payable-reminders", labelKey: "nav.finance_payable_reminders", href: routes.financePayableReminders, icon: <FinanceIcon /> },
       { id: "finance-currencies", labelKey: "nav.finance_currencies", href: routes.financeCurrencies, icon: <FinanceIcon />, permission: "finance.exchange_rates.manage" },
-      { id: "finance-categories", labelKey: "nav.finance_categories", href: routes.financeCategories, icon: <FinanceIcon />, permission: "finance.ledger.create" },
       { id: "finance-deposits", labelKey: "nav.finance_deposits", href: routes.deposits, icon: <FinanceIcon />, permission: "finance.accounts.read" },
     ],
-  },
-  {
-    id: "land",
-    labelKey: "nav.land",
-    href: routes.land,
-    icon: <LandIcon />,
-    permission: "land.read",
   },
   {
     id: "warehouse",
@@ -229,6 +225,7 @@ export const NAVIGATION_ITEMS: readonly NavItem[] = [
       { id: "warehouse-materials", labelKey: "nav.warehouse_materials", href: routes.warehouseMaterials, icon: <WarehouseIcon />, permission: "warehouse.read" },
       { id: "warehouse-movements", labelKey: "nav.warehouse_movements", href: routes.warehouseMovements, icon: <WarehouseIcon />, permission: "warehouse.stock_movements" },
       { id: "warehouse-suppliers", labelKey: "nav.warehouse_suppliers", href: routes.warehouseSuppliers, icon: <WarehouseIcon />, permission: "warehouse.suppliers.manage" },
+      { id: "land", labelKey: "nav.land", href: routes.land, icon: <LandIcon />, permission: "land.read" },
     ],
   },
   {

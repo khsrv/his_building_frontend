@@ -21,6 +21,7 @@ import { useReceivablesReportQuery } from "@/modules/finance/presentation/hooks/
 import { usePropertyCostReportQuery } from "@/modules/finance/presentation/hooks/use-property-cost-report-query";
 import { usePropertiesListQuery } from "@/modules/properties/presentation/hooks/use-properties-list-query";
 import type { IncomeExpenseReportParams, PropertyCostRow } from "@/modules/finance/domain/finance";
+import { usePropertyContext } from "@/shared/providers/property-provider";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -113,12 +114,14 @@ const propertyCostColumns: readonly AppDataTableColumn<PropertyCostRow>[] = [
 // ─── Tab 1: Income / Expense ──────────────────────────────────────────────────
 
 function IncomeExpenseTab() {
+  const { currentPropertyId } = usePropertyContext();
   const [from, setFrom] = useState(monthAgoIso);
   const [to, setTo] = useState(todayIso);
 
   const params: IncomeExpenseReportParams = {
     ...(from ? { from } : {}),
     ...(to ? { to } : {}),
+    ...(currentPropertyId ? { propertyId: currentPropertyId } : {}),
   };
 
   const { data, isLoading, isError } = useIncomeExpenseReportQuery(params);
@@ -213,12 +216,14 @@ function IncomeExpenseTab() {
 // ─── Tab 2: Cash Flow ─────────────────────────────────────────────────────────
 
 function CashFlowTab() {
+  const { currentPropertyId } = usePropertyContext();
   const [from, setFrom] = useState(monthAgoIso);
   const [to, setTo] = useState(todayIso);
 
   const { data, isLoading, isError } = useCashFlowReportQuery({
     ...(from ? { from } : {}),
     ...(to ? { to } : {}),
+    ...(currentPropertyId ? { propertyId: currentPropertyId } : {}),
   });
 
   const chartData: AppChartDataPoint[] = (data?.items ?? []).map((item) => ({
@@ -269,7 +274,8 @@ function CashFlowTab() {
 // ─── Tab 3: Receivables ───────────────────────────────────────────────────────
 
 function ReceivablesTab() {
-  const { data, isLoading, isError } = useReceivablesReportQuery();
+  const { currentPropertyId } = usePropertyContext();
+  const { data, isLoading, isError } = useReceivablesReportQuery(currentPropertyId || undefined);
 
   const rows: ReceivableRow[] = (data?.items ?? []).map((item) => ({
     clientName: item.clientName,
@@ -321,7 +327,8 @@ function ReceivablesTab() {
 }
 
 function PropertyCostTab() {
-  const [propertyId, setPropertyId] = useState("");
+  const { currentPropertyId } = usePropertyContext();
+  const [propertyId, setPropertyId] = useState(currentPropertyId);
   const propertiesQuery = usePropertiesListQuery({ page: 1, limit: 200 });
   const reportQuery = usePropertyCostReportQuery(propertyId || undefined);
 

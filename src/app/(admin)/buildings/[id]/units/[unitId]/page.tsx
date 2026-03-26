@@ -417,6 +417,29 @@ export default function UnitDetailPage() {
               />
             </div>
 
+            {/* Quick create deal for available units */}
+            {unit.status === "available" ? (
+              <div className="rounded-xl border border-primary/20 bg-primary/5 p-5">
+                <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                  Оформление
+                </h3>
+                <p className="mb-4 text-sm text-muted-foreground">
+                  Квартира свободна. Оформите сделку для этой квартиры.
+                </p>
+                <AppButton
+                  label="Создать сделку"
+                  variant="primary"
+                  fullWidth
+                  onClick={() => {
+                    const params = new URLSearchParams();
+                    params.set("propertyId", propertyId);
+                    params.set("unitId", unitId);
+                    router.push(`${routes.dealCreate}?${params.toString()}`);
+                  }}
+                />
+              </div>
+            ) : null}
+
             {/* Deal info */}
             {unitNeedsDeal ? (
               <div className="rounded-xl border border-border bg-card p-5">

@@ -791,13 +791,16 @@ export default function ChessGridPage() {
           <Divider />
 
           <Stack direction="column" spacing={1.5} sx={{ px: 3, py: 2 }}>
-            {selectedUnit ? (
+            {selectedUnit?.status === "free" ? (
               <AppButton
-                label="Подробнее"
+                label="Оформить сделку"
                 variant="primary"
                 fullWidth
                 onClick={() => {
-                  router.push(routes.unitDetail(propertyId, selectedUnit.id));
+                  const params = new URLSearchParams();
+                  params.set("propertyId", propertyId);
+                  params.set("unitId", selectedUnit.id);
+                  router.push(`${routes.dealCreate}?${params.toString()}`);
                   handleCloseDrawer();
                 }}
               />
@@ -806,11 +809,23 @@ export default function ChessGridPage() {
             {unitNeedsDeal && unitDealQuery.data && unitDealQuery.data.length > 0 ? (
               <AppButton
                 label="Открыть сделку"
-                variant="outline"
+                variant="primary"
                 fullWidth
                 onClick={() => {
                   const deal = unitDealQuery.data[0]!;
                   router.push(routes.dealDetail(deal.id));
+                  handleCloseDrawer();
+                }}
+              />
+            ) : null}
+
+            {selectedUnit ? (
+              <AppButton
+                label="Подробнее"
+                variant="outline"
+                fullWidth
+                onClick={() => {
+                  router.push(routes.unitDetail(propertyId, selectedUnit.id));
                   handleCloseDrawer();
                 }}
               />

@@ -77,6 +77,7 @@ interface MaterialDto {
   name: string;
   sku: string | null;
   unit: string;
+  property_id: string | null;
   current_stock: number;
   min_stock: number;
   price_per_unit: number | null;
@@ -202,6 +203,7 @@ function mapMaterialDto(dto: MaterialDto): Material {
     name: dto.name,
     sku: dto.sku,
     unit: toMaterialUnit(dto.unit),
+    propertyId: dto.property_id ?? null,
     currentStock: dto.current_stock,
     minStock: dto.min_stock,
     pricePerUnit: dto.price_per_unit,
@@ -267,6 +269,7 @@ export async function fetchSuppliersList(
     limit: params?.limit ?? 20,
   };
   if (params?.search) query["search"] = params.search;
+  if (params?.propertyId) query["property_id"] = params.propertyId;
 
   const res = await apiClient.get<PaginatedResponseDto<SupplierDto>>(
     "/api/v1/suppliers",
@@ -372,6 +375,7 @@ export async function fetchMaterialsList(
     limit: params?.limit ?? 20,
   };
   if (params?.search) query["search"] = params.search;
+  if (params?.propertyId) query["property_id"] = params.propertyId;
 
   const res = await apiClient.get<PaginatedResponseDto<MaterialDto>>(
     "/api/v1/materials",
@@ -400,6 +404,7 @@ export async function createMaterial(input: CreateMaterialInput): Promise<Materi
   if (input.pricePerUnit !== undefined) body["price_per_unit"] = input.pricePerUnit;
   if (input.currency !== undefined) body["currency"] = input.currency;
   if (input.categoryId !== undefined) body["category_id"] = input.categoryId;
+  if (input.propertyId !== undefined) body["property_id"] = input.propertyId;
   if (input.notes !== undefined) body["notes"] = input.notes;
 
   const res = await apiClient.post<SingleResponseDto<MaterialDto>>("/api/v1/materials", body);
@@ -440,6 +445,7 @@ export async function fetchStockMovementsList(
   };
   if (params?.materialId) query["material_id"] = params.materialId;
   if (params?.supplierId) query["supplier_id"] = params.supplierId;
+  if (params?.propertyId) query["property_id"] = params.propertyId;
   if (params?.type) query["type"] = params.type;
 
   const res = await apiClient.get<PaginatedResponseDto<StockMovementDto>>(

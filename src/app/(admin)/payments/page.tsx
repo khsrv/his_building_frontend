@@ -17,7 +17,7 @@ import {
 import { routes } from "@/shared/constants/routes";
 import type { UpcomingPayment, SchedulePaymentStatus } from "@/modules/payments/domain/entities";
 import { useUpcomingPaymentsQuery } from "@/modules/payments/presentation/hooks/use-upcoming-payments.query";
-import { usePropertiesFilterQuery } from "@/modules/payments/presentation/hooks/use-properties-filter.query";
+import { usePropertyContext } from "@/shared/providers/property-provider";
 
 // ─── Status helpers ──────────────────────────────────────────────────────────
 
@@ -189,10 +189,10 @@ export default function PaymentsPage() {
   const now = new Date();
   const [month, setMonth] = useState(String(now.getMonth() + 1));
   const [year, setYear] = useState(String(now.getFullYear()));
-  const [propertyId, setPropertyId] = useState("");
+  const { currentPropertyId } = usePropertyContext();
   const [statusFilter, setStatusFilter] = useState("");
 
-  const resolvedPropertyId: string | undefined = propertyId || undefined;
+  const resolvedPropertyId: string | undefined = currentPropertyId || undefined;
   const resolvedStatus: string | undefined = statusFilter || undefined;
 
   const { data, isLoading, isError, refetch } = useUpcomingPaymentsQuery({
@@ -202,12 +202,6 @@ export default function PaymentsPage() {
     status: resolvedStatus,
   });
 
-  const { data: properties } = usePropertiesFilterQuery();
-
-  const propertyOptions = [
-    { value: "", label: "Все объекты" },
-    ...(properties ?? []).map((p) => ({ value: p.id, label: p.name })),
-  ];
 
   return (
     <main className="space-y-6 p-4 md:p-6">
@@ -250,15 +244,6 @@ export default function PaymentsPage() {
             options={YEAR_OPTIONS}
             value={year}
             onChange={(e) => setYear(e.target.value)}
-          />
-        </Box>
-        <Box sx={{ minWidth: 200 }}>
-          <AppSelect
-            id="property-filter"
-            label="Объект"
-            options={propertyOptions}
-            value={propertyId}
-            onChange={(e) => setPropertyId(e.target.value)}
           />
         </Box>
         <Box sx={{ minWidth: 200 }}>
