@@ -41,8 +41,11 @@ interface TenantDto {
   name: string;
   slug: string;
   is_active: boolean;
-  plan: string | null;
-  expires_at: string | null;
+  subscription_plan: string | null;
+  subscription_expires_at: string | null;
+  trial_ends_at: string | null;
+  max_objects: number;
+  max_users: number;
   phone: string | null;
   email: string | null;
   logo_url: string | null;
@@ -96,8 +99,11 @@ function mapTenantDto(dto: TenantDto): Tenant {
     name: dto.name,
     slug: dto.slug,
     isActive: dto.is_active,
-    plan: dto.plan,
-    expiresAt: dto.expires_at,
+    plan: dto.subscription_plan,
+    subscriptionExpiresAt: dto.subscription_expires_at ?? null,
+    trialEndsAt: dto.trial_ends_at ?? null,
+    maxObjects: dto.max_objects ?? 0,
+    maxUsers: dto.max_users ?? 0,
     phone: dto.phone,
     email: dto.email,
     logoUrl: dto.logo_url,
@@ -187,6 +193,48 @@ export async function toggleCanLogin(
   );
   const data = getResponseRecord(normalizeApiKeys(res));
   return { status: String(data?.status ?? "ok") };
+}
+
+export async function deleteUser(id: string): Promise<{ status: string }> {
+  const res = await apiClient.delete<StatusResponseDto>(`/api/v1/admin/users/${id}`);
+  const data = getResponseRecord(normalizeApiKeys(res));
+  return { status: String(data?.status ?? "ok") };
+}
+
+export async function resetUserPassword(
+  id: string,
+  password: string,
+): Promise<{ status: string }> {
+  const res = await apiClient.patch<StatusResponseDto>(
+    `/api/v1/admin/users/${id}/reset-password`,
+    { password },
+  );
+  const data = getResponseRecord(normalizeApiKeys(res));
+  return { status: String(data?.status ?? "ok") };
+}
+
+export async function getUserPropertyAccess(id: string): Promise<string[]> {
+  const res = await apiClient.get<{ data: { property_ids: string[] } }>(
+    `/api/v1/admin/users/${id}/property-access`,
+  );
+  const normalized = normalizeApiKeys(res);
+  const record = getResponseRecord(normalized);
+  const ids = record?.["property_ids"];
+  return Array.isArray(ids) ? (ids as string[]) : [];
+}
+
+export async function setUserPropertyAccess(
+  id: string,
+  propertyIds: string[],
+): Promise<string[]> {
+  const res = await apiClient.put<{ data: { property_ids: string[] } }>(
+    `/api/v1/admin/users/${id}/property-access`,
+    { property_ids: propertyIds },
+  );
+  const normalized = normalizeApiKeys(res);
+  const record = getResponseRecord(normalized);
+  const ids = record?.["property_ids"];
+  return Array.isArray(ids) ? (ids as string[]) : [];
 }
 
 // ─── Tenants ──────────────────────────────────────────────────────────────────
@@ -280,6 +328,8 @@ export async function setSubscription(
   const body: Record<string, unknown> = {
     plan: input.plan,
     expires_at: input.expiresAt,
+    max_objects: input.maxObjects,
+    max_users: input.maxUsers,
   };
   const res = await apiClient.post<{ data: TenantDto }>(
     `/api/v1/super-admin/tenants/${id}/subscription`,

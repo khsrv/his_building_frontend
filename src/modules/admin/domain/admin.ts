@@ -18,7 +18,10 @@ export interface Tenant {
   readonly slug: string;
   readonly isActive: boolean;
   readonly plan: string | null;
-  readonly expiresAt: string | null;
+  readonly subscriptionExpiresAt: string | null;
+  readonly trialEndsAt: string | null;
+  readonly maxObjects: number; // 0 = unlimited
+  readonly maxUsers: number;   // 0 = unlimited
   readonly phone: string | null;
   readonly email: string | null;
   readonly logoUrl: string | null;
@@ -75,6 +78,8 @@ export interface CreateTenantUserInput {
 export interface SetSubscriptionInput {
   plan: string;
   expiresAt: string;
+  maxObjects: number; // 0 = unlimited
+  maxUsers: number;   // 0 = unlimited
 }
 
 export interface SetSettingInput {

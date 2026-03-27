@@ -12,7 +12,8 @@
     "additionalDirectories": [
       "/Users/yaqubiam/Desktop/projects/hisob_building_backand/internal/usecase/deal",
       "/Users/yaqubiam/Desktop/projects/hisob_building_backand/migrations",
-      "/Users/yaqubiam/Desktop/projects/hisob_building_backand/internal/repository/postgres"
+      "/Users/yaqubiam/Desktop/projects/hisob_building_backand/internal/repository/postgres",
+      "/Users/yaqubiam/Desktop/projects/hisob_building_backand/internal/usecase/unit"
     ]
   }
 }

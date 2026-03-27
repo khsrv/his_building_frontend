@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Box, Dialog, DialogTitle, DialogContent, DialogActions } from "@mui/material";
+import { Box, Chip, Dialog, DialogTitle, DialogContent, DialogActions, Typography } from "@mui/material";
 import {
   AppPageHeader,
   AppButton,
@@ -34,7 +34,38 @@ function formatDate(dateStr: string | null): string {
   }
 }
 
-// ─── Confirm action state ─────────────────────────────────────────────────────
+type SubscriptionStatus = "active" | "trial" | "expiring" | "expired" | "none";
+
+function getSubscriptionStatus(tenant: Tenant): SubscriptionStatus {
+  const now = new Date();
+  if (tenant.trialEndsAt) {
+    const trial = new Date(tenant.trialEndsAt);
+    if (trial > now) return "trial";
+  }
+  if (tenant.subscriptionExpiresAt) {
+    const exp = new Date(tenant.subscriptionExpiresAt);
+    if (exp <= now) return "expired";
+    const daysLeft = Math.ceil((exp.getTime() - now.getTime()) / 86_400_000);
+    if (daysLeft <= 7) return "expiring";
+    return "active";
+  }
+  return "none";
+}
+
+function SubscriptionStatusChip({ tenant }: { tenant: Tenant }) {
+  const status = getSubscriptionStatus(tenant);
+  const map: Record<SubscriptionStatus, { label: string; color: "success" | "warning" | "error" | "default" }> = {
+    active:   { label: "Активна",       color: "success" },
+    trial:    { label: "Пробный",        color: "default" },
+    expiring: { label: "Истекает",       color: "warning" },
+    expired:  { label: "Просрочена",     color: "error" },
+    none:     { label: "Нет подписки",   color: "default" },
+  };
+  const { label, color } = map[status];
+  return <Chip label={label} color={color} size="small" />;
+}
+
+// ─── State types ──────────────────────────────────────────────────────────────
 
 interface TenantConfirmState {
   tenantId: string;
@@ -45,6 +76,8 @@ interface TenantConfirmState {
 interface SubscriptionDialogState {
   tenantId: string;
   tenantName: string;
+  currentMaxObjects: number;
+  currentMaxUsers: number;
 }
 
 interface CreateFormState {
@@ -57,9 +90,16 @@ const INITIAL_CREATE_FORM: CreateFormState = { name: "", slug: "" };
 interface SubscriptionFormState {
   plan: string;
   expiresAt: string;
+  maxObjects: string;
+  maxUsers: string;
 }
 
-const INITIAL_SUB_FORM: SubscriptionFormState = { plan: "", expiresAt: "" };
+const INITIAL_SUB_FORM: SubscriptionFormState = {
+  plan: "starter",
+  expiresAt: "",
+  maxObjects: "1",
+  maxUsers: "5",
+};
 
 interface CreateUserFormState {
   email: string;
@@ -81,6 +121,12 @@ const ROLE_OPTIONS: { value: BackendRole; label: string }[] = [
   { value: "manager", label: "Менеджер" },
   { value: "accountant", label: "Бухгалтер" },
   { value: "cashier", label: "Кассир" },
+];
+
+const PLAN_OPTIONS = [
+  { value: "starter", label: "Starter" },
+  { value: "business", label: "Business" },
+  { value: "corporate", label: "Corporate" },
 ];
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
@@ -136,6 +182,11 @@ export default function AdminTenantsPage() {
       ),
     },
     {
+      id: "subscription",
+      header: "Подписка",
+      cell: (row) => <SubscriptionStatusChip tenant={row} />,
+    },
+    {
       id: "plan",
       header: "Тариф",
       cell: (row) => row.plan ?? "—",
@@ -144,8 +195,19 @@ export default function AdminTenantsPage() {
     {
       id: "expiresAt",
       header: "Истекает",
-      cell: (row) => formatDate(row.expiresAt),
-      sortAccessor: (row) => row.expiresAt ?? "",
+      cell: (row) => formatDate(row.subscriptionExpiresAt),
+      sortAccessor: (row) => row.subscriptionExpiresAt ?? "",
+    },
+    {
+      id: "limits",
+      header: "Объекты / Польз.",
+      cell: (row) => (
+        <Typography variant="body2" color="text.secondary">
+          {row.maxObjects === 0 ? "∞" : row.maxObjects}
+          {" / "}
+          {row.maxUsers === 0 ? "∞" : row.maxUsers}
+        </Typography>
+      ),
     },
     {
       id: "createdAt",
@@ -184,10 +246,20 @@ export default function AdminTenantsPage() {
           },
           {
             id: "set-subscription",
-            label: "Назначить тариф",
+            label: "Управление подпиской",
             onClick: () => {
-              setSubDialogState({ tenantId: row.id, tenantName: row.name });
-              setSubForm(INITIAL_SUB_FORM);
+              setSubDialogState({
+                tenantId: row.id,
+                tenantName: row.name,
+                currentMaxObjects: row.maxObjects,
+                currentMaxUsers: row.maxUsers,
+              });
+              setSubForm({
+                plan: row.plan ?? "starter",
+                expiresAt: "",
+                maxObjects: String(row.maxObjects),
+                maxUsers: String(row.maxUsers),
+              });
             },
           },
         ],
@@ -200,13 +272,14 @@ export default function AdminTenantsPage() {
   const [createError, setCreateError] = useState("");
 
   function nameToSlug(name: string): string {
-    return name
-      .toLowerCase()
-      .replace(/[^a-z0-9\s-]/g, "")
-      .replace(/\s+/g, "-")
-      .replace(/-+/g, "-")
-      .replace(/^-|-$/g, "")
-      || `tenant-${Date.now()}`;
+    return (
+      name
+        .toLowerCase()
+        .replace(/[^a-z0-9\s-]/g, "")
+        .replace(/\s+/g, "-")
+        .replace(/-+/g, "-")
+        .replace(/^-|-$/g, "") || `tenant-${Date.now()}`
+    );
   }
 
   function handleCreateSave() {
@@ -243,11 +316,25 @@ export default function AdminTenantsPage() {
 
   function handleSubSave() {
     if (!subDialogState || !subForm.plan.trim() || !subForm.expiresAt) return;
+
+    const maxObjects = Math.max(0, parseInt(subForm.maxObjects, 10) || 0);
+    const maxUsers   = Math.max(0, parseInt(subForm.maxUsers, 10) || 0);
+
+    // Build RFC3339 from date input value (YYYY-MM-DD → YYYY-MM-DDT23:59:59Z)
+    const expiresAt = subForm.expiresAt.includes("T")
+      ? subForm.expiresAt
+      : `${subForm.expiresAt}T23:59:59Z`;
+
     actionsMutation.mutate(
       {
         type: "setSubscription",
         id: subDialogState.tenantId,
-        input: { plan: subForm.plan.trim(), expiresAt: subForm.expiresAt },
+        input: {
+          plan: subForm.plan.trim(),
+          expiresAt,
+          maxObjects,
+          maxUsers,
+        },
       },
       {
         onSuccess: () => {
@@ -299,7 +386,7 @@ export default function AdminTenantsPage() {
     <main className="space-y-6 p-4 md:p-6">
       <AppPageHeader
         title="Тенанты"
-        subtitle="Управление компаниями"
+        subtitle="Управление компаниями-застройщиками"
         breadcrumbs={[
           { id: "dashboard", label: "Панель", href: routes.dashboard },
           { id: "admin-tenants", label: "Тенанты" },
@@ -345,7 +432,7 @@ export default function AdminTenantsPage() {
         />
       )}
 
-      {/* Create tenant drawer */}
+      {/* ── Create tenant drawer ── */}
       <AppDrawerForm
         open={createDrawerOpen}
         title="Создать застройщика"
@@ -368,7 +455,7 @@ export default function AdminTenantsPage() {
         </Box>
       </AppDrawerForm>
 
-      {/* Confirm activate/deactivate */}
+      {/* ── Confirm activate/deactivate ── */}
       <ConfirmDialog
         open={confirmState !== null}
         title={confirmState?.action === "activate" ? "Активировать тенант" : "Деактивировать тенант"}
@@ -384,7 +471,7 @@ export default function AdminTenantsPage() {
         onClose={() => setConfirmState(null)}
       />
 
-      {/* Subscription dialog */}
+      {/* ── Subscription management dialog ── */}
       <Dialog
         open={subDialogState !== null}
         onClose={() => setSubDialogState(null)}
@@ -392,21 +479,36 @@ export default function AdminTenantsPage() {
         fullWidth
       >
         <DialogTitle>
-          Назначить тариф — {subDialogState?.tenantName ?? ""}
+          Управление подпиской — {subDialogState?.tenantName ?? ""}
         </DialogTitle>
         <DialogContent>
-          <Box sx={{ display: "flex", flexDirection: "column", gap: 2, pt: 1 }}>
-            <AppInput
+          <Box sx={{ display: "flex", flexDirection: "column", gap: 2.5, pt: 1 }}>
+            <AppSelect
+              id="sub-plan"
               label="Тариф *"
+              options={PLAN_OPTIONS}
               value={subForm.plan}
-              onChangeValue={(v) => setSubForm((prev) => ({ ...prev, plan: v }))}
-              placeholder="basic / pro / enterprise"
+              onChange={(e) => setSubForm((prev) => ({ ...prev, plan: e.target.value }))}
             />
             <AppInput
-              label="Дата окончания *"
+              label="Дата окончания подписки *"
               type="date"
               value={subForm.expiresAt}
               onChangeValue={(v) => setSubForm((prev) => ({ ...prev, expiresAt: v }))}
+            />
+            <AppInput
+              label="Макс. объектов (0 = без ограничений)"
+              type="number"
+              value={subForm.maxObjects}
+              onChangeValue={(v) => setSubForm((prev) => ({ ...prev, maxObjects: v }))}
+              placeholder="1"
+            />
+            <AppInput
+              label="Макс. пользователей (0 = без ограничений)"
+              type="number"
+              value={subForm.maxUsers}
+              onChangeValue={(v) => setSubForm((prev) => ({ ...prev, maxUsers: v }))}
+              placeholder="5"
             />
           </Box>
         </DialogContent>
@@ -419,15 +521,13 @@ export default function AdminTenantsPage() {
           <AppButton
             label="Сохранить"
             variant="primary"
-            disabled={
-              !subForm.plan.trim() || !subForm.expiresAt || actionsMutation.isPending
-            }
+            disabled={!subForm.plan.trim() || !subForm.expiresAt || actionsMutation.isPending}
             onClick={handleSubSave}
           />
         </DialogActions>
       </Dialog>
 
-      {/* Create tenant user drawer */}
+      {/* ── Create tenant user drawer ── */}
       <AppDrawerForm
         open={userDrawerTenant !== null}
         title="Добавить пользователя"
