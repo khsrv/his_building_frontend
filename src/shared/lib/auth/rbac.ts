@@ -1,4 +1,7 @@
-export type PermissionCode = string;
+// #17 fix: use the strict union type from permissions.ts, not the loose `string`
+import type { PermissionCode } from "@/shared/types/permissions";
+
+export type { PermissionCode } from "@/shared/types/permissions";
 
 export function hasAnyPermission(
   userPermissions: readonly PermissionCode[],

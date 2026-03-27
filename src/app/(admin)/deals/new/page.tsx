@@ -21,35 +21,13 @@ import { useClientSearchQuery } from "@/modules/deals/presentation/hooks/use-cli
 import type { DealPaymentType } from "@/modules/deals/domain/deal";
 import { useCurrencyOptions } from "@/modules/finance/presentation/hooks/use-currency-options";
 import { usePropertyContext } from "@/shared/providers/property-provider";
+import { useI18n } from "@/shared/providers/locale-provider";
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
-const PAYMENT_TYPE_OPTIONS: readonly { value: DealPaymentType; label: string }[] = [
-  { value: "full_payment", label: "Полная оплата" },
-  { value: "installment", label: "Рассрочка" },
-  { value: "mortgage", label: "Ипотека" },
-  { value: "barter", label: "Бартер" },
-  { value: "combined", label: "Комбинированная" },
-];
-
-const INSTALLMENT_MONTH_OPTIONS: readonly { value: string; label: string }[] = [
-  { value: "6", label: "6 месяцев" },
-  { value: "12", label: "12 месяцев" },
-  { value: "24", label: "24 месяца" },
-  { value: "36", label: "36 месяцев" },
-  { value: "48", label: "48 месяцев" },
-  { value: "60", label: "60 месяцев" },
-];
-
-const INSTALLMENT_FREQUENCY_OPTIONS: readonly { value: string; label: string }[] = [
-  { value: "monthly", label: "Ежемесячно" },
-  { value: "quarterly", label: "Ежеквартально" },
-  { value: "custom", label: "Произвольно" },
-];
-
-function formatMoney(amount: number, currency: string): string {
+function formatMoney(amount: number, currency: string, localeCode: "ru-RU" | "en-US"): string {
   return (
-    new Intl.NumberFormat("ru-RU", { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(amount) +
+    new Intl.NumberFormat(localeCode, { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(amount) +
     " " +
     currency
   );
@@ -86,6 +64,8 @@ interface FormErrors {
 // ─── Page ───────────────────────────────────────────────────────────────────
 
 export default function DealCreatePage() {
+  const { locale, t } = useI18n();
+  const localeCode = locale === "en" ? "en-US" : "ru-RU";
   const router = useRouter();
   const searchParams = useSearchParams();
   const currencyOptions = useCurrencyOptions();
@@ -114,6 +94,26 @@ export default function DealCreatePage() {
   const [errors, setErrors] = useState<FormErrors>({});
   const [clientSearch, setClientSearch] = useState("");
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const paymentTypeOptions: readonly { value: DealPaymentType; label: string }[] = [
+    { value: "full_payment", label: t("deals.create.paymentType.fullPayment") },
+    { value: "installment", label: t("deals.create.paymentType.installment") },
+    { value: "mortgage", label: t("deals.create.paymentType.mortgage") },
+    { value: "barter", label: t("deals.create.paymentType.barter") },
+    { value: "combined", label: t("deals.create.paymentType.combined") },
+  ];
+  const installmentMonthOptions: readonly { value: string; label: string }[] = [
+    { value: "6", label: t("deals.create.installment.months6") },
+    { value: "12", label: t("deals.create.installment.months12") },
+    { value: "24", label: t("deals.create.installment.months24") },
+    { value: "36", label: t("deals.create.installment.months36") },
+    { value: "48", label: t("deals.create.installment.months48") },
+    { value: "60", label: t("deals.create.installment.months60") },
+  ];
+  const installmentFrequencyOptions: readonly { value: string; label: string }[] = [
+    { value: "monthly", label: t("deals.create.installment.frequency.monthly") },
+    { value: "quarterly", label: t("deals.create.installment.frequency.quarterly") },
+    { value: "custom", label: t("deals.create.installment.frequency.custom") },
+  ];
 
   const { mutateAsync: createDeal, isPending } = useCreateDealMutation();
   const { data: properties = [], isLoading: propertiesLoading } = usePropertiesQuery();
@@ -151,9 +151,9 @@ export default function DealCreatePage() {
     () =>
       units.map((u) => ({
         value: u.id,
-        label: `Кв. ${u.unitNumber}${u.rooms ? `, ${u.rooms}к` : ""}${u.totalArea ? `, ${u.totalArea} м²` : ""}${u.basePrice ? ` — ${formatMoney(u.basePrice, "USD")}` : ""}`,
+        label: `${t("deals.create.labels.unit")} ${u.unitNumber}${u.rooms ? `, ${u.rooms}${t("deals.create.labels.roomsShort")}` : ""}${u.totalArea ? `, ${u.totalArea} ${t("deals.create.labels.squareMeter")}` : ""}${u.basePrice ? ` — ${formatMoney(u.basePrice, "USD", localeCode)}` : ""}`,
       })),
-    [units],
+    [localeCode, t, units],
   );
 
   const clientOptions: AppSearchableSelectOption[] = useMemo(
@@ -185,9 +185,9 @@ export default function DealCreatePage() {
 
   const validateStep1 = (): boolean => {
     const next: FormErrors = {};
-    if (!form.clientId) next.clientId = "Выберите клиента";
-    if (!form.propertyId) next.propertyId = "Выберите объект";
-    if (!form.unitId) next.unitId = "Выберите квартиру";
+    if (!form.clientId) next.clientId = t("deals.create.errors.selectClient");
+    if (!form.propertyId) next.propertyId = t("deals.create.placeholders.selectProperty");
+    if (!form.unitId) next.unitId = t("deals.create.errors.selectUnit");
     setErrors(next);
     return Object.keys(next).length === 0;
   };
@@ -195,14 +195,14 @@ export default function DealCreatePage() {
   const validateStep2 = (): boolean => {
     const next: FormErrors = {};
     if (!form.totalAmount || totalAmountNum <= 0) {
-      next.totalAmount = "Введите сумму больше 0";
+      next.totalAmount = t("deals.create.errors.amountGreaterZero");
     }
     if (form.paymentType === "installment") {
-      if (!form.installmentMonths) next.installmentMonths = "Укажите срок рассрочки";
-      if (!form.installmentFrequency) next.installmentFrequency = "Выберите периодичность";
+      if (!form.installmentMonths) next.installmentMonths = t("deals.create.errors.installmentMonths");
+      if (!form.installmentFrequency) next.installmentFrequency = t("deals.create.errors.installmentFrequency");
     }
     if (form.paymentType === "mortgage") {
-      if (!form.mortgageBank.trim()) next.mortgageBank = "Укажите банк";
+      if (!form.mortgageBank.trim()) next.mortgageBank = t("deals.create.errors.mortgageBank");
     }
     setErrors(next);
     return Object.keys(next).length === 0;
@@ -234,7 +234,7 @@ export default function DealCreatePage() {
       const deal = await createDeal(input);
       router.push(routes.dealDetail(deal.id));
     } catch (err) {
-      setSubmitError(err instanceof Error ? err.message : "Ошибка создания сделки");
+      setSubmitError(err instanceof Error ? err.message : t("deals.create.errors.createFailed"));
     }
   };
 
@@ -246,16 +246,16 @@ export default function DealCreatePage() {
     <div className="space-y-6">
       {/* Client */}
       <div className="space-y-2">
-        <label className="text-sm font-semibold text-foreground">Клиент *</label>
+        <label className="text-sm font-semibold text-foreground">{t("deals.create.fields.client")} *</label>
         <AppSearchableSelect
           options={clientOptions}
           value={form.clientId || null}
           onChange={(id, option) => { setField("clientId", id); setField("clientLabel", option.label); }}
-          triggerLabel={form.clientLabel || "Найти клиента по имени или телефону..."}
-          dialogTitle="Поиск клиента"
-          searchPlaceholder="Имя или телефон..."
+          triggerLabel={form.clientLabel || t("deals.create.placeholders.clientSearch")}
+          dialogTitle={t("deals.create.dialog.searchClient")}
+          searchPlaceholder={t("deals.create.placeholders.clientSearch")}
           loading={clientsSearching}
-          emptyLabel={clientSearch.length < 2 ? "Введите минимум 2 символа" : "Клиент не найден"}
+          emptyLabel={clientSearch.length < 2 ? t("deals.create.empty.minSearch") : t("deals.create.empty.clientNotFound")}
           filterFn={(_option, query) => { setClientSearch(query); return true; }}
         />
         {errors.clientId && <p className="text-xs text-red-500">{errors.clientId}</p>}
@@ -263,11 +263,11 @@ export default function DealCreatePage() {
 
       {/* Property */}
       <div className="space-y-2">
-        <label className="text-sm font-semibold text-foreground">Объект (ЖК) *</label>
+        <label className="text-sm font-semibold text-foreground">{t("deals.create.fields.property")} *</label>
         <AppSelect
           id="deal-property"
-          label="Выберите объект"
-          options={[{ value: "", label: propertiesLoading ? "Загрузка..." : "— Выберите ЖК —" }, ...propertyOptions]}
+          label={t("deals.create.placeholders.selectProperty")}
+          options={[{ value: "", label: propertiesLoading ? t("common.loading") : t("deals.create.placeholders.selectPropertyOption") }, ...propertyOptions]}
           value={form.propertyId}
           onChange={(e) => { setField("propertyId", e.target.value); setField("unitId", ""); setField("totalAmount", ""); }}
         />
@@ -277,11 +277,11 @@ export default function DealCreatePage() {
       {/* Unit */}
       {form.propertyId && (
         <div className="space-y-2">
-          <label className="text-sm font-semibold text-foreground">Квартира *</label>
+          <label className="text-sm font-semibold text-foreground">{t("deals.create.fields.unit")} *</label>
           <AppSelect
             id="deal-unit"
-            label="Выберите квартиру"
-            options={[{ value: "", label: unitsLoading ? "Загрузка..." : `— ${units.length} свободных квартир —` }, ...unitOptions]}
+            label={t("deals.create.placeholders.selectUnit")}
+            options={[{ value: "", label: unitsLoading ? t("common.loading") : t("deals.new.availableUnits", { count: units.length }) }, ...unitOptions]}
             value={form.unitId}
             onChange={(e) => handleUnitChange(e.target.value)}
           />
@@ -292,25 +292,25 @@ export default function DealCreatePage() {
             <div className="mt-3 rounded-lg border border-border bg-muted/30 p-4">
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                 <div>
-                  <p className="text-xs text-muted-foreground">Квартира</p>
+                  <p className="text-xs text-muted-foreground">{t("deals.create.fields.unit")}</p>
                   <p className="text-sm font-semibold">№ {selectedUnit.unitNumber}</p>
                 </div>
                 {selectedUnit.rooms ? (
                   <div>
-                    <p className="text-xs text-muted-foreground">Комнат</p>
+                    <p className="text-xs text-muted-foreground">{t("deals.new.rooms")}</p>
                     <p className="text-sm font-semibold">{selectedUnit.rooms}</p>
                   </div>
                 ) : null}
                 {selectedUnit.totalArea ? (
                   <div>
-                    <p className="text-xs text-muted-foreground">Площадь</p>
-                    <p className="text-sm font-semibold">{selectedUnit.totalArea} м²</p>
+                    <p className="text-xs text-muted-foreground">{t("deals.new.area")}</p>
+                    <p className="text-sm font-semibold">{selectedUnit.totalArea} {t("deals.create.labels.squareMeter")}</p>
                   </div>
                 ) : null}
                 {selectedUnit.basePrice ? (
                   <div>
-                    <p className="text-xs text-muted-foreground">Цена</p>
-                    <p className="text-sm font-bold text-primary">{formatMoney(selectedUnit.basePrice, "USD")}</p>
+                    <p className="text-xs text-muted-foreground">{t("deals.new.price")}</p>
+                    <p className="text-sm font-bold text-primary">{formatMoney(selectedUnit.basePrice, "USD", localeCode)}</p>
                   </div>
                 ) : null}
               </div>
@@ -326,9 +326,9 @@ export default function DealCreatePage() {
   const step2Content = (
     <div className="space-y-6">
       <div className="space-y-2">
-        <label className="text-sm font-semibold text-foreground">Тип оплаты</label>
+        <label className="text-sm font-semibold text-foreground">{t("deals.create.fields.paymentType")}</label>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
-          {PAYMENT_TYPE_OPTIONS.map((opt) => (
+          {paymentTypeOptions.map((opt) => (
             <button
               key={opt.value}
               type="button"
@@ -347,7 +347,7 @@ export default function DealCreatePage() {
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <AppInput
-          label="Общая сумма *"
+          label={t("deals.create.fields.totalAmount")}
           type="number"
           value={form.totalAmount}
           onChangeValue={(v) => setField("totalAmount", v)}
@@ -356,7 +356,7 @@ export default function DealCreatePage() {
         />
         <AppSelect
           id="deal-currency"
-          label="Валюта"
+          label={t("deals.create.fields.currency")}
           options={currencyOptions}
           value={form.currency}
           onChange={(e) => setField("currency", e.target.value)}
@@ -366,10 +366,10 @@ export default function DealCreatePage() {
       {/* Installment */}
       {form.paymentType === "installment" && (
         <div className="space-y-4 rounded-xl border border-primary/20 bg-primary/5 p-5">
-          <p className="text-sm font-bold text-foreground">Параметры рассрочки</p>
+          <p className="text-sm font-bold text-foreground">{t("deals.new.installmentTitle")}</p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <AppInput
-              label="Первоначальный взнос"
+              label={t("deals.create.fields.downPayment")}
               type="number"
               value={form.downPayment}
               onChangeValue={(v) => setField("downPayment", v)}
@@ -377,16 +377,16 @@ export default function DealCreatePage() {
             />
             <AppSelect
               id="deal-installment-months"
-              label="Срок *"
-              options={[{ value: "", label: "— Срок —" }, ...INSTALLMENT_MONTH_OPTIONS]}
+              label={t("deals.create.fields.installmentMonths")}
+              options={[{ value: "", label: t("deals.create.placeholders.selectInstallmentMonths") }, ...installmentMonthOptions]}
               value={form.installmentMonths}
               onChange={(e) => setField("installmentMonths", e.target.value)}
               {...(errors.installmentMonths ? { errorText: errors.installmentMonths } : {})}
             />
             <AppSelect
               id="deal-installment-freq"
-              label="Периодичность *"
-              options={[{ value: "", label: "— Выберите —" }, ...INSTALLMENT_FREQUENCY_OPTIONS]}
+              label={t("deals.create.fields.installmentFrequency")}
+              options={[{ value: "", label: t("deals.create.placeholders.selectOption") }, ...installmentFrequencyOptions]}
               value={form.installmentFrequency}
               onChange={(e) => setField("installmentFrequency", e.target.value)}
               {...(errors.installmentFrequency ? { errorText: errors.installmentFrequency } : {})}
@@ -395,13 +395,13 @@ export default function DealCreatePage() {
           {/* Live calculation */}
           <div className="flex flex-wrap gap-6 rounded-lg bg-card p-4">
             <div>
-              <p className="text-xs text-muted-foreground">Остаток</p>
-              <p className="text-lg font-bold text-foreground">{formatMoney(remaining, form.currency)}</p>
+              <p className="text-xs text-muted-foreground">{t("deals.create.calc.remaining")}</p>
+              <p className="text-lg font-bold text-foreground">{formatMoney(remaining, form.currency, localeCode)}</p>
             </div>
             {monthlyPayment !== null && (
               <div>
-                <p className="text-xs text-muted-foreground">Ежемесячный платёж</p>
-                <p className="text-lg font-bold text-primary">{formatMoney(monthlyPayment, form.currency)}</p>
+                <p className="text-xs text-muted-foreground">{t("deals.create.calc.monthlyPayment")}</p>
+                <p className="text-lg font-bold text-primary">{formatMoney(monthlyPayment, form.currency, localeCode)}</p>
               </div>
             )}
           </div>
@@ -411,24 +411,24 @@ export default function DealCreatePage() {
       {/* Mortgage */}
       {form.paymentType === "mortgage" && (
         <div className="space-y-4 rounded-xl border border-blue-200 bg-blue-50/50 p-5 dark:border-blue-800 dark:bg-blue-900/20">
-          <p className="text-sm font-bold text-foreground">Параметры ипотеки</p>
+          <p className="text-sm font-bold text-foreground">{t("deals.create.mortgage.title")}</p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <AppInput
-              label="Первоначальный взнос"
+              label={t("deals.create.fields.downPayment")}
               type="number"
               value={form.downPayment}
               onChangeValue={(v) => setField("downPayment", v)}
               placeholder="0"
             />
             <AppInput
-              label="Банк *"
+              label={t("deals.create.fields.mortgageBank")}
               value={form.mortgageBank}
               onChangeValue={(v) => setField("mortgageBank", v)}
-              placeholder="Название банка"
+              placeholder={t("deals.new.bankPlaceholder")}
               {...(errors.mortgageBank ? { errorText: errors.mortgageBank } : {})}
             />
             <AppInput
-              label="Ставка (%)"
+              label={t("deals.create.fields.mortgageRate")}
               type="number"
               value={form.mortgageRate}
               onChangeValue={(v) => setField("mortgageRate", v)}
@@ -439,19 +439,19 @@ export default function DealCreatePage() {
       )}
 
       <AppInput
-        label="Примечание"
+        label={t("deals.create.fields.notes")}
         value={form.notes}
         onChangeValue={(v) => setField("notes", v)}
-        placeholder="Дополнительная информация..."
+        placeholder={t("deals.new.notesPlaceholder")}
       />
     </div>
   );
 
   // ─── Step 3: Confirmation ─────────────────────────────────────────────
 
-  const selectedPropertyName = properties.find((p) => p.id === form.propertyId)?.name ?? "—";
-  const selectedUnitLabel = unitOptions.find((u) => u.value === form.unitId)?.label ?? "—";
-  const selectedPaymentLabel = PAYMENT_TYPE_OPTIONS.find((p) => p.value === form.paymentType)?.label ?? "—";
+  const selectedPropertyName = properties.find((p) => p.id === form.propertyId)?.name ?? t("deals.create.labels.dash");
+  const selectedUnitLabel = unitOptions.find((u) => u.value === form.unitId)?.label ?? t("deals.create.labels.dash");
+  const selectedPaymentLabel = paymentTypeOptions.find((p) => p.value === form.paymentType)?.label ?? t("deals.create.labels.dash");
 
   const step3Content = (
     <div className="space-y-5">
@@ -462,26 +462,26 @@ export default function DealCreatePage() {
       )}
 
       <div className="rounded-xl border border-border bg-card p-6">
-        <h3 className="mb-5 text-lg font-bold text-foreground">Итого по сделке</h3>
+        <h3 className="mb-5 text-lg font-bold text-foreground">{t("deals.create.summary.title")}</h3>
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          <SummaryItem label="Клиент" value={form.clientLabel || "—"} />
-          <SummaryItem label="Объект" value={selectedPropertyName} />
-          <SummaryItem label="Квартира" value={selectedUnitLabel} />
-          <SummaryItem label="Тип оплаты">
+          <SummaryItem label={t("deals.create.fields.client")} value={form.clientLabel || t("deals.create.labels.dash")} />
+          <SummaryItem label={t("deals.create.fields.propertyShort")} value={selectedPropertyName} />
+          <SummaryItem label={t("deals.create.fields.unit")} value={selectedUnitLabel} />
+          <SummaryItem label={t("deals.create.fields.paymentType")}>
             <AppStatusBadge label={selectedPaymentLabel} tone="info" />
           </SummaryItem>
-          <SummaryItem label="Общая сумма" value={totalAmountNum > 0 ? formatMoney(totalAmountNum, form.currency) : "—"} bold />
+          <SummaryItem label={t("deals.create.fields.totalAmount")} value={totalAmountNum > 0 ? formatMoney(totalAmountNum, form.currency, localeCode) : t("deals.create.labels.dash")} bold />
           {downPaymentNum > 0 && (
-            <SummaryItem label="Первоначальный взнос" value={formatMoney(downPaymentNum, form.currency)} />
+            <SummaryItem label={t("deals.create.fields.downPayment")} value={formatMoney(downPaymentNum, form.currency, localeCode)} />
           )}
           {installmentMonthsNum > 0 && (
-            <SummaryItem label="Срок рассрочки" value={`${installmentMonthsNum} мес.`} />
+            <SummaryItem label={t("deals.create.fields.installmentMonths")} value={t("deals.new.monthsShort", { months: installmentMonthsNum })} />
           )}
           {monthlyPayment !== null && (
-            <SummaryItem label="Ежемесячный платёж" value={formatMoney(monthlyPayment, form.currency)} bold />
+            <SummaryItem label={t("deals.create.calc.monthlyPayment")} value={formatMoney(monthlyPayment, form.currency, localeCode)} bold />
           )}
-          {form.mortgageBank && <SummaryItem label="Банк" value={form.mortgageBank} />}
-          {form.notes && <SummaryItem label="Примечание" value={form.notes} />}
+          {form.mortgageBank && <SummaryItem label={t("deals.create.fields.mortgageBank")} value={form.mortgageBank} />}
+          {form.notes && <SummaryItem label={t("deals.create.fields.notes")} value={form.notes} />}
         </div>
       </div>
     </div>
@@ -490,9 +490,9 @@ export default function DealCreatePage() {
   // ─── Wizard steps ─────────────────────────────────────────────────────
 
   const steps: readonly AppStepWizardStep[] = [
-    { id: "client-unit", label: "Клиент и квартира", content: step1Content, validate: validateStep1 },
-    { id: "payment", label: "Условия оплаты", content: step2Content, validate: validateStep2 },
-    { id: "confirm", label: "Подтверждение", content: step3Content },
+    { id: "client-unit", label: t("deals.create.steps.clientAndUnit"), content: step1Content, validate: validateStep1 },
+    { id: "payment", label: t("deals.new.paymentConditions"), content: step2Content, validate: validateStep2 },
+    { id: "confirm", label: t("deals.create.steps.confirm"), content: step3Content },
   ];
 
   // ─── Render ───────────────────────────────────────────────────────────
@@ -500,12 +500,12 @@ export default function DealCreatePage() {
   return (
     <main className="space-y-6 p-4 md:p-6">
       <AppPageHeader
-        title="Новая сделка"
-        subtitle="Оформление продажи квартиры"
+        title={t("deals.create.title")}
+        subtitle={t("deals.new.pageSubtitle")}
         breadcrumbs={[
-          { id: "dashboard", label: "Панель", href: routes.dashboard },
-          { id: "deals", label: "Сделки", href: routes.deals },
-          { id: "new", label: "Новая сделка" },
+          { id: "dashboard", label: t("nav.dashboard"), href: routes.dashboard },
+          { id: "deals", label: t("nav.deals"), href: routes.deals },
+          { id: "new", label: t("deals.create.title") },
         ]}
       />
 
@@ -516,9 +516,9 @@ export default function DealCreatePage() {
           onStepChange={setActiveStep}
           onComplete={() => { void handleSubmit(); }}
           loading={isPending}
-          completeLabel="Создать сделку"
-          nextLabel="Далее"
-          backLabel="Назад"
+          completeLabel={t("deals.create.createDeal")}
+          nextLabel={t("wizard.next")}
+          backLabel={t("wizard.back")}
         />
       </Paper>
     </main>

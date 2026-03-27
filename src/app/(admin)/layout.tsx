@@ -1,6 +1,7 @@
 import { Suspense, type ReactNode } from "react";
 import { AuthGuard } from "@/modules/auth/presentation/components/auth-guard";
 import { AppShell } from "@/shared/ui/layout/app-shell";
+import { IdleLogoutGuard } from "@/shared/ui/layout/idle-logout-guard";
 import { NextAuthRepository } from "@/modules/auth/infrastructure/auth-repository";
 import { createGetCurrentUserUseCase } from "@/modules/auth/application/use-cases/get-current-user.use-case";
 import { TenantProvider, type TenantInfo } from "@/shared/providers/tenant-provider";
@@ -30,6 +31,7 @@ export default async function AdminLayout({ children }: AdminLayoutProps) {
   return (
     <AuthGuard>
       <TenantProvider tenant={tenant}>
+        <IdleLogoutGuard />
         <Suspense fallback={<div className="p-6 text-sm text-muted-foreground">Loading...</div>}>
           <AppShell>{children}</AppShell>
         </Suspense>

@@ -7,6 +7,7 @@ import { routes } from "@/shared/constants/routes";
 import { useCompanySettingsQuery } from "@/modules/admin/presentation/hooks/use-company-settings-query";
 import { useSetSettingMutation } from "@/modules/admin/presentation/hooks/use-set-setting-mutation";
 import type { SettingKey } from "@/modules/admin/domain/admin";
+import { useI18n } from "@/shared/providers/locale-provider";
 
 // ─── Well-known settings config ───────────────────────────────────────────────
 
@@ -17,33 +18,6 @@ interface SettingConfig {
   inputType: "number" | "text";
 }
 
-const KNOWN_SETTINGS: SettingConfig[] = [
-  {
-    key: "booking_days",
-    label: "Срок бронирования (дней)",
-    placeholder: "например: 7",
-    inputType: "number",
-  },
-  {
-    key: "penalty_rate",
-    label: "Ставка пени (%)",
-    placeholder: "например: 0.1",
-    inputType: "number",
-  },
-  {
-    key: "max_discount",
-    label: "Максимальная скидка (%)",
-    placeholder: "например: 10",
-    inputType: "number",
-  },
-  {
-    key: "primary_currency",
-    label: "Основная валюта",
-    placeholder: "например: TJS",
-    inputType: "text",
-  },
-];
-
 // ─── Setting row ──────────────────────────────────────────────────────────────
 
 interface SettingRowProps {
@@ -51,9 +25,12 @@ interface SettingRowProps {
   currentValue: string | undefined;
   onSave: (key: string, value: string) => void;
   isSaving: boolean;
+  editLabel: string;
+  cancelLabel: string;
+  saveLabel: string;
 }
 
-function SettingRow({ config, currentValue, onSave, isSaving }: SettingRowProps) {
+function SettingRow({ config, currentValue, onSave, isSaving, editLabel, cancelLabel, saveLabel }: SettingRowProps) {
   const [editing, setEditing] = useState(false);
   const [editValue, setEditValue] = useState(currentValue ?? "");
 
@@ -106,7 +83,7 @@ function SettingRow({ config, currentValue, onSave, isSaving }: SettingRowProps)
       <Box sx={{ display: "flex", gap: 1, flexShrink: 0 }}>
         {!editing && (
           <AppButton
-            label="Изменить"
+            label={editLabel}
             variant="outline"
             size="sm"
             onClick={handleEdit}
@@ -115,13 +92,13 @@ function SettingRow({ config, currentValue, onSave, isSaving }: SettingRowProps)
         {editing && (
           <>
             <AppButton
-              label="Отмена"
+              label={cancelLabel}
               variant="outline"
               size="sm"
               onClick={handleCancel}
             />
             <AppButton
-              label="Сохранить"
+              label={saveLabel}
               variant="primary"
               size="sm"
               disabled={!editValue.trim() || isSaving}
@@ -137,6 +114,7 @@ function SettingRow({ config, currentValue, onSave, isSaving }: SettingRowProps)
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function SettingsCompanyPage() {
+  const { t } = useI18n();
   const { data: settings, isLoading, isError } = useCompanySettingsQuery();
   const setSettingMutation = useSetSettingMutation();
 
@@ -158,14 +136,41 @@ export default function SettingsCompanyPage() {
     );
   }
 
+  const knownSettings: SettingConfig[] = [
+    {
+      key: "booking_days",
+      label: t("settings.company.fields.bookingDays"),
+      placeholder: t("settings.company.placeholders.bookingDays"),
+      inputType: "number",
+    },
+    {
+      key: "penalty_rate",
+      label: t("settings.company.fields.penaltyRate"),
+      placeholder: t("settings.company.placeholders.penaltyRate"),
+      inputType: "number",
+    },
+    {
+      key: "max_discount",
+      label: t("settings.company.fields.maxDiscount"),
+      placeholder: t("settings.company.placeholders.maxDiscount"),
+      inputType: "number",
+    },
+    {
+      key: "primary_currency",
+      label: t("settings.company.fields.primaryCurrency"),
+      placeholder: t("settings.company.placeholders.primaryCurrency"),
+      inputType: "text",
+    },
+  ];
+
   return (
     <main className="space-y-6 p-4 md:p-6">
       <AppPageHeader
-        title="Настройки компании"
+        title={t("settings.company.title")}
         breadcrumbs={[
-          { id: "dashboard", label: "Панель", href: routes.dashboard },
-          { id: "settings", label: "Настройки", href: routes.settings },
-          { id: "company", label: "Компания" },
+          { id: "dashboard", label: t("nav.dashboard"), href: routes.dashboard },
+          { id: "settings", label: t("nav.settings"), href: routes.settings },
+          { id: "company", label: t("nav.settings_company") },
         ]}
       />
 
@@ -179,8 +184,8 @@ export default function SettingsCompanyPage() {
       {isError && (
         <AppStatePanel
           tone="error"
-          title="Ошибка загрузки"
-          description="Не удалось загрузить настройки компании. Попробуйте обновить страницу."
+          title={t("settings.company.error.title")}
+          description={t("settings.company.error.description")}
         />
       )}
 
@@ -188,7 +193,7 @@ export default function SettingsCompanyPage() {
         <>
           {successKey && (
             <Alert severity="success" onClose={() => setSuccessKey(null)}>
-              Настройка сохранена успешно.
+              {t("settings.company.success.saved")}
             </Alert>
           )}
 
@@ -203,18 +208,21 @@ export default function SettingsCompanyPage() {
             }}
           >
             <Typography variant="h6" sx={{ py: 2, fontWeight: 600 }}>
-              Общие настройки
+              {t("settings.company.sections.general")}
             </Typography>
             <Divider />
-            {KNOWN_SETTINGS.map((config, index) => (
+            {knownSettings.map((config, index) => (
               <Box key={config.key}>
                 <SettingRow
                   config={config}
                   currentValue={getSettingValue(config.key)}
                   onSave={handleSave}
                   isSaving={setSettingMutation.isPending}
+                  editLabel={t("actionMenu.edit")}
+                  cancelLabel={t("common.cancel")}
+                  saveLabel={t("common.save")}
                 />
-                {index < KNOWN_SETTINGS.length - 1 && <Divider />}
+                {index < knownSettings.length - 1 && <Divider />}
               </Box>
             ))}
           </Box>
@@ -231,20 +239,24 @@ export default function SettingsCompanyPage() {
             }}
           >
             <Typography variant="h6" sx={{ py: 2, fontWeight: 600 }}>
-              Оплаты
+              {t("settings.company.sections.payments")}
             </Typography>
             <Divider />
             <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", py: 2 }}>
               <Box>
                 <Typography variant="body2" color="text.secondary">
-                  Автоматическое подтверждение платежей
+                  {t("settings.company.autoConfirm.title")}
                 </Typography>
                 <Typography variant="caption" color="text.secondary">
-                  При включении платежи подтверждаются сразу без ручной проверки
+                  {t("settings.company.autoConfirm.description")}
                 </Typography>
               </Box>
               <AppButton
-                label={getSettingValue("auto_confirm_payments") === "false" ? "Выключено" : "Включено"}
+                label={
+                  getSettingValue("auto_confirm_payments") === "false"
+                    ? t("settings.company.autoConfirm.off")
+                    : t("settings.company.autoConfirm.on")
+                }
                 variant={getSettingValue("auto_confirm_payments") === "false" ? "outline" : "primary"}
                 size="sm"
                 disabled={setSettingMutation.isPending}

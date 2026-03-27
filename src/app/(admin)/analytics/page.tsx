@@ -15,6 +15,7 @@ import { useDashboardSummaryQuery } from "@/modules/dashboard/presentation/hooks
 import { useDashboardSalesQuery } from "@/modules/dashboard/presentation/hooks/use-dashboard-sales-query";
 import { useDashboardManagerKpiQuery } from "@/modules/dashboard/presentation/hooks/use-dashboard-manager-kpi-query";
 import type { ManagerKpiItem } from "@/modules/dashboard/domain/dashboard";
+import { useI18n } from "@/shared/providers/locale-provider";
 
 function formatDate(date: Date): string {
   const y = date.getFullYear();
@@ -29,31 +30,8 @@ function sixMonthsAgo(): string {
   return formatDate(d);
 }
 
-const managerColumns: readonly AppDataTableColumn<ManagerKpiItem>[] = [
-  {
-    id: "managerName",
-    header: "Менеджер",
-    cell: (row) => row.managerName,
-    sortAccessor: (row) => row.managerName,
-    searchAccessor: (row) => row.managerName,
-  },
-  {
-    id: "dealsCount",
-    header: "Сделок",
-    cell: (row) => row.dealsCount,
-    sortAccessor: (row) => row.dealsCount,
-    align: "right",
-  },
-  {
-    id: "totalAmount",
-    header: "Сумма",
-    cell: (row) => row.totalAmount.toLocaleString("ru-RU"),
-    sortAccessor: (row) => row.totalAmount,
-    align: "right",
-  },
-];
-
 export default function AnalyticsPage() {
+  const { locale, t } = useI18n();
   const from = useMemo(() => sixMonthsAgo(), []);
   const to = useMemo(() => formatDate(new Date()), []);
 
@@ -61,20 +39,44 @@ export default function AnalyticsPage() {
   const salesQuery = useDashboardSalesQuery(from, to);
   const managerQuery = useDashboardManagerKpiQuery();
 
+  const managerColumns: readonly AppDataTableColumn<ManagerKpiItem>[] = [
+    {
+      id: "managerName",
+      header: t("analytics.common.manager"),
+      cell: (row) => row.managerName,
+      sortAccessor: (row) => row.managerName,
+      searchAccessor: (row) => row.managerName,
+    },
+    {
+      id: "dealsCount",
+      header: t("analytics.common.deals"),
+      cell: (row) => row.dealsCount,
+      sortAccessor: (row) => row.dealsCount,
+      align: "right",
+    },
+    {
+      id: "totalAmount",
+      header: t("analytics.common.amount"),
+      cell: (row) => row.totalAmount.toLocaleString(locale === "en" ? "en-US" : "ru-RU"),
+      sortAccessor: (row) => row.totalAmount,
+      align: "right",
+    },
+  ];
+
   if (summaryQuery.isError || salesQuery.isError || managerQuery.isError) {
     return (
       <main className="space-y-6 p-4 md:p-6">
         <AppPageHeader
-          title="Аналитика"
+          title={t("analytics.page.title")}
           breadcrumbs={[
-            { id: "dashboard", label: "Панель", href: routes.dashboard },
-            { id: "analytics", label: "Аналитика" },
+            { id: "dashboard", label: t("nav.dashboard"), href: routes.dashboard },
+            { id: "analytics", label: t("analytics.page.title") },
           ]}
         />
         <AppStatePanel
           tone="error"
-          title="Ошибка загрузки аналитики"
-          description="Не удалось загрузить данные аналитики."
+          title={t("analytics.page.errorTitle")}
+          description={t("analytics.page.errorDescription")}
         />
       </main>
     );
@@ -97,31 +99,38 @@ export default function AnalyticsPage() {
   return (
     <main className="space-y-6 p-4 md:p-6">
       <AppPageHeader
-        title="Аналитика"
-        subtitle="Сводная аналитика по продажам и менеджерам"
+        title={t("analytics.page.title")}
+        subtitle={t("analytics.page.subtitle")}
         breadcrumbs={[
-          { id: "dashboard", label: "Панель", href: routes.dashboard },
-          { id: "analytics", label: "Аналитика" },
+          { id: "dashboard", label: t("nav.dashboard"), href: routes.dashboard },
+          { id: "analytics", label: t("analytics.page.title") },
         ]}
       />
 
       <AppKpiGrid
         columns={4}
         items={[
-          { title: "Выручка", value: (summary?.totalRevenue ?? 0).toLocaleString("ru-RU") },
-          { title: "Дебиторка", value: (summary?.totalDebt ?? 0).toLocaleString("ru-RU"), deltaTone: "warning" },
-          { title: "Активные сделки", value: summary?.activeDeals ?? 0, deltaTone: "info" },
-          { title: "Просрочено", value: summary?.overdueCount ?? 0, deltaTone: "danger" },
+          {
+            title: t("analytics.page.kpi.revenue"),
+            value: (summary?.totalRevenue ?? 0).toLocaleString(locale === "en" ? "en-US" : "ru-RU"),
+          },
+          {
+            title: t("analytics.page.kpi.receivables"),
+            value: (summary?.totalDebt ?? 0).toLocaleString(locale === "en" ? "en-US" : "ru-RU"),
+            deltaTone: "warning",
+          },
+          { title: t("analytics.page.kpi.activeDeals"), value: summary?.activeDeals ?? 0, deltaTone: "info" },
+          { title: t("analytics.page.kpi.overdue"), value: summary?.overdueCount ?? 0, deltaTone: "danger" },
         ]}
       />
 
       <AppChartWidget
         type="bar"
-        title="Продажи по месяцам"
+        title={t("analytics.page.salesByMonth")}
         data={monthlyData}
         series={[
-          { key: "count", label: "Сделки", color: "#2563EB" },
-          { key: "amount", label: "Сумма", color: "#16A34A" },
+          { key: "count", label: t("analytics.common.deals"), color: "#2563EB" },
+          { key: "amount", label: t("analytics.common.amount"), color: "#16A34A" },
         ]}
         height={320}
         loading={summaryQuery.isLoading || salesQuery.isLoading}
@@ -129,9 +138,9 @@ export default function AnalyticsPage() {
 
       <AppChartWidget
         type="doughnut"
-        title="Типы оплаты"
+        title={t("analytics.page.paymentTypes")}
         data={paymentTypeData}
-        series={[{ key: "value", label: "Сделки" }]}
+        series={[{ key: "value", label: t("analytics.common.deals") }]}
         height={280}
         loading={salesQuery.isLoading}
       />
@@ -140,8 +149,8 @@ export default function AnalyticsPage() {
         data={managerQuery.data ?? []}
         columns={managerColumns}
         rowKey={(row) => row.managerId}
-        title="KPI менеджеров"
-        searchPlaceholder="Поиск по менеджеру..."
+        title={t("analytics.page.managersKpi")}
+        searchPlaceholder={t("analytics.page.searchByManager")}
         enableSettings={false}
       />
     </main>

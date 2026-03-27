@@ -19,59 +19,13 @@ import { useCreatePipelineStageMutation } from "@/modules/clients/presentation/h
 import { useUpdatePipelineStageMutation } from "@/modules/clients/presentation/hooks/use-update-pipeline-stage-mutation";
 import { useDeletePipelineStageMutation } from "@/modules/clients/presentation/hooks/use-delete-pipeline-stage-mutation";
 import type { PipelineStageDetail } from "@/modules/clients/infrastructure/clients-repository";
-
-// ─── Columns ─────────────────────────────────────────────────────────────────
-
-const COLUMNS: readonly AppDataTableColumn<PipelineStageDetail>[] = [
-  {
-    id: "order",
-    header: "#",
-    cell: (row) => row.sortOrder,
-    sortAccessor: (row) => row.sortOrder,
-    align: "center",
-  },
-  {
-    id: "name",
-    header: "Название",
-    cell: (row) => (
-      <span className="flex items-center gap-2">
-        <span
-          className="inline-block h-3 w-3 rounded-full"
-          style={{ backgroundColor: row.color || "#94a3b8" }}
-        />
-        {row.name}
-      </span>
-    ),
-    searchAccessor: (row) => row.name,
-    sortAccessor: (row) => row.name,
-  },
-  {
-    id: "slug",
-    header: "Slug",
-    cell: (row) => <code className="text-xs text-muted-foreground">{row.slug}</code>,
-  },
-  {
-    id: "clientsCount",
-    header: "Клиентов",
-    cell: (row) => row.clientsCount,
-    sortAccessor: (row) => row.clientsCount,
-    align: "right",
-  },
-  {
-    id: "flags",
-    header: "Флаги",
-    cell: (row) => (
-      <span className="flex gap-1">
-        {row.isDefault ? <AppStatusBadge label="По умолчанию" tone="info" /> : null}
-        {row.isFinal ? <AppStatusBadge label="Финальный" tone="success" /> : null}
-      </span>
-    ),
-  },
-];
+import { useI18n } from "@/shared/providers/locale-provider";
+import { routes } from "@/shared/constants/routes";
 
 // ─── Page ────────────────────────────────────────────────────────────────────
 
 export default function PipelineSettingsPage() {
+  const { t } = useI18n();
   const [createOpen, setCreateOpen] = useState(false);
   const [editStage, setEditStage] = useState<PipelineStageDetail | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -154,19 +108,62 @@ export default function PipelineSettingsPage() {
   }
 
   const columnsWithActions: readonly AppDataTableColumn<PipelineStageDetail>[] = [
-    ...COLUMNS,
+    {
+      id: "order",
+      header: t("settings.pipeline.columns.order"),
+      cell: (row) => row.sortOrder,
+      sortAccessor: (row) => row.sortOrder,
+      align: "center",
+    },
+    {
+      id: "name",
+      header: t("settings.pipeline.columns.name"),
+      cell: (row) => (
+        <span className="flex items-center gap-2">
+          <span
+            className="inline-block h-3 w-3 rounded-full"
+            style={{ backgroundColor: row.color || "#94a3b8" }}
+          />
+          {row.name}
+        </span>
+      ),
+      searchAccessor: (row) => row.name,
+      sortAccessor: (row) => row.name,
+    },
+    {
+      id: "slug",
+      header: t("settings.pipeline.columns.slug"),
+      cell: (row) => <code className="text-xs text-muted-foreground">{row.slug}</code>,
+    },
+    {
+      id: "clientsCount",
+      header: t("settings.pipeline.columns.clientsCount"),
+      cell: (row) => row.clientsCount,
+      sortAccessor: (row) => row.clientsCount,
+      align: "right",
+    },
+    {
+      id: "flags",
+      header: t("settings.pipeline.columns.flags"),
+      cell: (row) => (
+        <span className="flex gap-1">
+          {row.isDefault ? <AppStatusBadge label={t("settings.pipeline.flags.default")} tone="info" /> : null}
+          {row.isFinal ? <AppStatusBadge label={t("settings.pipeline.flags.final")} tone="success" /> : null}
+        </span>
+      ),
+    },
     {
       id: "actions",
       header: "",
       cell: (row) => (
         <AppActionMenu
-          triggerLabel="Действия"
+          triggerLabel={t("actionMenu.trigger")}
           groups={[
             {
               id: "main",
               items: [
-                { id: "edit", label: "Редактировать", onClick: () => openEdit(row) },
-                { id: "delete", label: "Удалить", destructive: true, onClick: () => setDeleteId(row.id) },
+                { id: "edit", label: t("actionMenu.edit"), onClick: () => openEdit(row) },
+                { id: "delete", label: t("actionMenu.delete"), destructive: true, onClick: () => setDeleteId(row.id) },
               ],
             },
           ]}
@@ -180,7 +177,7 @@ export default function PipelineSettingsPage() {
     <div className="space-y-4">
       <AppInput
         id="stage-name"
-        label="Название"
+        label={t("settings.pipeline.form.name")}
         value={formName}
         onChange={(e) => setFormName(e.target.value)}
         required
@@ -188,23 +185,23 @@ export default function PipelineSettingsPage() {
       {createOpen ? (
         <AppInput
           id="stage-slug"
-          label="Slug"
+          label={t("settings.pipeline.form.slug")}
           value={formSlug}
           onChange={(e) => setFormSlug(e.target.value)}
           required
-          placeholder="e.g. new_lead, negotiation, won"
+          placeholder={t("settings.pipeline.form.slugPlaceholder")}
         />
       ) : null}
       <AppInput
         id="stage-color"
-        label="Цвет"
+        label={t("settings.pipeline.form.color")}
         type="color"
         value={formColor}
         onChange={(e) => setFormColor(e.target.value)}
       />
       <AppInput
         id="stage-order"
-        label="Порядок"
+        label={t("settings.pipeline.form.order")}
         type="number"
         value={formOrder}
         onChange={(e) => setFormOrder(e.target.value)}
@@ -215,7 +212,7 @@ export default function PipelineSettingsPage() {
           checked={formIsFinal}
           onChange={(e) => setFormIsFinal(e.target.checked)}
         />
-        Финальный этап (сделка закрыта)
+        {t("settings.pipeline.form.isFinal")}
       </label>
       {createOpen ? (
         <label className="flex items-center gap-2 text-sm">
@@ -224,7 +221,7 @@ export default function PipelineSettingsPage() {
             checked={formIsDefault}
             onChange={(e) => setFormIsDefault(e.target.checked)}
           />
-          По умолчанию для новых клиентов
+          {t("settings.pipeline.form.isDefault")}
         </label>
       ) : null}
     </div>
@@ -233,15 +230,15 @@ export default function PipelineSettingsPage() {
   return (
     <main className="space-y-6 p-4 md:p-6">
       <AppPageHeader
-        title="Этапы воронки"
-        subtitle="Настройка этапов CRM-воронки продаж"
+        title={t("settings.pipeline.title")}
+        subtitle={t("settings.pipeline.subtitle")}
         breadcrumbs={[
-          { id: "home", label: "Панель", href: "/dashboard" },
-          { id: "settings", label: "Настройки", href: "/settings" },
-          { id: "pipeline", label: "Этапы воронки" },
+          { id: "home", label: t("nav.dashboard"), href: routes.dashboard },
+          { id: "settings", label: t("nav.settings"), href: routes.settings },
+          { id: "pipeline", label: t("settings.pipeline.title") },
         ]}
         actions={
-          <AppButton label="Добавить этап" variant="primary" onClick={openCreate} />
+          <AppButton label={t("settings.pipeline.addButton")} variant="primary" onClick={openCreate} />
         }
       />
 
@@ -250,16 +247,16 @@ export default function PipelineSettingsPage() {
       ) : stagesQuery.isError ? (
         <AppStatePanel
           tone="error"
-          title="Ошибка загрузки"
-          description="Не удалось загрузить этапы воронки"
+          title={t("settings.pipeline.error.title")}
+          description={t("settings.pipeline.error.description")}
         />
       ) : (
         <AppDataTable<PipelineStageDetail>
-          title="Этапы"
+          title={t("settings.pipeline.tableTitle")}
           data={stages}
           columns={columnsWithActions}
           rowKey={(row) => row.id}
-          searchPlaceholder="Поиск по названию..."
+          searchPlaceholder={t("settings.pipeline.searchPlaceholder")}
           enableExport={false}
         />
       )}
@@ -268,9 +265,9 @@ export default function PipelineSettingsPage() {
       <AppDrawerForm
         open={createOpen}
         onClose={() => setCreateOpen(false)}
-        title="Новый этап"
+        title={t("settings.pipeline.create.title")}
         onSave={handleCreate}
-        saveLabel="Создать"
+        saveLabel={t("settings.pipeline.create.save")}
         isSaving={createMutation.isPending}
       >
         {formFields}
@@ -280,9 +277,9 @@ export default function PipelineSettingsPage() {
       <AppDrawerForm
         open={editStage !== null}
         onClose={() => { setEditStage(null); resetForm(); }}
-        title="Редактировать этап"
+        title={t("settings.pipeline.edit.title")}
         onSave={handleUpdate}
-        saveLabel="Сохранить"
+        saveLabel={t("common.save")}
         isSaving={updateMutation.isPending}
       >
         {formFields}
@@ -291,10 +288,10 @@ export default function PipelineSettingsPage() {
       {/* Delete confirmation */}
       <ConfirmDialog
         open={deleteId !== null}
-        title="Удалить этап"
-        message="Вы уверены, что хотите удалить этот этап воронки? Клиенты на этом этапе останутся без этапа."
-        confirmText="Удалить"
-        cancelText="Отмена"
+        title={t("settings.pipeline.delete.title")}
+        message={t("settings.pipeline.delete.message")}
+        confirmText={t("common.delete")}
+        cancelText={t("common.cancel")}
         destructive
         onConfirm={handleDelete}
         onClose={() => setDeleteId(null)}

@@ -28,49 +28,15 @@ import type {
   PayableReminderListParams,
 } from "@/modules/finance/domain/finance";
 import { usePropertyContext } from "@/shared/providers/property-provider";
+import { useI18n } from "@/shared/providers/locale-provider";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-
-const PAYEE_TYPE_LABEL: Record<PayeeType, string> = {
-  supplier: "Поставщик",
-  contractor: "Подрядчик",
-  master: "Мастер",
-  other: "Другое",
-};
-
-const STATUS_LABEL: Record<ReminderStatus, string> = {
-  pending: "Ожидает",
-  paid: "Оплачено",
-  cancelled: "Отменено",
-};
 
 const STATUS_TONE: Record<ReminderStatus, AppStatusTone> = {
   pending: "warning",
   paid: "success",
   cancelled: "muted",
 };
-
-const STATUS_FILTER_OPTIONS = [
-  { value: "", label: "Все статусы" },
-  { value: "pending", label: "Ожидает" },
-  { value: "paid", label: "Оплачено" },
-  { value: "cancelled", label: "Отменено" },
-] as const;
-
-const PAYEE_TYPE_FILTER_OPTIONS = [
-  { value: "", label: "Все типы" },
-  { value: "supplier", label: "Поставщик" },
-  { value: "contractor", label: "Подрядчик" },
-  { value: "master", label: "Мастер" },
-  { value: "other", label: "Другое" },
-] as const;
-
-const PAYEE_TYPE_OPTIONS = [
-  { value: "supplier" as PayeeType, label: "Поставщик" },
-  { value: "contractor" as PayeeType, label: "Подрядчик" },
-  { value: "master" as PayeeType, label: "Мастер" },
-  { value: "other" as PayeeType, label: "Другое" },
-] as const;
 
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -81,10 +47,6 @@ function isOverdue(reminder: PayableReminder): boolean {
     return false;
   }
   return reminder.status === "pending" && dueTime < Date.now();
-}
-
-function formatMoney(amount: number, currency: string): string {
-  return `${amount.toLocaleString("ru-RU")} ${currency}`;
 }
 
 function todayIso(): string {
@@ -114,6 +76,7 @@ const INITIAL_FORM: CreateFormState = {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function PayableRemindersPage() {
+  const { locale, t } = useI18n();
   const currencyOptions = useCurrencyOptions();
   const { currentPropertyId } = usePropertyContext();
   const [filterStatus, setFilterStatus] = useState<string>("");
@@ -134,6 +97,41 @@ export default function PayableRemindersPage() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [form, setForm] = useState<CreateFormState>(INITIAL_FORM);
 
+  const payeeTypeLabel: Record<PayeeType, string> = {
+    supplier: t("finance.reminders.payee.supplier"),
+    contractor: t("finance.reminders.payee.contractor"),
+    master: t("finance.reminders.payee.master"),
+    other: t("finance.reminders.payee.other"),
+  };
+
+  const statusLabel: Record<ReminderStatus, string> = {
+    pending: t("finance.reminders.status.pending"),
+    paid: t("finance.reminders.status.paid"),
+    cancelled: t("finance.reminders.status.cancelled"),
+  };
+
+  const statusFilterOptions = [
+    { value: "", label: t("finance.reminders.filters.allStatuses") },
+    { value: "pending", label: t("finance.reminders.status.pending") },
+    { value: "paid", label: t("finance.reminders.status.paid") },
+    { value: "cancelled", label: t("finance.reminders.status.cancelled") },
+  ] as const;
+
+  const payeeTypeFilterOptions = [
+    { value: "", label: t("finance.reminders.filters.allTypes") },
+    { value: "supplier", label: t("finance.reminders.payee.supplier") },
+    { value: "contractor", label: t("finance.reminders.payee.contractor") },
+    { value: "master", label: t("finance.reminders.payee.master") },
+    { value: "other", label: t("finance.reminders.payee.other") },
+  ] as const;
+
+  const payeeTypeOptions = [
+    { value: "supplier" as PayeeType, label: t("finance.reminders.payee.supplier") },
+    { value: "contractor" as PayeeType, label: t("finance.reminders.payee.contractor") },
+    { value: "master" as PayeeType, label: t("finance.reminders.payee.master") },
+    { value: "other" as PayeeType, label: t("finance.reminders.payee.other") },
+  ] as const;
+
   // Sort: by due_date ascending (closest first), overdue on top
   const sortedReminders = [...(reminders ?? [])].sort((a, b) => {
     const aOverdue = isOverdue(a) ? 0 : 1;
@@ -149,48 +147,50 @@ export default function PayableRemindersPage() {
   const columns: readonly AppDataTableColumn<PayableReminder>[] = [
     {
       id: "dueDate",
-      header: "Срок оплаты",
+      header: t("finance.reminders.columns.dueDate"),
       cell: (row) => (
         <span style={{ color: isOverdue(row) ? "var(--color-danger, #dc2626)" : undefined, fontWeight: isOverdue(row) ? 700 : undefined }}>
           {row.dueDate}
-          {isOverdue(row) ? " (!)" : ""}
+          {isOverdue(row) ? ` (${t("finance.reminders.overdueMark")})` : ""}
         </span>
       ),
       sortAccessor: (row) => row.dueDate,
     },
     {
       id: "payeeName",
-      header: "Кому",
+      header: t("finance.reminders.columns.payeeName"),
       cell: (row) => row.payeeName,
       searchAccessor: (row) => row.payeeName,
       sortAccessor: (row) => row.payeeName,
     },
     {
       id: "payeeType",
-      header: "Тип",
-      cell: (row) => PAYEE_TYPE_LABEL[row.payeeType],
+      header: t("finance.reminders.columns.payeeType"),
+      cell: (row) => payeeTypeLabel[row.payeeType],
       sortAccessor: (row) => row.payeeType,
     },
     {
       id: "amount",
-      header: "Сумма",
+      header: t("finance.reminders.columns.amount"),
       cell: (row) => (
-        <span style={{ fontWeight: 600 }}>{formatMoney(row.amount, row.currency)}</span>
+        <span style={{ fontWeight: 600 }}>
+          {`${row.amount.toLocaleString(locale === "en" ? "en-US" : "ru-RU")} ${row.currency}`}
+        </span>
       ),
       sortAccessor: (row) => row.amount,
       align: "right",
     },
     {
       id: "description",
-      header: "Описание",
+      header: t("finance.reminders.columns.description"),
       cell: (row) => row.description,
       searchAccessor: (row) => row.description,
     },
     {
       id: "status",
-      header: "Статус",
+      header: t("finance.reminders.columns.status"),
       cell: (row) => (
-        <AppStatusBadge label={STATUS_LABEL[row.status]} tone={STATUS_TONE[row.status]} />
+        <AppStatusBadge label={statusLabel[row.status]} tone={STATUS_TONE[row.status]} />
       ),
       sortAccessor: (row) => row.status,
     },
@@ -204,12 +204,12 @@ export default function PayableRemindersPage() {
         items: [
           {
             id: "mark-paid",
-            label: "Оплачено",
+            label: t("finance.reminders.actions.markPaid"),
             onClick: () => markPaidMutation.mutate({ id: row.id, amount: row.amount }),
           },
           {
             id: "cancel",
-            label: "Отменить",
+            label: t("finance.reminders.actions.cancel"),
             destructive: true,
             onClick: () => cancelMutation.mutate(row.id),
           },
@@ -262,20 +262,20 @@ export default function PayableRemindersPage() {
   return (
     <main className="space-y-6 p-4 md:p-6">
       <AppPageHeader
-        title="Напоминалки по платежам"
+        title={t("finance.reminders.title")}
         {...(overdueCount > 0
-          ? { subtitle: `${overdueCount} просроченных платежей` }
+          ? { subtitle: t("finance.reminders.subtitle.overdue", { count: overdueCount }) }
           : reminders
-            ? { subtitle: `${reminders.length} напоминаний` }
+            ? { subtitle: t("finance.reminders.subtitle.total", { count: reminders.length }) }
             : {})}
         breadcrumbs={[
-          { id: "dashboard", label: "Панель", href: routes.dashboard },
-          { id: "finance", label: "Финансы", href: routes.finance },
-          { id: "payable-reminders", label: "Напоминалки" },
+          { id: "dashboard", label: t("nav.dashboard"), href: routes.dashboard },
+          { id: "finance", label: t("nav.finance"), href: routes.finance },
+          { id: "payable-reminders", label: t("finance.reminders.breadcrumb") },
         ]}
         actions={
           <AppButton
-            label="Добавить напоминалку"
+            label={t("finance.reminders.addButton")}
             variant="primary"
             size="md"
             onClick={handleOpen}
@@ -287,18 +287,18 @@ export default function PayableRemindersPage() {
       <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
         <Box sx={{ minWidth: 160 }}>
           <AppSelect
-            label="Статус"
+            label={t("finance.reminders.filters.status")}
             id="filter-status"
-            options={STATUS_FILTER_OPTIONS}
+            options={statusFilterOptions}
             value={filterStatus}
             onChange={(e) => setFilterStatus(e.target.value)}
           />
         </Box>
         <Box sx={{ minWidth: 160 }}>
           <AppSelect
-            label="Тип получателя"
+            label={t("finance.reminders.filters.payeeType")}
             id="filter-payee-type"
-            options={PAYEE_TYPE_FILTER_OPTIONS}
+            options={payeeTypeFilterOptions}
             value={filterPayeeType}
             onChange={(e) => setFilterPayeeType(e.target.value)}
           />
@@ -309,22 +309,22 @@ export default function PayableRemindersPage() {
       {isError && (
         <AppStatePanel
           tone="error"
-          title="Ошибка загрузки"
-          description="Не удалось загрузить список напоминаний. Попробуйте обновить страницу."
+          title={t("finance.reminders.error.title")}
+          description={t("finance.reminders.error.description")}
         />
       )}
 
       {/* Loading */}
       {isLoading && (
-        <AppStatePanel tone="empty" title="Загрузка..." description="Загружаем список." />
+        <AppStatePanel tone="empty" title={t("common.loading")} description={t("finance.reminders.loading")} />
       )}
 
       {/* Empty */}
       {!isLoading && !isError && sortedReminders.length === 0 && (
         <AppStatePanel
           tone="empty"
-          title="Напоминания не найдены"
-          description="Добавьте первое напоминание об оплате."
+          title={t("finance.reminders.empty.title")}
+          description={t("finance.reminders.empty.description")}
         />
       )}
 
@@ -334,8 +334,8 @@ export default function PayableRemindersPage() {
           data={sortedReminders}
           columns={columns}
           rowKey={(row) => row.id}
-          title="Напоминалки по платежам"
-          searchPlaceholder="Поиск по получателю или описанию..."
+          title={t("finance.reminders.title")}
+          searchPlaceholder={t("finance.reminders.searchPlaceholder")}
           rowActions={buildRowActions}
           enableSettings
         />
@@ -344,10 +344,10 @@ export default function PayableRemindersPage() {
       {/* Create drawer */}
       <AppDrawerForm
         open={drawerOpen}
-        title="Добавить напоминалку"
-        subtitle="Заполните данные платежа"
-        saveLabel="Создать"
-        cancelLabel="Отмена"
+        title={t("finance.reminders.drawer.title")}
+        subtitle={t("finance.reminders.drawer.subtitle")}
+        saveLabel={t("finance.reminders.drawer.create")}
+        cancelLabel={t("common.cancel")}
         isSaving={createMutation.isPending}
         saveDisabled={isSaveDisabled}
         onClose={handleClose}
@@ -355,45 +355,45 @@ export default function PayableRemindersPage() {
       >
         <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
           <AppSelect
-            label="Тип получателя *"
+            label={t("finance.reminders.fields.payeeType")}
             id="reminder-payee-type"
-            options={PAYEE_TYPE_OPTIONS}
+            options={payeeTypeOptions}
             value={form.payeeType}
             onChange={(e) =>
               setForm((prev) => ({ ...prev, payeeType: e.target.value as PayeeType }))
             }
           />
           <AppInput
-            label="Кому *"
+            label={t("finance.reminders.fields.payeeName")}
             value={form.payeeName}
             onChangeValue={(v) => setForm((prev) => ({ ...prev, payeeName: v }))}
-            placeholder="Имя поставщика / подрядчика"
+            placeholder={t("finance.reminders.placeholders.payeeName")}
           />
           <AppInput
-            label="Сумма *"
+            label={t("finance.reminders.fields.amount")}
             type="number"
             value={form.amount}
             onChangeValue={(v) => setForm((prev) => ({ ...prev, amount: v }))}
             placeholder="0.00"
           />
           <AppSelect
-            label="Валюта *"
+            label={t("finance.reminders.fields.currency")}
             id="reminder-currency"
             options={currencyOptions}
             value={form.currency}
             onChange={(e) => setForm((prev) => ({ ...prev, currency: e.target.value }))}
           />
           <AppInput
-            label="Срок оплаты *"
+            label={t("finance.reminders.fields.dueDate")}
             type="date"
             value={form.dueDate}
             onChangeValue={(v) => setForm((prev) => ({ ...prev, dueDate: v }))}
           />
           <AppInput
-            label="Описание *"
+            label={t("finance.reminders.fields.description")}
             value={form.description}
             onChangeValue={(v) => setForm((prev) => ({ ...prev, description: v }))}
-            placeholder="За что платим"
+            placeholder={t("finance.reminders.placeholders.description")}
           />
         </Box>
       </AppDrawerForm>

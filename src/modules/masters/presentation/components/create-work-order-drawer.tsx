@@ -13,6 +13,7 @@ import { useCreateWorkOrderMutation } from "@/modules/masters/presentation/hooks
 import { useMastersListQuery } from "@/modules/masters/presentation/hooks/use-masters-list-query";
 import { useBuildingsQuery } from "@/modules/buildings/presentation/hooks/use-buildings.query";
 import { usePropertyContext } from "@/shared/providers/property-provider";
+import { useI18n } from "@/shared/providers/locale-provider";
 
 interface FormState {
   masterId: string;
@@ -47,6 +48,7 @@ export function CreateWorkOrderDrawer({
   onClose,
   onSuccess,
 }: CreateWorkOrderDrawerProps) {
+  const { t } = useI18n();
   const mutation = useCreateWorkOrderMutation();
   const { currentPropertyId, hasProperty } = usePropertyContext();
   const [form, setForm] = useState<FormState>({ ...INITIAL_FORM, propertyId: currentPropertyId });
@@ -85,14 +87,14 @@ export function CreateWorkOrderDrawer({
 
   const validate = (): boolean => {
     const next: FormErrors = {};
-    if (!form.masterId) next.masterId = "Выберите мастера";
-    if (!form.propertyId) next.propertyId = "Выберите объект";
-    if (!form.description.trim()) next.description = "Описание обязательно";
+    if (!form.masterId) next.masterId = t("masters.workOrder.validation.selectMaster");
+    if (!form.propertyId) next.propertyId = t("masters.workOrder.validation.selectProperty");
+    if (!form.description.trim()) next.description = t("masters.workOrder.validation.descriptionRequired");
     const amount = parseFloat(form.plannedAmount);
     if (!form.plannedAmount || isNaN(amount) || amount <= 0) {
-      next.plannedAmount = "Введите корректную сумму";
+      next.plannedAmount = t("masters.workOrder.validation.amountValid");
     }
-    if (!form.plannedStartDate) next.plannedStartDate = "Укажите дату начала";
+    if (!form.plannedStartDate) next.plannedStartDate = t("masters.workOrder.validation.startDateRequired");
     setErrors(next);
     return Object.keys(next).length === 0;
   };
@@ -130,56 +132,56 @@ export function CreateWorkOrderDrawer({
   return (
     <AppDrawerForm
       open={open}
-      title="Создать наряд"
-      subtitle="Заполните данные о наряде"
-      saveLabel="Создать"
-      cancelLabel="Отмена"
+      title={t("masters.workOrder.create.title")}
+      subtitle={t("masters.workOrder.create.subtitle")}
+      saveLabel={t("masters.workOrder.create.save")}
+      cancelLabel={t("common.cancel")}
       isSaving={mutation.isPending}
       onClose={handleClose}
       onSave={handleSave}
     >
       <Stack spacing={2}>
         <AppSearchableSelect
-          dialogTitle="Выберите мастера"
+          dialogTitle={t("masters.workOrder.dialog.selectMaster")}
           options={masterOptions}
           value={form.masterId}
           onChange={(id) => set("masterId")(id)}
-          searchPlaceholder="Поиск мастера..."
+          searchPlaceholder={t("masters.workOrder.search.master")}
           triggerLabel={
             masterOptions.find((o) => o.id === form.masterId)?.label ??
-            "Выберите мастера *"
+            t("masters.workOrder.fields.masterRequired")
           }
         />
 
         {hasProperty ? (
           <AppInput
-            label="Объект *"
+            label={t("masters.workOrder.fields.propertyRequired")}
             value={buildingOptions.find((o) => o.id === form.propertyId)?.label ?? ""}
             disabled
           />
         ) : (
           <AppSearchableSelect
-            dialogTitle="Выберите объект"
+            dialogTitle={t("masters.workOrder.dialog.selectProperty")}
             options={buildingOptions}
             value={form.propertyId}
             onChange={(id) => set("propertyId")(id)}
-            searchPlaceholder="Поиск объекта..."
+            searchPlaceholder={t("masters.workOrder.search.property")}
             triggerLabel={
               buildingOptions.find((o) => o.id === form.propertyId)?.label ??
-              "Выберите объект *"
+              t("masters.workOrder.fields.propertyRequired")
             }
           />
         )}
 
         <AppInput
-          label="Описание *"
+          label={t("masters.workOrder.fields.descriptionRequired")}
           value={form.description}
           onChangeValue={set("description")}
           {...(errors.description ? { errorText: errors.description } : {})}
         />
 
         <AppInput
-          label="Плановая сумма *"
+          label={t("masters.workOrder.fields.plannedAmountRequired")}
           type="number"
           value={form.plannedAmount}
           onChangeValue={set("plannedAmount")}
@@ -187,7 +189,7 @@ export function CreateWorkOrderDrawer({
         />
 
         <AppInput
-          label="Дата начала *"
+          label={t("masters.workOrder.fields.startDateRequired")}
           type="date"
           value={form.plannedStartDate}
           onChangeValue={set("plannedStartDate")}
@@ -195,7 +197,7 @@ export function CreateWorkOrderDrawer({
         />
 
         <AppInput
-          label="Дата окончания (план)"
+          label={t("masters.workOrder.fields.endDatePlan")}
           type="date"
           value={form.plannedEndDate}
           onChangeValue={set("plannedEndDate")}

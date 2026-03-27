@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { backendRequest } from "@/shared/lib/http/backend-client";
 import { resolvePermissions } from "@/shared/types/permissions";
-import type { UserRole } from "@/shared/types/permissions";
+import type { UserRole, PermissionCode } from "@/shared/types/permissions";
 import { SESSION_COOKIE_KEY, REFRESH_TOKEN_COOKIE_KEY } from "@/modules/auth/infrastructure/session-cookie";
 import type { Session, SessionUser } from "@/modules/auth/domain/session";
 import { checkRateLimit, getClientIp } from "@/shared/lib/rate-limit";
@@ -11,6 +11,7 @@ interface BackendUser {
   email: string;
   full_name: string;
   role: string;
+  permissions?: string[];
   tenant_id?: string;
   can_login: boolean;
 }
@@ -28,6 +29,7 @@ interface BackendMeResponse {
   email: string;
   full_name: string;
   role: string;
+  permissions?: string[];
   tenant_id?: string;
   tenant_name?: string;
   can_login: boolean;
@@ -35,6 +37,11 @@ interface BackendMeResponse {
 
 function mapBackendUser(user: BackendUser, me?: BackendMeResponse | null): SessionUser {
   const role = (me?.role ?? user.role) as UserRole;
+  // Prefer permissions from backend (single source of truth); fallback to local resolution
+  const backendPerms = (me?.permissions ?? user.permissions) as PermissionCode[] | undefined;
+  const permissions = backendPerms && backendPerms.length > 0
+    ? backendPerms
+    : resolvePermissions([role]);
   return {
     id: me?.id ?? user.id,
     email: me?.email ?? user.email,
@@ -42,7 +49,7 @@ function mapBackendUser(user: BackendUser, me?: BackendMeResponse | null): Sessi
     avatarUrl: null,
     role,
     roles: [role],
-    permissions: resolvePermissions([role]),
+    permissions,
     tenantId: me?.tenant_id ?? user.tenant_id ?? "",
     tenantName: me?.tenant_name ?? "",
   };

@@ -5,14 +5,15 @@ import { Stack } from "@mui/material";
 import { AppDrawerForm, AppInput, AppSelect } from "@/shared/ui";
 import { useCreateMasterMutation } from "@/modules/masters/presentation/hooks/use-create-master-mutation";
 import type { MasterType } from "@/modules/masters/domain/master";
+import { useI18n } from "@/shared/providers/locale-provider";
 
-const MASTER_TYPE_OPTIONS: Array<{ label: string; value: MasterType }> = [
-  { value: "individual", label: "Индивидуал" },
-  { value: "brigade", label: "Бригада" },
+const MASTER_TYPE_VALUES: readonly MasterType[] = [
+  "individual",
+  "brigade",
 ];
 
 function isMasterType(value: string): value is MasterType {
-  return MASTER_TYPE_OPTIONS.some((o) => o.value === value);
+  return MASTER_TYPE_VALUES.includes(value as MasterType);
 }
 
 interface FormState {
@@ -44,9 +45,14 @@ export function CreateMasterDrawer({
   onClose,
   onSuccess,
 }: CreateMasterDrawerProps) {
+  const { t } = useI18n();
   const mutation = useCreateMasterMutation();
   const [form, setForm] = useState<FormState>(INITIAL_FORM);
   const [errors, setErrors] = useState<FormErrors>({});
+  const masterTypeOptions: Array<{ label: string; value: MasterType }> = [
+    { value: "individual", label: t("masters.type.individual") },
+    { value: "brigade", label: t("masters.type.brigade") },
+  ];
 
   const set = (key: keyof FormState) => (value: string) => {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -66,9 +72,9 @@ export function CreateMasterDrawer({
 
   const validate = (): boolean => {
     const next: FormErrors = {};
-    if (!form.name.trim()) next.name = "Имя обязательно";
-    if (!form.phone.trim()) next.phone = "Телефон обязателен";
-    if (!form.specialization.trim()) next.specialization = "Специализация обязательна";
+    if (!form.name.trim()) next.name = t("masters.validation.nameRequired");
+    if (!form.phone.trim()) next.phone = t("masters.validation.phoneRequired");
+    if (!form.specialization.trim()) next.specialization = t("masters.validation.specializationRequired");
     setErrors(next);
     return Object.keys(next).length === 0;
   };
@@ -101,25 +107,25 @@ export function CreateMasterDrawer({
   return (
     <AppDrawerForm
       open={open}
-      title="Добавить мастера"
-      subtitle="Заполните информацию о мастере"
-      saveLabel="Сохранить"
-      cancelLabel="Отмена"
+      title={t("masters.create.title")}
+      subtitle={t("masters.create.subtitle")}
+      saveLabel={t("common.save")}
+      cancelLabel={t("common.cancel")}
       isSaving={mutation.isPending}
       onClose={handleClose}
       onSave={handleSave}
     >
       <Stack spacing={2}>
         <AppInput
-          label="Имя *"
+          label={t("masters.fields.nameRequired")}
           value={form.name}
           onChangeValue={set("name")}
           {...(errors.name ? { errorText: errors.name } : {})}
         />
         <AppSelect
           id="master-type"
-          label="Тип *"
-          options={MASTER_TYPE_OPTIONS}
+          label={t("masters.fields.typeRequired")}
+          options={masterTypeOptions}
           value={form.type}
           onChange={(e) => {
             const v = e.target.value;
@@ -127,19 +133,19 @@ export function CreateMasterDrawer({
           }}
         />
         <AppInput
-          label="Телефон *"
+          label={t("masters.fields.phoneRequired")}
           value={form.phone}
           onChangeValue={set("phone")}
           {...(errors.phone ? { errorText: errors.phone } : {})}
         />
         <AppInput
-          label="Специализация *"
+          label={t("masters.fields.specializationRequired")}
           value={form.specialization}
           onChangeValue={set("specialization")}
           {...(errors.specialization ? { errorText: errors.specialization } : {})}
         />
         <AppInput
-          label="Ставка в день"
+          label={t("masters.fields.dailyRate")}
           type="number"
           value={form.dailyRate}
           onChangeValue={set("dailyRate")}

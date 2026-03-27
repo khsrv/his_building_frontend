@@ -13,7 +13,8 @@
     "e2e": "playwright test",
     "e2e:smoke": "playwright test tests/e2e/smoke.spec.ts",
     "check": "npm run lint && npm run typecheck && npm run test && npm run build",
-    "generate:feature": "node scripts/generate-feature.mjs"
+    "generate:feature": "node scripts/generate-feature.mjs",
+    "check:i18n": "npx tsx scripts/check-i18n.ts"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",

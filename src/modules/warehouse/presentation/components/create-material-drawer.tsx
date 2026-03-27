@@ -7,20 +7,21 @@ import { useCreateMaterialMutation } from "@/modules/warehouse/presentation/hook
 import { usePropertyContext } from "@/shared/providers/property-provider";
 import { usePropertiesListQuery } from "@/modules/properties/presentation/hooks/use-properties-list-query";
 import type { MaterialUnit } from "@/modules/warehouse/domain/warehouse";
+import { useI18n } from "@/shared/providers/locale-provider";
 
-const UNIT_OPTIONS: Array<{ label: string; value: MaterialUnit }> = [
-  { value: "tonne", label: "Тонна" },
-  { value: "m3", label: "м³" },
-  { value: "m2", label: "м²" },
-  { value: "piece", label: "Штука" },
-  { value: "package", label: "Упаковка" },
-  { value: "kg", label: "кг" },
-  { value: "litre", label: "Литр" },
-  { value: "meter", label: "Метр" },
+const MATERIAL_UNIT_VALUES: readonly MaterialUnit[] = [
+  "tonne",
+  "m3",
+  "m2",
+  "piece",
+  "package",
+  "kg",
+  "litre",
+  "meter",
 ];
 
 function isMaterialUnit(value: string): value is MaterialUnit {
-  return UNIT_OPTIONS.some((o) => o.value === value);
+  return MATERIAL_UNIT_VALUES.includes(value as MaterialUnit);
 }
 
 interface FormState {
@@ -52,12 +53,23 @@ export function CreateMaterialDrawer({
   onClose,
   onSuccess,
 }: CreateMaterialDrawerProps) {
+  const { t } = useI18n();
   const mutation = useCreateMaterialMutation();
   const { currentPropertyId, hasProperty } = usePropertyContext();
   const { data: propertiesResult } = usePropertiesListQuery();
   const properties = propertiesResult?.items ?? [];
   const [form, setForm] = useState<FormState>({ ...INITIAL_FORM, propertyId: currentPropertyId });
   const [errors, setErrors] = useState<FormErrors>({});
+  const unitOptions: Array<{ label: string; value: MaterialUnit }> = [
+    { value: "tonne", label: t("warehouse.units.tonne") },
+    { value: "m3", label: "м³" },
+    { value: "m2", label: "м²" },
+    { value: "piece", label: t("warehouse.units.piece") },
+    { value: "package", label: t("warehouse.units.package") },
+    { value: "kg", label: "кг" },
+    { value: "litre", label: t("warehouse.units.litre") },
+    { value: "meter", label: t("warehouse.units.meter") },
+  ];
 
   const set = (key: keyof FormState) => (value: string) => {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -77,7 +89,7 @@ export function CreateMaterialDrawer({
 
   const validate = (): boolean => {
     const next: FormErrors = {};
-    if (!form.name.trim()) next.name = "Название обязательно";
+    if (!form.name.trim()) next.name = t("warehouse.validation.nameRequired");
     setErrors(next);
     return Object.keys(next).length === 0;
   };
@@ -113,25 +125,25 @@ export function CreateMaterialDrawer({
   return (
     <AppDrawerForm
       open={open}
-      title="Добавить материал"
-      subtitle="Заполните информацию о материале"
-      saveLabel="Сохранить"
-      cancelLabel="Отмена"
+      title={t("warehouse.material.create.title")}
+      subtitle={t("warehouse.material.create.subtitle")}
+      saveLabel={t("common.save")}
+      cancelLabel={t("common.cancel")}
       isSaving={mutation.isPending}
       onClose={handleClose}
       onSave={handleSave}
     >
       <Stack spacing={2}>
         <AppInput
-          label="Название *"
+          label={t("warehouse.fields.nameRequired")}
           value={form.name}
           onChangeValue={set("name")}
           {...(errors.name ? { errorText: errors.name } : {})}
         />
         <AppSelect
           id="material-unit"
-          label="Единица измерения *"
-          options={UNIT_OPTIONS}
+          label={t("warehouse.material.fields.unitRequired")}
+          options={unitOptions}
           value={form.unit}
           onChange={(e) => {
             const v = e.target.value;
@@ -140,16 +152,16 @@ export function CreateMaterialDrawer({
         />
         {hasProperty ? (
           <AppInput
-            label="Объект"
-            value={properties.find((p) => p.id === form.propertyId)?.name ?? "Общий"}
+            label={t("warehouse.fields.property")}
+            value={properties.find((p) => p.id === form.propertyId)?.name ?? t("warehouse.common.general")}
             disabled
           />
         ) : (
           <AppSelect
             id="material-property"
-            label="Объект"
+            label={t("warehouse.fields.property")}
             options={[
-              { value: "", label: "Общий (без привязки)" },
+              { value: "", label: t("warehouse.common.generalNoBinding") },
               ...properties.map((p) => ({ value: p.id, label: p.name })),
             ]}
             value={form.propertyId}
@@ -157,13 +169,13 @@ export function CreateMaterialDrawer({
           />
         )}
         <AppInput
-          label="Минимальный остаток"
+          label={t("warehouse.material.fields.minStock")}
           type="number"
           value={form.minStock}
           onChangeValue={set("minStock")}
         />
         <AppInput
-          label="Описание"
+          label={t("warehouse.fields.description")}
           value={form.description}
           onChangeValue={set("description")}
         />

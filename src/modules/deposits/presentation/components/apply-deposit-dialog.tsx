@@ -2,12 +2,13 @@
 
 import { useState, useMemo } from "react";
 import { Box, Typography, Radio, RadioGroup, FormControlLabel } from "@mui/material";
-import { AppDrawerForm, AppSearchableSelect, AppButton } from "@/shared/ui";
+import { AppDrawerForm, AppSearchableSelect } from "@/shared/ui";
 import { useApplyDepositMutation } from "@/modules/deposits/presentation/hooks/use-apply-deposit-mutation";
 import { useClientsListQuery } from "@/modules/clients/presentation/hooks/use-clients-list-query";
 import { useDealsListQuery } from "@/modules/deals/presentation/hooks/use-deals-list-query";
 import { useDealScheduleQuery } from "@/modules/deals/presentation/hooks/use-deal-schedule-query";
 import type { Deposit } from "@/modules/deposits/domain/deposit";
+import { useI18n } from "@/shared/providers/locale-provider";
 
 function formatMoney(amount: number, currency: string): string {
   return `${amount.toLocaleString("ru-RU")} ${currency}`;
@@ -24,6 +25,7 @@ export function ApplyDepositDialog({
   deposit,
   onClose,
 }: ApplyDepositDialogProps) {
+  const { t } = useI18n();
   const mutation = useApplyDepositMutation();
 
   // Step 1: client + deal selection, Step 2: schedule item selection
@@ -58,7 +60,7 @@ export function ApplyDepositDialog({
 
   const dealOptions = deals.map((d) => ({
     id: d.id,
-    label: `${d.dealNumber} — ${d.propertyName}, кв. ${d.unitNumber}`,
+    label: `${d.dealNumber} — ${d.propertyName}, ${t("deposits.apply.unitShort")} ${d.unitNumber}`,
     secondary: `${formatMoney(d.totalAmount, d.currency)} · ${d.status}`,
   }));
 
@@ -101,10 +103,10 @@ export function ApplyDepositDialog({
     return (
       <AppDrawerForm
         open={open}
-        title="Привязка к платежу по графику"
-        subtitle={selectedDeal ? `Сделка: ${selectedDeal.dealNumber}` : ""}
-        saveLabel="Зачесть"
-        cancelLabel="Назад"
+        title={t("deposits.apply.step2.title")}
+        subtitle={selectedDeal ? t("deposits.apply.step2.deal", { dealNumber: selectedDeal.dealNumber }) : ""}
+        saveLabel={t("deposits.apply.step2.save")}
+        cancelLabel={t("wizard.back")}
         isSaving={mutation.isPending}
         saveDisabled={mutation.isPending || !dealId}
         onClose={() => setStep(1)}
@@ -127,7 +129,7 @@ export function ApplyDepositDialog({
             <FormControlLabel
               value=""
               control={<Radio />}
-              label="Без привязки к графику"
+              label={t("deposits.apply.step2.withoutSchedule")}
             />
             {unpaidScheduleItems.map((item) => (
               <FormControlLabel
@@ -137,10 +139,10 @@ export function ApplyDepositDialog({
                 label={
                   <Box>
                     <Typography variant="body2">
-                      Платёж #{item.paymentNumber} — {item.dueDate}
+                      {t("deposits.apply.step2.payment", { paymentNumber: item.paymentNumber })} — {item.dueDate}
                     </Typography>
                     <Typography variant="caption" color="text.secondary">
-                      План: {formatMoney(item.plannedAmount, deposit.currency)} · Оплачено:{" "}
+                      {t("deposits.apply.step2.planned")}: {formatMoney(item.plannedAmount, deposit.currency)} · {t("deposits.apply.step2.paid")}:{" "}
                       {formatMoney(item.paidAmount, deposit.currency)}
                     </Typography>
                   </Box>
@@ -151,7 +153,7 @@ export function ApplyDepositDialog({
 
           {unpaidScheduleItems.length === 0 && schedule.length > 0 ? (
             <Typography variant="body2" color="text.secondary">
-              Все платежи по графику оплачены
+              {t("deposits.apply.step2.allPaid")}
             </Typography>
           ) : null}
         </Box>
@@ -163,10 +165,10 @@ export function ApplyDepositDialog({
   return (
     <AppDrawerForm
       open={open}
-      title="Зачёт залога в сделку"
-      subtitle="Выберите клиента и сделку для зачёта"
-      saveLabel="Далее"
-      cancelLabel="Отмена"
+      title={t("deposits.apply.step1.title")}
+      subtitle={t("deposits.apply.step1.subtitle")}
+      saveLabel={t("wizard.next")}
+      cancelLabel={t("common.cancel")}
       saveDisabled={!dealId || !clientId}
       onClose={handleClose}
       onSave={() => setStep(2)}
@@ -188,7 +190,7 @@ export function ApplyDepositDialog({
 
         <Box>
           <Typography variant="body2" sx={{ mb: 1, fontWeight: 600 }}>
-            Клиент {clientLocked ? "(из залога)" : "*"}
+            {t("deposits.apply.step1.client")} {clientLocked ? t("deposits.apply.step1.clientFromDeposit") : "*"}
           </Typography>
           <AppSearchableSelect
             options={clientOptions}
@@ -199,12 +201,12 @@ export function ApplyDepositDialog({
             }}
             triggerLabel={
               clientId
-                ? clients.find((c) => c.id === clientId)?.fullName ?? "Выбрать клиента"
-                : "Выбрать клиента"
+                ? clients.find((c) => c.id === clientId)?.fullName ?? t("deposits.apply.step1.selectClient")
+                : t("deposits.apply.step1.selectClient")
             }
-            dialogTitle="Выбор клиента"
-            searchPlaceholder="Поиск по имени..."
-            emptyLabel="Клиенты не найдены"
+            dialogTitle={t("deposits.apply.step1.clientDialog")}
+            searchPlaceholder={t("deposits.apply.step1.clientSearch")}
+            emptyLabel={t("deposits.apply.step1.clientEmpty")}
             disabled={clientLocked}
           />
         </Box>
@@ -212,7 +214,7 @@ export function ApplyDepositDialog({
         {clientId ? (
           <Box>
             <Typography variant="body2" sx={{ mb: 1, fontWeight: 600 }}>
-              Сделка *
+              {t("deposits.apply.step1.deal")} *
             </Typography>
             {deals.length > 0 ? (
               <AppSearchableSelect
@@ -221,16 +223,16 @@ export function ApplyDepositDialog({
                 onChange={(id) => setDealId(id)}
                 triggerLabel={
                   dealId
-                    ? deals.find((d) => d.id === dealId)?.dealNumber ?? "Выбрать сделку"
-                    : "Выбрать сделку"
+                    ? deals.find((d) => d.id === dealId)?.dealNumber ?? t("deposits.apply.step1.selectDeal")
+                    : t("deposits.apply.step1.selectDeal")
                 }
-                dialogTitle="Выбор сделки"
-                searchPlaceholder="Поиск по номеру..."
-                emptyLabel="Нет активных сделок"
+                dialogTitle={t("deposits.apply.step1.dealDialog")}
+                searchPlaceholder={t("deposits.apply.step1.dealSearch")}
+                emptyLabel={t("deposits.apply.step1.dealEmpty")}
               />
             ) : (
               <Typography variant="body2" color="text.secondary">
-                У клиента нет активных сделок
+                {t("deposits.apply.step1.noActiveDeals")}
               </Typography>
             )}
           </Box>
@@ -239,7 +241,7 @@ export function ApplyDepositDialog({
         {selectedDeal ? (
           <Box sx={{ p: 1.5, borderRadius: 2, border: "1px solid", borderColor: "divider" }}>
             <Typography variant="caption" color="text.secondary">
-              Объект: {selectedDeal.propertyName}, кв. {selectedDeal.unitNumber}
+              {t("deposits.apply.step1.property")}: {selectedDeal.propertyName}, {t("deposits.apply.unitShort")} {selectedDeal.unitNumber}
             </Typography>
             <Typography variant="body2" sx={{ fontWeight: 600 }}>
               {formatMoney(selectedDeal.totalAmount, selectedDeal.currency)}

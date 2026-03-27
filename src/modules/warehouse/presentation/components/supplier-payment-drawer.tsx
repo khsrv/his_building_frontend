@@ -7,6 +7,7 @@ import { useCreateSupplierPaymentMutation } from "@/modules/warehouse/presentati
 import { usePropertiesListQuery } from "@/modules/properties/presentation/hooks/use-properties-list-query";
 import { useCurrencyOptions } from "@/modules/finance/presentation/hooks/use-currency-options";
 import { usePropertyContext } from "@/shared/providers/property-provider";
+import { useI18n } from "@/shared/providers/locale-provider";
 
 interface FormState {
   amount: string;
@@ -37,6 +38,7 @@ export function SupplierPaymentDrawer({
   onClose,
   onSuccess,
 }: SupplierPaymentDrawerProps) {
+  const { t } = useI18n();
   const mutation = useCreateSupplierPaymentMutation(supplierId);
   const { data: propertiesResult } = usePropertiesListQuery();
   const currencyOptions = useCurrencyOptions();
@@ -68,10 +70,10 @@ export function SupplierPaymentDrawer({
     const next: FormErrors = {};
     const parsed = parseFloat(form.amount);
     if (!form.amount.trim() || isNaN(parsed) || parsed <= 0) {
-      next.amount = "Введите корректную сумму";
+      next.amount = t("warehouse.supplierPayment.validation.amountValid");
     }
     if (!form.propertyId) {
-      next.propertyId = "Выберите объект";
+      next.propertyId = t("warehouse.supplierPayment.validation.selectProperty");
     }
     setErrors(next);
     return Object.keys(next).length === 0;
@@ -107,17 +109,17 @@ export function SupplierPaymentDrawer({
   return (
     <AppDrawerForm
       open={open}
-      title="Оплата поставщику"
-      subtitle="Введите данные платежа"
-      saveLabel="Оплатить"
-      cancelLabel="Отмена"
+      title={t("warehouse.supplierPayment.title")}
+      subtitle={t("warehouse.supplierPayment.subtitle")}
+      saveLabel={t("warehouse.supplierPayment.save")}
+      cancelLabel={t("common.cancel")}
       isSaving={mutation.isPending}
       onClose={handleClose}
       onSave={handleSave}
     >
       <Stack spacing={2}>
         <AppInput
-          label="Сумма *"
+          label={t("warehouse.supplierPayment.fields.amountRequired")}
           type="number"
           value={form.amount}
           onChangeValue={set("amount")}
@@ -125,21 +127,21 @@ export function SupplierPaymentDrawer({
         />
         <AppSelect
           id="payment-currency"
-          label="Валюта"
+          label={t("warehouse.supplierPayment.fields.currency")}
           options={currencyOptions}
           value={form.currency}
           onChange={(e) => set("currency")(e.target.value)}
         />
         {hasProperty ? (
           <AppInput
-            label="Объект *"
+            label={t("warehouse.supplierPayment.fields.propertyRequired")}
             value={properties.find((p) => p.id === form.propertyId)?.name ?? ""}
             disabled
           />
         ) : (
           <AppSelect
             id="payment-property"
-            label="Объект *"
+            label={t("warehouse.supplierPayment.fields.propertyRequired")}
             options={propertyOptions}
             value={form.propertyId}
             onChange={(e) => set("propertyId")(e.target.value)}
@@ -147,7 +149,7 @@ export function SupplierPaymentDrawer({
           />
         )}
         <AppInput
-          label="Заметки"
+          label={t("warehouse.fields.notes")}
           value={form.notes}
           onChangeValue={set("notes")}
         />

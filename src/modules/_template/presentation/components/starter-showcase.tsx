@@ -669,7 +669,7 @@ export function StarterShowcase() {
     return guardDraft.name !== guardSaved.name || guardDraft.note !== guardSaved.note;
   }, [guardDraft, guardSaved]);
 
-  const demoPermissions = useMemo(() => ["products.view", "products.edit"] as const, []);
+  const demoPermissions = useMemo(() => ["buildings.read", "buildings.update"] as const, []);
 
   const demoKpis = useMemo(
     () => [
@@ -974,17 +974,17 @@ export function StarterShowcase() {
                         tone={guardIsDirty ? "warning" : "success"}
                       />
                       <PermissionGate
-                        requiredPermissions={["products.edit"]}
+                        requiredPermissions={["buildings.update"]}
                         userPermissions={demoPermissions}
                       >
-                        <AppStatusBadge label="products.edit: разрешено" tone="info" />
+                        <AppStatusBadge label="buildings.update: разрешено" tone="info" />
                       </PermissionGate>
                       <PermissionGate
-                        fallback={<AppStatusBadge label="products.delete: нет доступа" tone="muted" />}
-                        requiredPermissions={["products.delete"]}
+                        fallback={<AppStatusBadge label="buildings.delete: нет доступа" tone="muted" />}
+                        requiredPermissions={["buildings.delete"]}
                         userPermissions={demoPermissions}
                       >
-                        <AppStatusBadge label="products.delete: разрешено" tone="danger" />
+                        <AppStatusBadge label="buildings.delete: разрешено" tone="danger" />
                       </PermissionGate>
                     </div>
 
@@ -1257,14 +1257,14 @@ export function StarterShowcase() {
                       actions={(
                         <>
                           <PermissionGate
-                            requiredPermissions={["products.create"]}
+                            requiredPermissions={["buildings.create"]}
                             userPermissions={demoPermissions}
                             fallback={<AppStatusBadge label="No create permission" tone="muted" />}
                           >
                             <AppButton label="Create" variant="primary" />
                           </PermissionGate>
                           <PermissionGate
-                            requiredPermissions={["products.edit"]}
+                            requiredPermissions={["buildings.update"]}
                             userPermissions={demoPermissions}
                           >
                             <AppButton label="Edit" variant="outline" />

@@ -13,6 +13,7 @@ import {
 import { routes } from "@/shared/constants/routes";
 import { useCashFlowReportQuery } from "@/modules/finance/presentation/hooks/use-cash-flow-report-query";
 import { useReceivablesReportQuery } from "@/modules/finance/presentation/hooks/use-receivables-report-query";
+import { useI18n } from "@/shared/providers/locale-provider";
 
 function formatDate(date: Date): string {
   const y = date.getFullYear();
@@ -28,6 +29,7 @@ function monthAgo(): string {
 }
 
 export default function AnalyticsReportsPage() {
+  const { locale, t } = useI18n();
   const router = useRouter();
   const from = useMemo(() => monthAgo(), []);
   const to = useMemo(() => formatDate(new Date()), []);
@@ -39,17 +41,17 @@ export default function AnalyticsReportsPage() {
     return (
       <main className="space-y-6 p-4 md:p-6">
         <AppPageHeader
-          title="Отчёты"
+          title={t("analytics.reports.title")}
           breadcrumbs={[
-            { id: "dashboard", label: "Панель", href: routes.dashboard },
-            { id: "analytics", label: "Аналитика", href: routes.analytics },
-            { id: "reports", label: "Отчёты" },
+            { id: "dashboard", label: t("nav.dashboard"), href: routes.dashboard },
+            { id: "analytics", label: t("analytics.page.title"), href: routes.analytics },
+            { id: "reports", label: t("analytics.reports.title") },
           ]}
         />
         <AppStatePanel
           tone="error"
-          title="Ошибка загрузки отчётов"
-          description="Не удалось загрузить отчеты аналитики."
+          title={t("analytics.reports.errorTitle")}
+          description={t("analytics.reports.errorDescription")}
         />
       </main>
     );
@@ -65,16 +67,16 @@ export default function AnalyticsReportsPage() {
   return (
     <main className="space-y-6 p-4 md:p-6">
       <AppPageHeader
-        title="Отчёты"
-        subtitle="Краткая аналитика по финансовым отчетам"
+        title={t("analytics.reports.title")}
+        subtitle={t("analytics.reports.subtitle")}
         breadcrumbs={[
-          { id: "dashboard", label: "Панель", href: routes.dashboard },
-          { id: "analytics", label: "Аналитика", href: routes.analytics },
-          { id: "reports", label: "Отчёты" },
+          { id: "dashboard", label: t("nav.dashboard"), href: routes.dashboard },
+          { id: "analytics", label: t("analytics.page.title"), href: routes.analytics },
+          { id: "reports", label: t("analytics.reports.title") },
         ]}
         actions={
           <AppButton
-            label="Открыть фин. отчеты"
+            label={t("analytics.reports.openFinance")}
             variant="primary"
             onClick={() => router.push(routes.financeReports)}
           />
@@ -85,12 +87,12 @@ export default function AnalyticsReportsPage() {
         columns={2}
         items={[
           {
-            title: "Общая дебиторка",
-            value: (receivablesQuery.data?.total ?? 0).toLocaleString("ru-RU"),
+            title: t("analytics.reports.totalReceivables"),
+            value: (receivablesQuery.data?.total ?? 0).toLocaleString(locale === "en" ? "en-US" : "ru-RU"),
             deltaTone: "warning",
           },
           {
-            title: "Должников",
+            title: t("analytics.reports.debtors"),
             value: `${receivablesQuery.data?.items.length ?? 0}`,
             deltaTone: "danger",
           },
@@ -99,12 +101,12 @@ export default function AnalyticsReportsPage() {
 
       <AppChartWidget
         type="line"
-        title="Движение денег (30 дней)"
+        title={t("analytics.reports.cashFlow30")}
         data={cashFlowChart}
         series={[
-          { key: "income", label: "Доходы", color: "#16A34A" },
-          { key: "expense", label: "Расходы", color: "#DC2626" },
-          { key: "balance", label: "Баланс", color: "#2563EB" },
+          { key: "income", label: t("analytics.reports.income"), color: "#16A34A" },
+          { key: "expense", label: t("analytics.reports.expense"), color: "#DC2626" },
+          { key: "balance", label: t("analytics.reports.balance"), color: "#2563EB" },
         ]}
         height={320}
         loading={cashFlowQuery.isLoading}

@@ -160,7 +160,9 @@ export async function receivePayment(input: ReceivePaymentInput): Promise<Paymen
   if (input.barterDescription !== undefined) body.barter_description = input.barterDescription;
   if (input.accountId !== undefined) body.account_id = input.accountId;
   if (input.notes !== undefined) body.notes = input.notes;
-  const res = await apiClient.post<PaymentDetailResponseDto>("/api/v1/payments", body);
+  const headers: Record<string, string> = {};
+  if (input.idempotencyKey) headers["Idempotency-Key"] = input.idempotencyKey;
+  const res = await apiClient.post<PaymentDetailResponseDto>("/api/v1/payments", body, { headers });
   return mapPaymentDto(getResponseData<PaymentDto>(normalizeApiKeys(res)));
 }
 

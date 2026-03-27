@@ -5,10 +5,7 @@ import { AppDrawerForm, AppInput } from "@/shared/ui";
 import { Box, Typography } from "@mui/material";
 import { useReturnDepositMutation } from "@/modules/deposits/presentation/hooks/use-return-deposit-mutation";
 import type { Deposit, ReturnDepositInput } from "@/modules/deposits/domain/deposit";
-
-function formatMoney(amount: number, currency: string): string {
-  return `${amount.toLocaleString("ru-RU")} ${currency}`;
-}
+import { useI18n } from "@/shared/providers/locale-provider";
 
 interface ReturnDepositDialogProps {
   open: boolean;
@@ -21,8 +18,10 @@ export function ReturnDepositDialog({
   deposit,
   onClose,
 }: ReturnDepositDialogProps) {
+  const { locale, t } = useI18n();
   const mutation = useReturnDepositMutation();
   const [notes, setNotes] = useState("");
+  const localeCode = locale === "en" ? "en-US" : "ru-RU";
 
   const handleClose = () => {
     setNotes("");
@@ -48,10 +47,10 @@ export function ReturnDepositDialog({
   return (
     <AppDrawerForm
       open={open}
-      title="Возврат залога"
-      subtitle="Подтвердите возврат залога клиенту"
-      saveLabel="Подтвердить возврат"
-      cancelLabel="Отмена"
+      title={t("deposits.return.title")}
+      subtitle={t("deposits.return.subtitle")}
+      saveLabel={t("deposits.return.save")}
+      cancelLabel={t("common.cancel")}
       isSaving={mutation.isPending}
       saveDisabled={mutation.isPending}
       onClose={handleClose}
@@ -68,14 +67,14 @@ export function ReturnDepositDialog({
             </Typography>
           ) : null}
           <Typography variant="h6" sx={{ fontWeight: 700, mt: 1 }}>
-            {formatMoney(deposit.amount, deposit.currency)}
+            {`${deposit.amount.toLocaleString(localeCode)} ${deposit.currency}`}
           </Typography>
         </Box>
         <AppInput
-          label="Причина возврата"
+          label={t("deposits.return.fields.reason")}
           value={notes}
           onChangeValue={setNotes}
-          placeholder="Клиент передумал"
+          placeholder={t("deposits.return.placeholders.reason")}
         />
       </Box>
     </AppDrawerForm>

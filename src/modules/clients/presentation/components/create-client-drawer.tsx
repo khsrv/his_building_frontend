@@ -5,18 +5,19 @@ import { Stack } from "@mui/material";
 import { AppDrawerForm, AppInput, AppSelect } from "@/shared/ui";
 import { useCreateClientMutation } from "@/modules/clients/presentation/hooks/use-create-client-mutation";
 import type { ClientSource } from "@/modules/clients/domain/client";
+import { useI18n } from "@/shared/providers/locale-provider";
 
-const SOURCE_OPTIONS: Array<{ label: string; value: ClientSource }> = [
-  { value: "instagram", label: "Instagram" },
-  { value: "facebook", label: "Facebook" },
-  { value: "website", label: "Сайт" },
-  { value: "referral", label: "Рекомендация" },
-  { value: "direct", label: "Прямой" },
-  { value: "other", label: "Другое" },
+const SOURCE_VALUES: readonly ClientSource[] = [
+  "instagram",
+  "facebook",
+  "website",
+  "referral",
+  "direct",
+  "other",
 ];
 
 function isClientSource(value: string): value is ClientSource {
-  return SOURCE_OPTIONS.some((o) => o.value === value);
+  return SOURCE_VALUES.includes(value as ClientSource);
 }
 
 interface FormState {
@@ -59,9 +60,18 @@ interface CreateClientDrawerProps {
 }
 
 export function CreateClientDrawer({ open, onClose, onSuccess }: CreateClientDrawerProps) {
+  const { t } = useI18n();
   const mutation = useCreateClientMutation();
   const [form, setForm] = useState<FormState>(INITIAL_FORM);
   const [errors, setErrors] = useState<FormErrors>({});
+  const sourceOptions: Array<{ label: string; value: ClientSource }> = [
+    { value: "instagram", label: "Instagram" },
+    { value: "facebook", label: "Facebook" },
+    { value: "website", label: t("clients.source.website") },
+    { value: "referral", label: t("clients.source.referral") },
+    { value: "direct", label: t("clients.source.direct") },
+    { value: "other", label: t("clients.source.other") },
+  ];
 
   const set = (key: keyof FormState) => (value: string) => {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -81,8 +91,8 @@ export function CreateClientDrawer({ open, onClose, onSuccess }: CreateClientDra
 
   const validate = (): boolean => {
     const next: FormErrors = {};
-    if (!form.fullName.trim()) next.fullName = "ФИО обязательно";
-    if (!form.phone.trim()) next.phone = "Телефон обязателен";
+    if (!form.fullName.trim()) next.fullName = t("clients.validation.fullNameRequired");
+    if (!form.phone.trim()) next.phone = t("clients.validation.phoneRequired");
     setErrors(next);
     return Object.keys(next).length === 0;
   };
@@ -124,31 +134,31 @@ export function CreateClientDrawer({ open, onClose, onSuccess }: CreateClientDra
   return (
     <AppDrawerForm
       open={open}
-      title="Добавить клиента"
-      subtitle="Заполните информацию о новом клиенте"
-      saveLabel="Сохранить"
-      cancelLabel="Отмена"
+      title={t("clients.create.title")}
+      subtitle={t("clients.create.subtitle")}
+      saveLabel={t("common.save")}
+      cancelLabel={t("common.cancel")}
       isSaving={mutation.isPending}
       onClose={handleClose}
       onSave={handleSave}
     >
       <Stack spacing={2}>
         <AppInput
-          label="ФИО *"
+          label={t("clients.fields.fullNameRequired")}
           value={form.fullName}
           onChangeValue={set("fullName")}
           {...(errors.fullName ? { errorText: errors.fullName } : {})}
         />
 
         <AppInput
-          label="Телефон *"
+          label={t("clients.fields.phoneRequired")}
           value={form.phone}
           onChangeValue={set("phone")}
           {...(errors.phone ? { errorText: errors.phone } : {})}
         />
 
         <AppInput
-          label="Доп. телефон"
+          label={t("clients.fields.extraPhone")}
           value={form.extraPhone}
           onChangeValue={set("extraPhone")}
         />
@@ -173,8 +183,8 @@ export function CreateClientDrawer({ open, onClose, onSuccess }: CreateClientDra
 
         <AppSelect
           id="client-source"
-          label="Источник *"
-          options={SOURCE_OPTIONS}
+          label={t("clients.fields.sourceRequired")}
+          options={sourceOptions}
           value={form.source}
           onChange={(e) => {
             const v = e.target.value;
@@ -183,13 +193,13 @@ export function CreateClientDrawer({ open, onClose, onSuccess }: CreateClientDra
         />
 
         <AppInput
-          label="Адрес"
+          label={t("clients.fields.address")}
           value={form.address}
           onChangeValue={set("address")}
         />
 
         <AppInput
-          label="Заметки"
+          label={t("clients.fields.notes")}
           value={form.notes}
           onChangeValue={set("notes")}
         />

@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 import { backendRequest } from "@/shared/lib/http/backend-client";
 import { SESSION_COOKIE_KEY, REFRESH_TOKEN_COOKIE_KEY } from "@/modules/auth/infrastructure/session-cookie";
 import { resolvePermissions } from "@/shared/types/permissions";
-import type { UserRole } from "@/shared/types/permissions";
+import type { UserRole, PermissionCode } from "@/shared/types/permissions";
 import type { Session, SessionUser } from "@/modules/auth/domain/session";
 
 interface BackendUser {
@@ -11,6 +11,7 @@ interface BackendUser {
   email: string;
   full_name: string;
   role: string;
+  permissions?: string[];
   tenant_id?: string;
   can_login: boolean;
 }
@@ -39,6 +40,11 @@ export async function POST() {
 
     const authData = result.data;
     const role = authData.user.role as UserRole;
+    // Prefer permissions from backend (single source of truth); fallback to local resolution
+    const backendPerms = authData.user.permissions as PermissionCode[] | undefined;
+    const permissions = backendPerms && backendPerms.length > 0
+      ? backendPerms
+      : resolvePermissions([role]);
     const sessionUser: SessionUser = {
       id: authData.user.id,
       email: authData.user.email,
@@ -46,7 +52,7 @@ export async function POST() {
       avatarUrl: null,
       role,
       roles: [role],
-      permissions: resolvePermissions([role]),
+      permissions,
       tenantId: authData.user.tenant_id ?? "",
       tenantName: "",
     };

@@ -117,4 +117,6 @@ export interface ReceivePaymentInput {
   barterDescription?: string | undefined;
   accountId?: string | undefined;
   notes?: string | undefined;
+  /** Idempotency key to prevent duplicate payment submissions */
+  idempotencyKey?: string | undefined;
 }

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Stack } from "@mui/material";
 import { AppDrawerForm, AppInput } from "@/shared/ui";
 import { useCompleteWorkOrderMutation } from "@/modules/masters/presentation/hooks/use-work-order-actions-mutation";
+import { useI18n } from "@/shared/providers/locale-provider";
 
 interface FormState {
   actualAmount: string;
@@ -30,6 +31,7 @@ export function CompleteWorkOrderDrawer({
   onClose,
   onSuccess,
 }: CompleteWorkOrderDrawerProps) {
+  const { t } = useI18n();
   const mutation = useCompleteWorkOrderMutation();
   const [form, setForm] = useState<FormState>(INITIAL_FORM);
   const [errors, setErrors] = useState<FormErrors>({});
@@ -54,7 +56,7 @@ export function CompleteWorkOrderDrawer({
     const next: FormErrors = {};
     const amount = parseFloat(form.actualAmount);
     if (!form.actualAmount || isNaN(amount) || amount <= 0) {
-      next.actualAmount = "Фактическая сумма должна быть больше 0";
+      next.actualAmount = t("masters.workOrder.complete.validation.actualAmount");
     }
     setErrors(next);
     return Object.keys(next).length === 0;
@@ -91,24 +93,24 @@ export function CompleteWorkOrderDrawer({
   return (
     <AppDrawerForm
       open={open}
-      title="Завершить наряд"
-      subtitle="Укажите фактическую сумму выполненных работ"
-      saveLabel="Завершить"
-      cancelLabel="Отмена"
+      title={t("masters.workOrder.complete.title")}
+      subtitle={t("masters.workOrder.complete.subtitle")}
+      saveLabel={t("masters.workOrder.complete.save")}
+      cancelLabel={t("common.cancel")}
       isSaving={mutation.isPending}
       onClose={handleClose}
       onSave={handleSave}
     >
       <Stack spacing={2}>
         <AppInput
-          label="Фактическая сумма *"
+          label={t("masters.workOrder.complete.fields.actualAmountRequired")}
           type="number"
           value={form.actualAmount}
           onChangeValue={set("actualAmount")}
           {...(errors.actualAmount ? { errorText: errors.actualAmount } : {})}
         />
         <AppInput
-          label="Заметки"
+          label={t("masters.workOrder.complete.fields.notes")}
           value={form.notes}
           onChangeValue={set("notes")}
         />

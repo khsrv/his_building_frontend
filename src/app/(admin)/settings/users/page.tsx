@@ -9,7 +9,6 @@ import {
   AppDrawerForm,
   AppInput,
   AppSelect,
-  AppStatusBadge,
   AppStatePanel,
   ShimmerBox,
   ConfirmDialog,
@@ -23,8 +22,7 @@ import { useUpdateUserRoleMutation } from "@/modules/admin/presentation/hooks/us
 import { useToggleCanLoginMutation } from "@/modules/admin/presentation/hooks/use-toggle-can-login-mutation";
 import { useAuth } from "@/modules/auth/presentation/hooks/use-auth";
 import type { AdminUser, BackendRole } from "@/modules/admin/domain/admin";
-
-// ─── Role config ──────────────────────────────────────────────────────────────
+import { useI18n } from "@/shared/providers/locale-provider";
 
 interface RoleConfig {
   label: string;
@@ -34,116 +32,16 @@ interface RoleConfig {
   bgColor: string;
 }
 
-const ROLE_CONFIG: Record<Exclude<BackendRole, "super_admin">, RoleConfig> = {
-  company_admin: {
-    label: "Администратор",
-    description: "Полный доступ ко всему",
-    group: "Управление",
-    color: "#7c3aed",
-    bgColor: "#7c3aed20",
-  },
-  sales_head: {
-    label: "Рук. продаж",
-    description: "Управляет командой, видит финансы",
-    group: "Продажи",
-    color: "#2563eb",
-    bgColor: "#2563eb20",
-  },
-  manager: {
-    label: "Менеджер",
-    description: "Работа с клиентами и сделками",
-    group: "Продажи",
-    color: "#0891b2",
-    bgColor: "#0891b220",
-  },
-  accountant: {
-    label: "Бухгалтер",
-    description: "Отчёты, транзакции, залоги",
-    group: "Финансы",
-    color: "#16a34a",
-    bgColor: "#16a34a20",
-  },
-  cashier: {
-    label: "Кассир",
-    description: "Приём и подтверждение платежей",
-    group: "Финансы",
-    color: "#65a30d",
-    bgColor: "#65a30d20",
-  },
-  foreman: {
-    label: "Прораб",
-    description: "Работа с нарядами",
-    group: "Склад и стройка",
-    color: "#ea580c",
-    bgColor: "#ea580c20",
-  },
-  warehouse_manager: {
-    label: "Нач. склада",
-    description: "Материалы, поставщики, движение",
-    group: "Склад и стройка",
-    color: "#92400e",
-    bgColor: "#92400e20",
-  },
-  broker: {
-    label: "Брокер",
-    description: "Внешний партнёр по продажам",
-    group: "Продажи",
-    color: "#6366f1",
-    bgColor: "#6366f120",
-  },
-};
-
-function getRoleConfig(role: BackendRole): RoleConfig {
-  if (role === "super_admin") {
-    return { label: "Супер админ", description: "", group: "", color: "#dc2626", bgColor: "#dc262620" };
-  }
-  return ROLE_CONFIG[role] ?? { label: role, description: "", group: "", color: "#64748b", bgColor: "#64748b20" };
+function generatePassword(length = 12): string {
+  const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%&*";
+  const arr = new Uint8Array(length);
+  crypto.getRandomValues(arr);
+  return Array.from(arr, (byte) => charset[byte % charset.length]).join("");
 }
 
-function getRoleLabel(role: BackendRole): string {
-  return getRoleConfig(role).label;
-}
-
-// Grouped role options for select (without super_admin)
-const ROLE_SELECT_OPTIONS: { value: BackendRole; label: string }[] = [
-  { value: "sales_head", label: "Рук. продаж — управляет командой, видит финансы" },
-  { value: "manager", label: "Менеджер — работа с клиентами и сделками" },
-  { value: "broker", label: "Брокер — внешний партнёр по продажам" },
-  { value: "accountant", label: "Бухгалтер — отчёты, транзакции, залоги" },
-  { value: "cashier", label: "Кассир — приём и подтверждение платежей" },
-  { value: "warehouse_manager", label: "Нач. склада — материалы, поставщики" },
-  { value: "foreman", label: "Прораб — работа с нарядами" },
-  { value: "company_admin", label: "Администратор — полный доступ ко всему" },
-];
-
-const ROLE_FILTER_OPTIONS = [
-  { value: "", label: "Все роли" },
-  ...Object.entries(ROLE_CONFIG).map(([value, config]) => ({
-    value,
-    label: config.label,
-  })),
-];
-
-function RoleBadge({ role }: { role: BackendRole }) {
-  const config = getRoleConfig(role);
-  return (
-    <Chip
-      label={config.label}
-      size="small"
-      sx={{
-        fontWeight: 600,
-        fontSize: 12,
-        color: config.color,
-        bgcolor: config.bgColor,
-        border: "none",
-      }}
-    />
-  );
-}
-
-function formatDate(dateStr: string): string {
+function formatDate(dateStr: string, localeCode: string): string {
   try {
-    return new Date(dateStr).toLocaleDateString("ru-RU", {
+    return new Date(dateStr).toLocaleDateString(localeCode, {
       day: "2-digit",
       month: "2-digit",
       year: "numeric",
@@ -153,28 +51,25 @@ function formatDate(dateStr: string): string {
   }
 }
 
-// ─── Password helpers ─────────────────────────────────────────────────────────
-
-function generatePassword(length = 12): string {
-  const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%&*";
-  const arr = new Uint8Array(length);
-  crypto.getRandomValues(arr);
-  return Array.from(arr, (byte) => charset[byte % charset.length]).join("");
-}
-
-function getPasswordStrength(pw: string): { label: string; color: string } {
-  if (pw.length < 8) return { label: "Слабый", color: "#dc2626" };
-  const hasUpper = /[A-Z]/.test(pw);
-  const hasLower = /[a-z]/.test(pw);
-  const hasDigit = /\d/.test(pw);
-  const hasSpecial = /[^a-zA-Z0-9]/.test(pw);
+function getPasswordStrength(password: string): { level: "weak" | "medium" | "strong"; color: string } {
+  if (password.length < 8) {
+    return { level: "weak", color: "#dc2626" };
+  }
+  const hasUpper = /[A-Z]/.test(password);
+  const hasLower = /[a-z]/.test(password);
+  const hasDigit = /\d/.test(password);
+  const hasSpecial = /[^a-zA-Z0-9]/.test(password);
   const score = [hasUpper, hasLower, hasDigit, hasSpecial].filter(Boolean).length;
-  if (score >= 3 && pw.length >= 10) return { label: "Сильный", color: "#16a34a" };
-  if (score >= 2) return { label: "Средний", color: "#ea580c" };
-  return { label: "Слабый", color: "#dc2626" };
-}
 
-// ─── Form states ──────────────────────────────────────────────────────────────
+  if (score >= 3 && password.length >= 10) {
+    return { level: "strong", color: "#16a34a" };
+  }
+  if (score >= 2) {
+    return { level: "medium", color: "#ea580c" };
+  }
+
+  return { level: "weak", color: "#dc2626" };
+}
 
 interface CreateFormState {
   fullName: string;
@@ -211,49 +106,152 @@ interface ChangeRoleState {
   currentRole: BackendRole;
 }
 
-// ─── Page ─────────────────────────────────────────────────────────────────────
+function RoleBadge({ role, getRoleConfig }: { role: BackendRole; getRoleConfig: (role: BackendRole) => RoleConfig }) {
+  const config = getRoleConfig(role);
+  return (
+    <Chip
+      label={config.label}
+      size="small"
+      sx={{
+        fontWeight: 600,
+        fontSize: 12,
+        color: config.color,
+        bgcolor: config.bgColor,
+        border: "none",
+      }}
+    />
+  );
+}
 
 export default function SettingsUsersPage() {
+  const { locale, t } = useI18n();
   const { data, isLoading, isError } = useUsersListQuery({ limit: 100 });
   const createMutation = useCreateUserMutation();
   const updateRoleMutation = useUpdateUserRoleMutation();
   const toggleLoginMutation = useToggleCanLoginMutation();
   const { user: currentUser } = useAuth();
 
-  // Filter
-  const [roleFilter, setRoleFilter] = useState("");
+  const localeCode =
+    locale === "en" ? "en-US" : locale === "uz" ? "uz-UZ" : locale === "tg" ? "tg-TJ" : "ru-RU";
 
-  // Drawer: create user
+  const roleConfig = useMemo<Record<Exclude<BackendRole, "super_admin">, RoleConfig>>(
+    () => ({
+      company_admin: {
+        label: t("settings.users.role.companyAdmin"),
+        description: t("settings.users.roleDesc.companyAdmin"),
+        group: t("settings.users.group.management"),
+        color: "#7c3aed",
+        bgColor: "#7c3aed20",
+      },
+      sales_head: {
+        label: t("settings.users.role.salesHead"),
+        description: t("settings.users.roleDesc.salesHead"),
+        group: t("settings.users.group.sales"),
+        color: "#2563eb",
+        bgColor: "#2563eb20",
+      },
+      manager: {
+        label: t("settings.users.role.manager"),
+        description: t("settings.users.roleDesc.manager"),
+        group: t("settings.users.group.sales"),
+        color: "#0891b2",
+        bgColor: "#0891b220",
+      },
+      accountant: {
+        label: t("settings.users.role.accountant"),
+        description: t("settings.users.roleDesc.accountant"),
+        group: t("settings.users.group.finance"),
+        color: "#16a34a",
+        bgColor: "#16a34a20",
+      },
+      cashier: {
+        label: t("settings.users.role.cashier"),
+        description: t("settings.users.roleDesc.cashier"),
+        group: t("settings.users.group.finance"),
+        color: "#65a30d",
+        bgColor: "#65a30d20",
+      },
+      foreman: {
+        label: t("settings.users.role.foreman"),
+        description: t("settings.users.roleDesc.foreman"),
+        group: t("settings.users.group.warehouse"),
+        color: "#ea580c",
+        bgColor: "#ea580c20",
+      },
+      warehouse_manager: {
+        label: t("settings.users.role.warehouseManager"),
+        description: t("settings.users.roleDesc.warehouseManager"),
+        group: t("settings.users.group.warehouse"),
+        color: "#92400e",
+        bgColor: "#92400e20",
+      },
+      broker: {
+        label: t("settings.users.role.broker"),
+        description: t("settings.users.roleDesc.broker"),
+        group: t("settings.users.group.sales"),
+        color: "#6366f1",
+        bgColor: "#6366f120",
+      },
+    }),
+    [t],
+  );
+
+  const getRoleConfig = useCallback(
+    (role: BackendRole): RoleConfig => {
+      if (role === "super_admin") {
+        return {
+          label: t("settings.users.role.superAdmin"),
+          description: "",
+          group: "",
+          color: "#dc2626",
+          bgColor: "#dc262620",
+        };
+      }
+      return roleConfig[role] ?? { label: role, description: "", group: "", color: "#64748b", bgColor: "#64748b20" };
+    },
+    [roleConfig, t],
+  );
+
+  const getRoleLabel = useCallback((role: BackendRole): string => getRoleConfig(role).label, [getRoleConfig]);
+
+  const roleSelectOptions: { value: BackendRole; label: string }[] = [
+    { value: "sales_head", label: t("settings.users.roleLine.salesHead") },
+    { value: "manager", label: t("settings.users.roleLine.manager") },
+    { value: "broker", label: t("settings.users.roleLine.broker") },
+    { value: "accountant", label: t("settings.users.roleLine.accountant") },
+    { value: "cashier", label: t("settings.users.roleLine.cashier") },
+    { value: "warehouse_manager", label: t("settings.users.roleLine.warehouseManager") },
+    { value: "foreman", label: t("settings.users.roleLine.foreman") },
+    { value: "company_admin", label: t("settings.users.roleLine.companyAdmin") },
+  ];
+
+  const roleFilterOptions = [
+    { value: "", label: t("settings.users.allRoles") },
+    ...Object.entries(roleConfig).map(([value, config]) => ({
+      value,
+      label: config.label,
+    })),
+  ];
+
+  const [roleFilter, setRoleFilter] = useState("");
   const [createDrawerOpen, setCreateDrawerOpen] = useState(false);
   const [createForm, setCreateForm] = useState<CreateFormState>(INITIAL_CREATE_FORM);
   const [createErrors, setCreateErrors] = useState<CreateFormErrors>({});
-
-  // Toast for copy credentials
   const [toast, setToast] = useState<string | null>(null);
   const [createdCredentials, setCreatedCredentials] = useState<{ email: string; password: string } | null>(null);
-
-  // Drawer: change role
   const [roleDrawerOpen, setRoleDrawerOpen] = useState(false);
   const [changeRoleState, setChangeRoleState] = useState<ChangeRoleState | null>(null);
   const [selectedRole, setSelectedRole] = useState<BackendRole>("manager");
-
-  // Confirm: toggle can_login
   const [toggleLoginState, setToggleLoginState] = useState<ToggleLoginState | null>(null);
 
   const users = data?.items ?? [];
   const totalCount = data?.total ?? users.length;
-
-  const filteredUsers = useMemo(
-    () => (roleFilter ? users.filter((u) => u.role === roleFilter) : users),
-    [users, roleFilter],
-  );
-
-  // ─── Columns ───────────────────────────────────────────────────────────────
+  const filteredUsers = roleFilter ? users.filter((u) => u.role === roleFilter) : users;
 
   const columns: readonly AppDataTableColumn<AdminUser>[] = [
     {
       id: "fullName",
-      header: "Сотрудник",
+      header: t("settings.users.columns.employee"),
       cell: (row) => (
         <div style={{ opacity: row.canLogin ? 1 : 0.5 }}>
           <p className="text-sm font-medium text-foreground">{row.fullName}</p>
@@ -265,45 +263,36 @@ export default function SettingsUsersPage() {
     },
     {
       id: "role",
-      header: "Роль",
+      header: t("settings.users.columns.role"),
       cell: (row) => (
         <span style={{ opacity: row.canLogin ? 1 : 0.5 }}>
-          <RoleBadge role={row.role} />
+          <RoleBadge role={row.role} getRoleConfig={getRoleConfig} />
         </span>
       ),
       sortAccessor: (row) => getRoleLabel(row.role),
     },
     {
       id: "canLogin",
-      header: "Статус",
+      header: t("settings.users.columns.status"),
       cell: (row) => (
         <div className="flex items-center gap-1.5">
           <span
             className="inline-block h-2 w-2 rounded-full"
             style={{ backgroundColor: row.canLogin ? "#16a34a" : "#dc2626" }}
           />
-          <span
-            className="text-xs"
-            style={{ opacity: row.canLogin ? 1 : 0.5 }}
-          >
-            {row.canLogin ? "Активен" : "Заблокирован"}
+          <span className="text-xs" style={{ opacity: row.canLogin ? 1 : 0.5 }}>
+            {row.canLogin ? t("settings.users.status.active") : t("settings.users.status.blocked")}
           </span>
         </div>
       ),
     },
     {
       id: "createdAt",
-      header: "Дата добавления",
-      cell: (row) => (
-        <span style={{ opacity: row.canLogin ? 1 : 0.5 }}>
-          {formatDate(row.createdAt)}
-        </span>
-      ),
+      header: t("settings.users.columns.createdAt"),
+      cell: (row) => <span style={{ opacity: row.canLogin ? 1 : 0.5 }}>{formatDate(row.createdAt, localeCode)}</span>,
       sortAccessor: (row) => row.createdAt,
     },
   ];
-
-  // ─── Row actions ───────────────────────────────────────────────────────────
 
   const getRowActions = useCallback(
     (row: AdminUser): readonly AppActionMenuGroup[] => {
@@ -316,7 +305,7 @@ export default function SettingsUsersPage() {
           items: [
             {
               id: "change-role",
-              label: "Изменить роль",
+              label: t("settings.users.actions.changeRole"),
               onClick: () => {
                 setChangeRoleState({
                   userId: row.id,
@@ -329,7 +318,7 @@ export default function SettingsUsersPage() {
             },
             {
               id: "toggle-login",
-              label: row.canLogin ? "Заблокировать" : "Разблокировать",
+              label: row.canLogin ? t("settings.users.actions.block") : t("settings.users.actions.unblock"),
               onClick: () => {
                 setToggleLoginState({
                   userId: row.id,
@@ -343,26 +332,24 @@ export default function SettingsUsersPage() {
         },
       ];
     },
-    [currentUser?.id],
+    [currentUser?.id, t],
   );
-
-  // ─── Create form validation ────────────────────────────────────────────────
 
   function validateCreateForm(): boolean {
     const next: CreateFormErrors = {};
     if (!createForm.fullName.trim() || createForm.fullName.trim().length < 2) {
-      next.fullName = "Минимум 2 символа";
+      next.fullName = t("settings.users.validation.min2");
     }
     if (!createForm.email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(createForm.email)) {
-      next.email = "Введите корректный email";
+      next.email = t("settings.users.validation.email");
     }
     if (createForm.password.length < 8) {
-      next.password = "Минимум 8 символов";
+      next.password = t("settings.users.validation.passMin");
     } else if (createForm.password.length > 72) {
-      next.password = "Максимум 72 символа";
+      next.password = t("settings.users.validation.passMax");
     }
     if (createForm.password !== createForm.passwordConfirm) {
-      next.passwordConfirm = "Пароли не совпадают";
+      next.passwordConfirm = t("settings.users.validation.passMatch");
     }
     setCreateErrors(next);
     return Object.keys(next).length === 0;
@@ -386,16 +373,16 @@ export default function SettingsUsersPage() {
           setCreateForm(INITIAL_CREATE_FORM);
           setCreateErrors({});
           setCreatedCredentials({ email: savedEmail, password: savedPassword });
-          setToast("Сотрудник добавлен");
+          setToast(t("settings.users.toast.added"));
         },
         onError: (error) => {
           const msg = error instanceof Error ? error.message : "";
           if (msg.includes("409") || msg.toLowerCase().includes("already")) {
-            setCreateErrors({ server: "Пользователь с таким email уже существует" });
+            setCreateErrors({ server: t("settings.users.server.userExists") });
           } else if (msg.includes("429") || msg.toLowerCase().includes("limit")) {
-            setCreateErrors({ server: "Достигнут лимит сотрудников. Обратитесь к администратору системы" });
+            setCreateErrors({ server: t("settings.users.server.limitReached") });
           } else {
-            setCreateErrors({ server: msg || "Не удалось создать сотрудника" });
+            setCreateErrors({ server: msg || t("settings.users.server.createFailed") });
           }
         },
       },
@@ -403,23 +390,23 @@ export default function SettingsUsersPage() {
   }
 
   function handleGeneratePassword() {
-    const pw = generatePassword();
+    const password = generatePassword();
     setCreateForm((prev) => ({
       ...prev,
-      password: pw,
-      passwordConfirm: pw,
+      password,
+      passwordConfirm: password,
       showPassword: true,
     }));
   }
 
   async function handleCopyCredentials() {
     if (!createdCredentials) return;
-    const text = `Email: ${createdCredentials.email}\nПароль: ${createdCredentials.password}`;
+    const text = `${t("settings.users.credentials.email")}: ${createdCredentials.email}\n${t("settings.users.credentials.password")}: ${createdCredentials.password}`;
     try {
       await navigator.clipboard.writeText(text);
-      setToast("Данные скопированы в буфер обмена");
+      setToast(t("settings.users.toast.copiedCredentials"));
     } catch {
-      setToast("Не удалось скопировать");
+      setToast(t("settings.users.toast.copyFailed"));
     }
     setCreatedCredentials(null);
   }
@@ -428,13 +415,11 @@ export default function SettingsUsersPage() {
     if (!createForm.password) return;
     try {
       await navigator.clipboard.writeText(createForm.password);
-      setToast("Пароль скопирован");
+      setToast(t("settings.users.toast.passwordCopied"));
     } catch {
       // ignore
     }
   }
-
-  // ─── Change role ────────────────────────────────────────────────────────────
 
   function handleRoleSave() {
     if (!changeRoleState) return;
@@ -444,13 +429,11 @@ export default function SettingsUsersPage() {
         onSuccess: () => {
           setRoleDrawerOpen(false);
           setChangeRoleState(null);
-          setToast("Роль изменена");
+          setToast(t("settings.users.toast.roleChanged"));
         },
       },
     );
   }
-
-  // ─── Toggle login ──────────────────────────────────────────────────────────
 
   function handleToggleLoginConfirm() {
     if (!toggleLoginState) return;
@@ -463,30 +446,34 @@ export default function SettingsUsersPage() {
         onSuccess: () => {
           const wasBlocking = toggleLoginState.currentCanLogin;
           setToggleLoginState(null);
-          setToast(wasBlocking ? "Сотрудник заблокирован" : "Доступ восстановлен");
+          setToast(wasBlocking ? t("settings.users.toast.blocked") : t("settings.users.toast.unblocked"));
         },
       },
     );
   }
 
-  // ─── Password strength ─────────────────────────────────────────────────────
   const pwStrength = createForm.password ? getPasswordStrength(createForm.password) : null;
-
-  // ─── Render ────────────────────────────────────────────────────────────────
+  const pwStrengthLabel = pwStrength
+    ? pwStrength.level === "strong"
+      ? t("settings.users.passwordStrength.strong")
+      : pwStrength.level === "medium"
+        ? t("settings.users.passwordStrength.medium")
+        : t("settings.users.passwordStrength.weak")
+    : null;
 
   return (
     <main className="space-y-6 p-4 md:p-6">
       <AppPageHeader
-        title="Сотрудники"
-        subtitle={`${totalCount} сотрудников`}
+        title={t("settings.users.title")}
+        subtitle={t("settings.users.subtitle", { count: totalCount })}
         breadcrumbs={[
-          { id: "dashboard", label: "Панель", href: routes.dashboard },
-          { id: "settings", label: "Настройки", href: routes.settings },
-          { id: "users", label: "Сотрудники" },
+          { id: "dashboard", label: t("nav.dashboard"), href: routes.dashboard },
+          { id: "settings", label: t("nav.settings"), href: routes.settings },
+          { id: "users", label: t("settings.users.title") },
         ]}
         actions={
           <AppButton
-            label="+ Добавить сотрудника"
+            label={t("settings.users.addButton")}
             variant="primary"
             size="md"
             onClick={() => {
@@ -508,8 +495,8 @@ export default function SettingsUsersPage() {
       {isError && (
         <AppStatePanel
           tone="error"
-          title="Ошибка загрузки"
-          description="Не удалось загрузить список сотрудников. Попробуйте обновить страницу."
+          title={t("settings.users.error.title")}
+          description={t("settings.users.error.description")}
         />
       )}
 
@@ -519,8 +506,8 @@ export default function SettingsUsersPage() {
             <div className="w-48">
               <AppSelect
                 id="role-filter"
-                label="Роль"
-                options={ROLE_FILTER_OPTIONS}
+                label={t("settings.users.columns.role")}
+                options={roleFilterOptions}
                 value={roleFilter}
                 onChange={(e) => setRoleFilter(e.target.value)}
               />
@@ -531,21 +518,20 @@ export default function SettingsUsersPage() {
             data={filteredUsers}
             rowKey={(row) => row.id}
             rowActions={getRowActions}
-            rowActionsTriggerLabel="Действия"
-            searchPlaceholder="Поиск по имени или email..."
+            rowActionsTriggerLabel={t("actionMenu.trigger")}
+            searchPlaceholder={t("settings.users.searchPlaceholder")}
             enableSettings
             storageKey="settings-users-table"
           />
         </>
       )}
 
-      {/* ── Create user drawer ── */}
       <AppDrawerForm
         open={createDrawerOpen}
-        title="Новый сотрудник"
-        subtitle="Заполните данные нового сотрудника"
-        saveLabel="Создать"
-        cancelLabel="Отмена"
+        title={t("settings.users.create.title")}
+        subtitle={t("settings.users.create.subtitle")}
+        saveLabel={t("settings.users.create.save")}
+        cancelLabel={t("common.cancel")}
         isSaving={createMutation.isPending}
         saveDisabled={createMutation.isPending}
         onClose={() => setCreateDrawerOpen(false)}
@@ -559,28 +545,28 @@ export default function SettingsUsersPage() {
           ) : null}
 
           <AppInput
-            label="ФИО *"
+            label={t("settings.users.fields.fullNameRequired")}
             value={createForm.fullName}
-            onChangeValue={(v) => setCreateForm((prev) => ({ ...prev, fullName: v }))}
-            placeholder="Иванов Иван Иванович"
+            onChangeValue={(value) => setCreateForm((prev) => ({ ...prev, fullName: value }))}
+            placeholder={t("settings.users.placeholders.fullName")}
             {...(createErrors.fullName ? { errorText: createErrors.fullName } : {})}
           />
           <AppInput
-            label="Email *"
+            label={t("settings.users.fields.emailRequired")}
             type="email"
             value={createForm.email}
-            onChangeValue={(v) => setCreateForm((prev) => ({ ...prev, email: v }))}
-            placeholder="ivan@company.uz"
+            onChangeValue={(value) => setCreateForm((prev) => ({ ...prev, email: value }))}
+            placeholder={t("settings.users.placeholders.email")}
             {...(createErrors.email ? { errorText: createErrors.email } : {})}
           />
 
           <Box>
             <AppInput
-              label="Пароль * (мин. 8 символов)"
+              label={t("settings.users.fields.passwordRequired")}
               type={createForm.showPassword ? "text" : "password"}
               value={createForm.password}
-              onChangeValue={(v) => setCreateForm((prev) => ({ ...prev, password: v }))}
-              placeholder="Минимум 8 символов"
+              onChangeValue={(value) => setCreateForm((prev) => ({ ...prev, password: value }))}
+              placeholder={t("settings.users.placeholders.password")}
               {...(createErrors.password ? { errorText: createErrors.password } : {})}
             />
             {pwStrength ? (
@@ -588,27 +574,25 @@ export default function SettingsUsersPage() {
                 variant="caption"
                 sx={{ mt: 0.5, display: "block", color: pwStrength.color, fontWeight: 600 }}
               >
-                Надёжность: {pwStrength.label}
+                {t("settings.users.passwordStrength")}: {pwStrengthLabel}
               </Typography>
             ) : null}
             <Box sx={{ display: "flex", gap: 1, mt: 1 }}>
               <AppButton
-                label={createForm.showPassword ? "Скрыть" : "Показать"}
+                label={createForm.showPassword ? t("settings.users.actions.hide") : t("settings.users.actions.show")}
                 variant="outline"
                 size="sm"
-                onClick={() =>
-                  setCreateForm((prev) => ({ ...prev, showPassword: !prev.showPassword }))
-                }
+                onClick={() => setCreateForm((prev) => ({ ...prev, showPassword: !prev.showPassword }))}
               />
               <AppButton
-                label="Сгенерировать"
+                label={t("settings.users.actions.generate")}
                 variant="outline"
                 size="sm"
                 onClick={handleGeneratePassword}
               />
               {createForm.password ? (
                 <AppButton
-                  label="Копировать"
+                  label={t("settings.users.actions.copy")}
                   variant="outline"
                   size="sm"
                   onClick={() => void handleCopyPassword()}
@@ -618,18 +602,18 @@ export default function SettingsUsersPage() {
           </Box>
 
           <AppInput
-            label="Подтверждение пароля *"
+            label={t("settings.users.fields.passwordConfirmRequired")}
             type={createForm.showPassword ? "text" : "password"}
             value={createForm.passwordConfirm}
-            onChangeValue={(v) => setCreateForm((prev) => ({ ...prev, passwordConfirm: v }))}
-            placeholder="Повторите пароль"
+            onChangeValue={(value) => setCreateForm((prev) => ({ ...prev, passwordConfirm: value }))}
+            placeholder={t("settings.users.placeholders.passwordConfirm")}
             {...(createErrors.passwordConfirm ? { errorText: createErrors.passwordConfirm } : {})}
           />
 
           <AppSelect
-            label="Роль *"
+            label={t("settings.users.fields.roleRequired")}
             id="create-user-role"
-            options={ROLE_SELECT_OPTIONS}
+            options={roleSelectOptions}
             value={createForm.role}
             onChange={(e) =>
               setCreateForm((prev) => ({
@@ -641,13 +625,12 @@ export default function SettingsUsersPage() {
         </Box>
       </AppDrawerForm>
 
-      {/* ── Change role drawer ── */}
       <AppDrawerForm
         open={roleDrawerOpen}
-        title={`Изменить роль — ${changeRoleState?.userName ?? ""}`}
-        subtitle="После смены роли у сотрудника изменится доступ к разделам системы"
-        saveLabel="Сохранить"
-        cancelLabel="Отмена"
+        title={t("settings.users.changeRole.title", { name: changeRoleState?.userName ?? "" })}
+        subtitle={t("settings.users.changeRole.subtitle")}
+        saveLabel={t("common.save")}
+        cancelLabel={t("common.cancel")}
         isSaving={updateRoleMutation.isPending}
         saveDisabled={updateRoleMutation.isPending}
         onClose={() => {
@@ -660,45 +643,49 @@ export default function SettingsUsersPage() {
           {changeRoleState ? (
             <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
               <Typography variant="body2" color="text.secondary">
-                Текущая роль:
+                {t("settings.users.changeRole.current")}
               </Typography>
-              <RoleBadge role={changeRoleState.currentRole} />
+              <RoleBadge role={changeRoleState.currentRole} getRoleConfig={getRoleConfig} />
             </Box>
           ) : null}
           <AppSelect
-            label="Новая роль *"
+            label={t("settings.users.changeRole.newRole")}
             id="change-user-role"
-            options={ROLE_SELECT_OPTIONS}
+            options={roleSelectOptions}
             value={selectedRole}
             onChange={(e) => setSelectedRole(e.target.value as BackendRole)}
           />
           <Alert severity="info" sx={{ borderRadius: 2 }}>
-            После смены роли у сотрудника изменится доступ к разделам системы
+            {t("settings.users.changeRole.subtitle")}
           </Alert>
         </Box>
       </AppDrawerForm>
 
-      {/* ── Confirm toggle can_login ── */}
       <ConfirmDialog
         open={toggleLoginState !== null}
         title={
           toggleLoginState?.currentCanLogin
-            ? "Заблокировать сотрудника?"
-            : "Разблокировать сотрудника?"
+            ? t("settings.users.confirm.blockTitle")
+            : t("settings.users.confirm.unblockTitle")
         }
         message={
           toggleLoginState?.currentCanLogin
-            ? `${toggleLoginState.userName} (${toggleLoginState.userEmail}) не сможет войти в систему. Все активные сессии будут завершены.`
-            : `${toggleLoginState?.userName ?? ""} (${toggleLoginState?.userEmail ?? ""}) снова сможет войти в систему.`
+            ? t("settings.users.confirm.blockMessage", {
+                name: toggleLoginState.userName,
+                email: toggleLoginState.userEmail,
+              })
+            : t("settings.users.confirm.unblockMessage", {
+                name: toggleLoginState?.userName ?? "",
+                email: toggleLoginState?.userEmail ?? "",
+              })
         }
-        confirmText={toggleLoginState?.currentCanLogin ? "Заблокировать" : "Разблокировать"}
-        cancelText="Отмена"
+        confirmText={toggleLoginState?.currentCanLogin ? t("settings.users.actions.block") : t("settings.users.actions.unblock")}
+        cancelText={t("common.cancel")}
         destructive={toggleLoginState?.currentCanLogin === true}
         onConfirm={handleToggleLoginConfirm}
         onClose={() => setToggleLoginState(null)}
       />
 
-      {/* ── Toast ── */}
       <Snackbar
         open={toast !== null}
         autoHideDuration={4000}
@@ -712,7 +699,7 @@ export default function SettingsUsersPage() {
           action={
             createdCredentials ? (
               <AppButton
-                label="Скопировать данные для входа"
+                label={t("settings.users.actions.copyLoginData")}
                 variant="outline"
                 size="sm"
                 onClick={() => void handleCopyCredentials()}

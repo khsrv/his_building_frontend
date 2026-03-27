@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Box } from "@mui/material";
 import { AppDrawerForm, AppInput, AppSelect, AppSearchableSelect } from "@/shared/ui";
 import { useCreateDepositMutation } from "@/modules/deposits/presentation/hooks/use-create-deposit-mutation";
@@ -9,6 +9,7 @@ import { useAccountsQuery } from "@/modules/finance/presentation/hooks/use-accou
 import { usePropertiesListQuery } from "@/modules/properties/presentation/hooks/use-properties-list-query";
 import { useCurrencyOptions } from "@/modules/finance/presentation/hooks/use-currency-options";
 import { usePropertyContext } from "@/shared/providers/property-provider";
+import { useI18n } from "@/shared/providers/locale-provider";
 
 interface FormState {
   depositorName: string;
@@ -29,6 +30,7 @@ interface CreateDepositDrawerProps {
 }
 
 export function CreateDepositDrawer({ open, onClose }: CreateDepositDrawerProps) {
+  const { t } = useI18n();
   const mutation = useCreateDepositMutation();
   const currencyOptions = useCurrencyOptions();
   const { currentPropertyId, hasProperty } = usePropertyContext();
@@ -57,24 +59,11 @@ export function CreateDepositDrawer({ open, onClose }: CreateDepositDrawerProps)
   }));
 
   const accountOptions = [
-    { value: "", label: "Без счёта" },
+    { value: "", label: t("deposits.create.account.none") },
     ...accounts.map((a) => ({ value: a.id, label: `${a.name} (${a.currency})` })),
   ];
 
   const propertyOptions = properties.map((p) => ({ value: p.id, label: p.name }));
-
-  // Auto-fill depositor info when client is selected
-  useEffect(() => {
-    if (!form.clientId) return;
-    const client = clients.find((c) => c.id === form.clientId);
-    if (client) {
-      setForm((prev) => ({
-        ...prev,
-        depositorName: prev.depositorName || client.fullName,
-        depositorPhone: prev.depositorPhone || client.phone,
-      }));
-    }
-  }, [form.clientId, clients]);
 
   const set = (key: keyof FormState) => (value: string) =>
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -96,14 +85,14 @@ export function CreateDepositDrawer({ open, onClose }: CreateDepositDrawerProps)
   const validate = (): boolean => {
     const next: FormErrors = {};
     if (!form.depositorName.trim()) {
-      next.depositorName = "Укажите имя вносителя";
+      next.depositorName = t("deposits.create.validation.depositorName");
     }
     const amountNum = parseFloat(form.amount);
     if (!form.amount || isNaN(amountNum) || amountNum <= 0) {
-      next.amount = "Введите корректную сумму";
+      next.amount = t("deposits.create.validation.amount");
     }
     if (!form.propertyId) {
-      next.propertyId = "Выберите объект";
+      next.propertyId = t("deposits.create.validation.property");
     }
     setErrors(next);
     return Object.keys(next).length === 0;
@@ -139,10 +128,10 @@ export function CreateDepositDrawer({ open, onClose }: CreateDepositDrawerProps)
   return (
     <AppDrawerForm
       open={open}
-      title="Принять залог"
-      subtitle="Заполните данные залога"
-      saveLabel="Принять залог"
-      cancelLabel="Отмена"
+      title={t("deposits.create.title")}
+      subtitle={t("deposits.create.subtitle")}
+      saveLabel={t("deposits.create.save")}
+      cancelLabel={t("common.cancel")}
       isSaving={mutation.isPending}
       saveDisabled={mutation.isPending}
       onClose={handleClose}
@@ -150,14 +139,14 @@ export function CreateDepositDrawer({ open, onClose }: CreateDepositDrawerProps)
     >
       <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
         <AppInput
-          label="Имя вносителя *"
+          label={t("deposits.create.fields.depositorNameRequired")}
           value={form.depositorName}
           onChangeValue={set("depositorName")}
-          placeholder="Иванов Иван Иванович"
+          placeholder={t("deposits.create.placeholders.depositorName")}
           {...(errors.depositorName ? { errorText: errors.depositorName } : {})}
         />
         <AppInput
-          label="Телефон"
+          label={t("deposits.create.fields.phone")}
           value={form.depositorPhone}
           onChangeValue={set("depositorPhone")}
           placeholder="+998901234567"
@@ -165,19 +154,27 @@ export function CreateDepositDrawer({ open, onClose }: CreateDepositDrawerProps)
         <AppSearchableSelect
           options={clientOptions}
           value={form.clientId || null}
-          onChange={(id) => set("clientId")(id)}
+          onChange={(id) => {
+            const selectedClient = clients.find((c) => c.id === id);
+            setForm((prev) => ({
+              ...prev,
+              clientId: id,
+              depositorName: prev.depositorName || selectedClient?.fullName || "",
+              depositorPhone: prev.depositorPhone || selectedClient?.phone || "",
+            }));
+          }}
           triggerLabel={
             form.clientId
-              ? clients.find((c) => c.id === form.clientId)?.fullName ?? "Выбрать клиента"
-              : "Выбрать клиента"
+              ? clients.find((c) => c.id === form.clientId)?.fullName ?? t("deposits.create.client.select")
+              : t("deposits.create.client.select")
           }
-          dialogTitle="Выбор клиента из CRM"
-          searchPlaceholder="Поиск по имени или телефону..."
-          emptyLabel="Клиенты не найдены"
+          dialogTitle={t("deposits.create.client.dialogTitle")}
+          searchPlaceholder={t("deposits.create.client.searchPlaceholder")}
+          emptyLabel={t("deposits.create.client.empty")}
         />
         <div className="grid grid-cols-2 gap-3">
           <AppInput
-            label="Сумма *"
+            label={t("deposits.create.fields.amountRequired")}
             type="number"
             value={form.amount}
             onChangeValue={set("amount")}
@@ -186,7 +183,7 @@ export function CreateDepositDrawer({ open, onClose }: CreateDepositDrawerProps)
           />
           <AppSelect
             id="deposit-currency"
-            label="Валюта *"
+            label={t("deposits.create.fields.currencyRequired")}
             options={currencyOptions}
             value={form.currency}
             onChange={(e) => set("currency")(e.target.value)}
@@ -194,21 +191,21 @@ export function CreateDepositDrawer({ open, onClose }: CreateDepositDrawerProps)
         </div>
         <AppSelect
           id="deposit-account"
-          label="Счёт / Касса"
+          label={t("deposits.create.fields.account")}
           options={accountOptions}
           value={form.accountId}
           onChange={(e) => set("accountId")(e.target.value)}
         />
         {hasProperty ? (
           <AppInput
-            label="Объект *"
+            label={t("deposits.create.fields.propertyRequired")}
             value={properties.find((p) => p.id === form.propertyId)?.name ?? ""}
             disabled
           />
         ) : (
           <AppSelect
             id="deposit-property"
-            label="Объект *"
+            label={t("deposits.create.fields.propertyRequired")}
             options={propertyOptions}
             value={form.propertyId}
             onChange={(e) => set("propertyId")(e.target.value)}
@@ -216,10 +213,10 @@ export function CreateDepositDrawer({ open, onClose }: CreateDepositDrawerProps)
           />
         )}
         <AppInput
-          label="Заметки"
+          label={t("deposits.create.fields.notes")}
           value={form.notes}
           onChangeValue={set("notes")}
-          placeholder="Залог за квартиру №15"
+          placeholder={t("deposits.create.placeholders.notes")}
         />
       </Box>
     </AppDrawerForm>

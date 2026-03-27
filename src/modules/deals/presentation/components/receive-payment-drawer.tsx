@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { AppDrawerForm, AppInput, AppSelect } from "@/shared/ui";
 import { useReceivePaymentMutation } from "@/modules/deals/presentation/hooks/use-receive-payment-mutation";
@@ -9,17 +9,11 @@ import { useSettingsQuery } from "@/modules/settings/presentation/hooks/use-sett
 import { confirmPayment } from "@/modules/deals/infrastructure/repository";
 import { dealKeys } from "@/modules/deals/presentation/query-keys";
 import { useCurrencyOptions } from "@/modules/finance/presentation/hooks/use-currency-options";
+import { useI18n } from "@/shared/providers/locale-provider";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 type PaymentMethod = "cash" | "bank_transfer" | "mobile" | "barter";
-
-const PAYMENT_METHOD_OPTIONS: readonly { value: PaymentMethod; label: string }[] = [
-  { value: "cash", label: "Наличные" },
-  { value: "bank_transfer", label: "Банковский перевод" },
-  { value: "mobile", label: "Мобильный платёж" },
-  { value: "barter", label: "Бартер" },
-];
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -53,8 +47,12 @@ export function ReceivePaymentDrawer({
   scheduleItemId,
   onClose,
 }: ReceivePaymentDrawerProps) {
+  const { t } = useI18n();
   const queryClient = useQueryClient();
   const { mutateAsync: receivePaymentMut, isPending } = useReceivePaymentMutation(dealId);
+  // Generate a stable idempotency key per drawer open to prevent duplicate payment submissions
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const idempotencyKey = useMemo(() => crypto.randomUUID(), [open]);
   // When propertyId is provided, fetch only accounts for that property (API returns property-specific + global)
   const { data: accounts } = useAccountsQuery(propertyId);
   const { data: settings } = useSettingsQuery();
@@ -70,6 +68,12 @@ export function ReceivePaymentDrawer({
   const [errors, setErrors] = useState<FormErrors>({});
 
   const isBarter = paymentMethod === "barter";
+  const paymentMethodOptions: readonly { value: PaymentMethod; label: string }[] = [
+    { value: "cash", label: t("deals.receivePayment.method.cash") },
+    { value: "bank_transfer", label: t("deals.receivePayment.method.bankTransfer") },
+    { value: "mobile", label: t("deals.receivePayment.method.mobile") },
+    { value: "barter", label: t("deals.receivePayment.method.barter") },
+  ];
 
   // For barter: put accounts with "бартер" or "обмен" in name first
   const sortedAccounts = [...(accounts ?? [])].sort((a, b) => {
@@ -105,16 +109,16 @@ export function ReceivePaymentDrawer({
     const nextErrors: FormErrors = {};
     const amountNum = parseFloat(amount);
     if (!amount || isNaN(amountNum) || amountNum <= 0) {
-      nextErrors.amount = "Введите сумму больше 0";
+      nextErrors.amount = t("deals.receivePayment.errors.amount");
     }
     if (!paymentMethod) {
-      nextErrors.paymentMethod = "Выберите способ оплаты";
+      nextErrors.paymentMethod = t("deals.receivePayment.errors.paymentMethod");
     }
     if (!accountId) {
-      nextErrors.accountId = "Выберите счёт";
+      nextErrors.accountId = t("deals.receivePayment.errors.account");
     }
     if (isBarter && !barterDescription.trim()) {
-      nextErrors.barterDescription = "Укажите что получили в счёт оплаты";
+      nextErrors.barterDescription = t("deals.receivePayment.errors.barter");
     }
     setErrors(nextErrors);
     return Object.keys(nextErrors).length === 0;
@@ -129,6 +133,7 @@ export function ReceivePaymentDrawer({
       currency: selectedCurrency,
       paymentMethod,
       accountId,
+      idempotencyKey,
     };
     if (scheduleItemId) input.scheduleItemId = scheduleItemId;
     if (notes) input.notes = notes;
@@ -155,18 +160,18 @@ export function ReceivePaymentDrawer({
   return (
     <AppDrawerForm
       open={open}
-      title="Принять платёж"
-      subtitle="Введите данные об оплате"
+      title={t("deals.receivePayment.title")}
+      subtitle={t("deals.receivePayment.subtitle")}
       onClose={handleClose}
       onSave={() => { void handleSave(); }}
-      saveLabel="Принять платёж"
-      cancelLabel="Отмена"
+      saveLabel={t("deals.receivePayment.save")}
+      cancelLabel={t("common.cancel")}
       isSaving={isPending}
     >
       <div className="space-y-4">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <AppInput
-            label="Сумма"
+            label={t("deals.receivePayment.fields.amount")}
             type="number"
             value={amount}
             onChangeValue={setAmount}
@@ -174,7 +179,7 @@ export function ReceivePaymentDrawer({
           />
           <AppSelect
             id="recv-currency"
-            label="Валюта"
+            label={t("deals.receivePayment.fields.currency")}
             options={currencyOptions}
             value={selectedCurrency}
             onChange={(e) => setSelectedCurrency(e.target.value)}
@@ -183,14 +188,15 @@ export function ReceivePaymentDrawer({
 
         <AppSelect
           id="recv-method"
-          label="Способ оплаты"
-          options={PAYMENT_METHOD_OPTIONS}
+          label={t("deals.receivePayment.fields.method")}
+          options={paymentMethodOptions}
           value={paymentMethod}
           onChange={(e) => {
             setPaymentMethod(e.target.value as PaymentMethod);
             setBarterDescription("");
             setErrors((prev) => {
-              const { barterDescription: _removed, ...rest } = prev;
+              const { barterDescription, ...rest } = prev;
+              void barterDescription;
               return rest;
             });
           }}
@@ -199,17 +205,17 @@ export function ReceivePaymentDrawer({
 
         {isBarter && (
           <AppInput
-            label="Что получаем взамен *"
+            label={t("deals.receivePayment.fields.barter")}
             value={barterDescription}
             onChangeValue={setBarterDescription}
-            placeholder="Квартира №9, ул. Навои 12, 2-комн, 45м²"
+            placeholder={t("deals.receivePayment.placeholders.barter")}
             {...(errors.barterDescription ? { errorText: errors.barterDescription } : {})}
           />
         )}
 
         <AppSelect
           id="recv-account"
-          label="Счёт"
+          label={t("deals.receivePayment.fields.account")}
           options={accountOptions}
           value={accountId}
           onChange={(e) => setAccountId(e.target.value)}
@@ -217,7 +223,7 @@ export function ReceivePaymentDrawer({
         />
 
         <AppInput
-          label="Примечание"
+          label={t("deals.receivePayment.fields.notes")}
           value={notes}
           onChangeValue={setNotes}
         />

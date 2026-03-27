@@ -5,14 +5,7 @@ import { Stack } from "@mui/material";
 import { AppDrawerForm, AppInput, AppSelect } from "@/shared/ui";
 import { useAddInteractionMutation } from "@/modules/clients/presentation/hooks/use-add-interaction-mutation";
 import type { InteractionType } from "@/modules/clients/domain/client";
-
-const INTERACTION_TYPE_OPTIONS: Array<{ label: string; value: InteractionType }> = [
-  { value: "call", label: "Звонок" },
-  { value: "meeting", label: "Встреча" },
-  { value: "message", label: "Сообщение" },
-  { value: "email", label: "Email" },
-  { value: "other", label: "Другое" },
-];
+import { useI18n } from "@/shared/providers/locale-provider";
 
 const INTERACTION_TYPES: readonly InteractionType[] = [
   "call",
@@ -47,9 +40,17 @@ interface AddInteractionDrawerProps {
 }
 
 export function AddInteractionDrawer({ clientId, open, onClose }: AddInteractionDrawerProps) {
+  const { t } = useI18n();
   const mutation = useAddInteractionMutation(clientId);
   const [form, setForm] = useState<FormState>(INITIAL_FORM);
   const [errors, setErrors] = useState<FormErrors>({});
+  const interactionTypeOptions: Array<{ label: string; value: InteractionType }> = [
+    { value: "call", label: t("clients.interaction.type.call") },
+    { value: "meeting", label: t("clients.interaction.type.meeting") },
+    { value: "message", label: t("clients.interaction.type.message") },
+    { value: "email", label: "Email" },
+    { value: "other", label: t("clients.interaction.type.other") },
+  ];
 
   const reset = () => {
     setForm(INITIAL_FORM);
@@ -58,7 +59,7 @@ export function AddInteractionDrawer({ clientId, open, onClose }: AddInteraction
 
   const validate = (): boolean => {
     const next: FormErrors = {};
-    if (!form.notes.trim()) next.notes = "Заметки обязательны";
+    if (!form.notes.trim()) next.notes = t("clients.interaction.validation.notesRequired");
     setErrors(next);
     return Object.keys(next).length === 0;
   };
@@ -89,9 +90,9 @@ export function AddInteractionDrawer({ clientId, open, onClose }: AddInteraction
   return (
     <AppDrawerForm
       open={open}
-      title="Добавить взаимодействие"
-      saveLabel="Сохранить"
-      cancelLabel="Отмена"
+      title={t("clients.interaction.title")}
+      saveLabel={t("common.save")}
+      cancelLabel={t("common.cancel")}
       isSaving={mutation.isPending}
       onClose={handleClose}
       onSave={handleSave}
@@ -99,8 +100,8 @@ export function AddInteractionDrawer({ clientId, open, onClose }: AddInteraction
       <Stack spacing={2}>
         <AppSelect
           id="interaction-type"
-          label="Тип взаимодействия *"
-          options={INTERACTION_TYPE_OPTIONS}
+          label={t("clients.interaction.fields.typeRequired")}
+          options={interactionTypeOptions}
           value={form.type}
           onChange={(e) => {
             const v = e.target.value;
@@ -111,7 +112,7 @@ export function AddInteractionDrawer({ clientId, open, onClose }: AddInteraction
         />
 
         <AppInput
-          label="Заметки *"
+          label={t("clients.interaction.fields.notesRequired")}
           value={form.notes}
           onChangeValue={(v) => {
             setForm((prev) => ({ ...prev, notes: v }));
@@ -125,7 +126,7 @@ export function AddInteractionDrawer({ clientId, open, onClose }: AddInteraction
         />
 
         <AppInput
-          label="Дата следующего контакта"
+          label={t("clients.interaction.fields.nextContactDate")}
           type="date"
           value={form.nextContactDate}
           onChangeValue={(v) => setForm((prev) => ({ ...prev, nextContactDate: v }))}

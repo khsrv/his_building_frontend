@@ -19,11 +19,9 @@ import { useCreateContractTemplateMutation } from "@/modules/contracts/presentat
 import { useUpdateContractTemplateMutation } from "@/modules/contracts/presentation/hooks/use-update-contract-template-mutation";
 import { useDeleteContractTemplateMutation } from "@/modules/contracts/presentation/hooks/use-delete-contract-template-mutation";
 import type { ContractTemplate } from "@/modules/contracts/domain/contract";
+import { useI18n } from "@/shared/providers/locale-provider";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-
-const PLACEHOLDERS_NOTE =
-  "Доступные плейсхолдеры: {{client_name}}, {{deal_number}}, {{unit_number}}, {{total_price}}, {{date}}";
 
 // ─── Form state ───────────────────────────────────────────────────────────────
 
@@ -42,6 +40,7 @@ const EMPTY_FORM: TemplateFormState = {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function SettingsTemplatesPage() {
+  const { locale, t } = useI18n();
   const { data: templates, isLoading, isError } = useContractTemplatesQuery();
   const createMutation = useCreateContractTemplateMutation();
   const updateMutation = useUpdateContractTemplateMutation();
@@ -137,7 +136,7 @@ export default function SettingsTemplatesPage() {
   const columns: readonly AppDataTableColumn<ContractTemplate>[] = [
     {
       id: "name",
-      header: "Название",
+      header: t("settings.templates.columns.name"),
       cell: (row) => (
         <Typography variant="body2" fontWeight={600}>
           {row.name}
@@ -148,7 +147,7 @@ export default function SettingsTemplatesPage() {
     },
     {
       id: "templateType",
-      header: "Тип",
+      header: t("settings.templates.columns.type"),
       cell: (row) => (
         <Typography variant="body2" color="text.secondary">
           {row.templateType}
@@ -158,20 +157,20 @@ export default function SettingsTemplatesPage() {
     },
     {
       id: "isActive",
-      header: "Статус",
+      header: t("settings.templates.columns.status"),
       cell: (row) => (
         <AppStatusBadge
-          label={row.isActive ? "Активен" : "Неактивен"}
+          label={row.isActive ? t("settings.templates.status.active") : t("settings.templates.status.inactive")}
           tone={row.isActive ? "success" : "muted"}
         />
       ),
     },
     {
       id: "createdAt",
-      header: "Создан",
+      header: t("settings.templates.columns.createdAt"),
       cell: (row) => (
         <Typography variant="body2" color="text.secondary">
-          {new Date(row.createdAt).toLocaleDateString("ru-RU")}
+          {new Date(row.createdAt).toLocaleDateString(locale === "en" ? "en-US" : "ru-RU")}
         </Typography>
       ),
       sortAccessor: (row) => row.createdAt,
@@ -185,17 +184,17 @@ export default function SettingsTemplatesPage() {
         items: [
           {
             id: "preview",
-            label: "Предпросмотр",
+            label: t("settings.templates.actions.preview"),
             onClick: () => handlePreviewTemplate(row),
           },
           {
             id: "edit",
-            label: "Редактировать",
+            label: t("settings.templates.actions.edit"),
             onClick: () => handleOpenEdit(row),
           },
           {
             id: "delete",
-            label: "Удалить",
+            label: t("settings.templates.actions.delete"),
             destructive: true,
             onClick: () => setDeleteTarget(row),
           },
@@ -207,16 +206,16 @@ export default function SettingsTemplatesPage() {
   return (
     <main className="space-y-6 p-4 md:p-6">
       <AppPageHeader
-        title="Шаблоны договоров"
-        {...(templates ? { subtitle: `${templates.length} шаблонов` } : {})}
+        title={t("settings.templates.title")}
+        {...(templates ? { subtitle: t("settings.templates.subtitle", { count: templates.length }) } : {})}
         breadcrumbs={[
-          { id: "dashboard", label: "Панель", href: routes.dashboard },
-          { id: "settings", label: "Настройки", href: routes.settings },
-          { id: "templates", label: "Шаблоны договоров" },
+          { id: "dashboard", label: t("nav.dashboard"), href: routes.dashboard },
+          { id: "settings", label: t("nav.settings"), href: routes.settings },
+          { id: "templates", label: t("settings.templates.title") },
         ]}
         actions={
           <AppButton
-            label="Создать шаблон"
+            label={t("settings.templates.createButton")}
             variant="primary"
             size="md"
             onClick={handleOpenCreate}
@@ -228,8 +227,8 @@ export default function SettingsTemplatesPage() {
       {isError && (
         <AppStatePanel
           tone="error"
-          title="Ошибка загрузки"
-          description="Не удалось загрузить список шаблонов. Попробуйте обновить страницу."
+          title={t("settings.templates.error.title")}
+          description={t("settings.templates.error.description")}
         />
       )}
 
@@ -237,8 +236,8 @@ export default function SettingsTemplatesPage() {
       {!isLoading && !isError && templates?.length === 0 && (
         <AppStatePanel
           tone="empty"
-          title="Шаблоны не найдены"
-          description="Создайте первый шаблон договора."
+          title={t("settings.templates.empty.title")}
+          description={t("settings.templates.empty.description")}
         />
       )}
 
@@ -249,9 +248,9 @@ export default function SettingsTemplatesPage() {
           columns={columns}
           rowKey={(row) => row.id}
           rowActions={rowActions}
-          rowActionsTriggerLabel="Действия"
-          searchPlaceholder="Поиск по названию..."
-          addAction={{ label: "Создать шаблон", onClick: handleOpenCreate }}
+          rowActionsTriggerLabel={t("actionMenu.trigger")}
+          searchPlaceholder={t("settings.templates.searchPlaceholder")}
+          addAction={{ label: t("settings.templates.createButton"), onClick: handleOpenCreate }}
           storageKey="contract-templates-table"
         />
       )}
@@ -259,14 +258,14 @@ export default function SettingsTemplatesPage() {
       {/* Create / Edit drawer */}
       <AppDrawerForm
         open={drawerOpen}
-        title={editingTemplate ? "Редактировать шаблон" : "Создать шаблон"}
+        title={editingTemplate ? t("settings.templates.drawer.editTitle") : t("settings.templates.drawer.createTitle")}
         subtitle={
           editingTemplate
-            ? "Измените данные шаблона договора"
-            : "Заполните данные нового шаблона"
+            ? t("settings.templates.drawer.editSubtitle")
+            : t("settings.templates.drawer.createSubtitle")
         }
-        saveLabel={editingTemplate ? "Сохранить" : "Создать"}
-        cancelLabel="Отмена"
+        saveLabel={editingTemplate ? t("common.save") : t("settings.templates.drawer.create")}
+        cancelLabel={t("common.cancel")}
         isSaving={isSaving}
         saveDisabled={saveDisabled}
         onClose={handleCloseDrawer}
@@ -275,20 +274,20 @@ export default function SettingsTemplatesPage() {
       >
         <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
           <AppInput
-            label="Название *"
+            label={t("settings.templates.fields.name")}
             value={form.name}
             onChangeValue={(v) => setForm((prev) => ({ ...prev, name: v }))}
-            placeholder="Договор купли-продажи"
+            placeholder={t("settings.templates.placeholders.name")}
           />
           <AppInput
-            label="Тип шаблона *"
+            label={t("settings.templates.fields.type")}
             value={form.templateType}
             onChangeValue={(v) => setForm((prev) => ({ ...prev, templateType: v }))}
-            placeholder="e.g. sale_contract, installment_contract"
+            placeholder={t("settings.templates.placeholders.type")}
             disabled={Boolean(editingTemplate)}
           />
           <TextField
-            label="Тело шаблона *"
+            label={t("settings.templates.fields.body")}
             value={form.body}
             onChange={(e) => setForm((prev) => ({ ...prev, body: e.target.value }))}
             multiline
@@ -296,7 +295,7 @@ export default function SettingsTemplatesPage() {
             fullWidth
             variant="outlined"
             size="small"
-            helperText={PLACEHOLDERS_NOTE}
+            helperText={t("settings.templates.placeholders.note")}
           />
         </Box>
       </AppDrawerForm>
@@ -304,10 +303,10 @@ export default function SettingsTemplatesPage() {
       {/* Delete confirmation */}
       <ConfirmDialog
         open={Boolean(deleteTarget)}
-        title="Удалить шаблон"
-        message={`Вы уверены, что хотите удалить шаблон "${deleteTarget?.name ?? ""}"? Это действие необратимо.`}
-        confirmText="Удалить"
-        cancelText="Отмена"
+        title={t("settings.templates.confirmDelete.title")}
+        message={t("settings.templates.confirmDelete.message", { name: deleteTarget?.name ?? "" })}
+        confirmText={t("settings.templates.actions.delete")}
+        cancelText={t("common.cancel")}
         destructive
         onConfirm={handleDeleteConfirm}
         onClose={() => setDeleteTarget(null)}
@@ -322,11 +321,11 @@ export default function SettingsTemplatesPage() {
       >
         <DialogTitle>
           <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            Предпросмотр шаблона
+            {t("settings.templates.preview.title")}
             <IconButton
               onClick={() => setPreviewOpen(false)}
               size="small"
-              aria-label="Закрыть"
+              aria-label={t("settings.templates.preview.close")}
             >
               <svg
                 aria-hidden
@@ -350,7 +349,7 @@ export default function SettingsTemplatesPage() {
           />
           <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 2 }}>
             <AppButton
-              label="Скачать PDF"
+              label={t("settings.templates.preview.downloadPdf")}
               variant="primary"
               size="md"
               onClick={async () => {

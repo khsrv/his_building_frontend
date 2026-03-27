@@ -30,6 +30,7 @@ import { useSmsLogsQuery } from "@/modules/contracts/presentation/hooks/use-sms-
 import { useSendSmsMutation } from "@/modules/contracts/presentation/hooks/use-send-sms-mutation";
 import { useBulkSendSmsMutation } from "@/modules/contracts/presentation/hooks/use-bulk-send-sms-mutation";
 import type { SmsTemplate, SmsLog } from "@/modules/contracts/domain/contract";
+import { useI18n } from "@/shared/providers/locale-provider";
 
 // ─── SMS Template form state ──────────────────────────────────────────────────
 
@@ -63,17 +64,10 @@ const EMPTY_SEND_FORM: SendSmsFormState = {
 
 // ─── SMS Logs status filter options ──────────────────────────────────────────
 
-const SMS_STATUS_OPTIONS = [
-  { value: "", label: "Все статусы" },
-  { value: "sent", label: "Отправлен" },
-  { value: "delivered", label: "Доставлен" },
-  { value: "failed", label: "Ошибка" },
-  { value: "pending", label: "Ожидание" },
-] as const;
-
 // ─── Templates Tab ────────────────────────────────────────────────────────────
 
 function SmsTemplatesTab() {
+  const { t } = useI18n();
   const { data: templates, isLoading, isError } = useSmsTemplatesQuery();
   const createMutation = useCreateSmsTemplateMutation();
 
@@ -118,7 +112,7 @@ function SmsTemplatesTab() {
   const columns: readonly AppDataTableColumn<SmsTemplate>[] = [
     {
       id: "name",
-      header: "Название",
+      header: t("settings.smsTemplates.columns.name"),
       cell: (row) => (
         <Typography variant="body2" fontWeight={600}>
           {row.name}
@@ -129,7 +123,7 @@ function SmsTemplatesTab() {
     },
     {
       id: "eventType",
-      header: "Тип события",
+      header: t("settings.smsTemplates.columns.eventType"),
       cell: (row) => (
         <Typography variant="body2" color="text.secondary">
           {row.eventType}
@@ -139,7 +133,7 @@ function SmsTemplatesTab() {
     },
     {
       id: "body",
-      header: "Тело",
+      header: t("settings.smsTemplates.columns.body"),
       cell: (row) => (
         <Typography
           variant="body2"
@@ -157,19 +151,19 @@ function SmsTemplatesTab() {
     },
     {
       id: "daysBefore",
-      header: "Дней до",
+      header: t("settings.smsTemplates.columns.daysBefore"),
       cell: (row) => (
         <Typography variant="body2" color="text.secondary">
-          {row.daysBefore !== null ? row.daysBefore : "—"}
+          {row.daysBefore !== null ? row.daysBefore : t("settings.smsTemplates.common.dash")}
         </Typography>
       ),
     },
     {
       id: "isActive",
-      header: "Статус",
+      header: t("settings.smsTemplates.columns.status"),
       cell: (row) => (
         <AppStatusBadge
-          label={row.isActive ? "Активен" : "Неактивен"}
+          label={row.isActive ? t("settings.smsTemplates.status.active") : t("settings.smsTemplates.status.inactive")}
           tone={row.isActive ? "success" : "muted"}
         />
       ),
@@ -177,13 +171,14 @@ function SmsTemplatesTab() {
   ];
 
   function rowActions(row: SmsTemplate): readonly AppActionMenuGroup[] {
+    void row;
     return [
       {
         id: "actions",
         items: [
           {
             id: "view",
-            label: "Просмотр",
+            label: t("settings.smsTemplates.actions.view"),
             onClick: () => {
               // view-only - could open detail drawer in future
             },
@@ -198,16 +193,16 @@ function SmsTemplatesTab() {
       {isError && (
         <AppStatePanel
           tone="error"
-          title="Ошибка загрузки"
-          description="Не удалось загрузить SMS-шаблоны. Попробуйте обновить страницу."
+          title={t("settings.smsTemplates.error.title")}
+          description={t("settings.smsTemplates.error.description")}
         />
       )}
 
       {!isLoading && !isError && templates?.length === 0 && (
         <AppStatePanel
           tone="empty"
-          title="SMS-шаблоны не найдены"
-          description="Создайте первый SMS-шаблон для автоматической отправки сообщений."
+          title={t("settings.smsTemplates.empty.title")}
+          description={t("settings.smsTemplates.empty.description")}
         />
       )}
 
@@ -217,19 +212,19 @@ function SmsTemplatesTab() {
           columns={columns}
           rowKey={(row) => row.id}
           rowActions={rowActions}
-          rowActionsTriggerLabel="Действия"
-          searchPlaceholder="Поиск по названию..."
-          addAction={{ label: "Создать шаблон", onClick: handleOpen }}
+          rowActionsTriggerLabel={t("actionMenu.trigger")}
+          searchPlaceholder={t("settings.smsTemplates.searchPlaceholder")}
+          addAction={{ label: t("settings.smsTemplates.createButton"), onClick: handleOpen }}
           storageKey="sms-templates-table"
         />
       )}
 
       <AppDrawerForm
         open={drawerOpen}
-        title="Создать SMS-шаблон"
-        subtitle="Заполните данные нового шаблона"
-        saveLabel="Создать"
-        cancelLabel="Отмена"
+        title={t("settings.smsTemplates.drawer.title")}
+        subtitle={t("settings.smsTemplates.drawer.subtitle")}
+        saveLabel={t("settings.smsTemplates.drawer.create")}
+        cancelLabel={t("common.cancel")}
         isSaving={createMutation.isPending}
         saveDisabled={saveDisabled}
         onClose={handleClose}
@@ -237,19 +232,19 @@ function SmsTemplatesTab() {
       >
         <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
           <AppInput
-            label="Название *"
+            label={t("settings.smsTemplates.fields.name")}
             value={form.name}
             onChangeValue={(v) => setForm((prev) => ({ ...prev, name: v }))}
-            placeholder="Напоминание о платеже"
+            placeholder={t("settings.smsTemplates.placeholders.name")}
           />
           <AppInput
-            label="Тип события *"
+            label={t("settings.smsTemplates.fields.eventType")}
             value={form.eventType}
             onChangeValue={(v) => setForm((prev) => ({ ...prev, eventType: v }))}
-            placeholder="e.g. payment_due, deal_signed"
+            placeholder={t("settings.smsTemplates.placeholders.eventType")}
           />
           <TextField
-            label="Текст сообщения *"
+            label={t("settings.smsTemplates.fields.message")}
             value={form.body}
             onChange={(e) => setForm((prev) => ({ ...prev, body: e.target.value }))}
             multiline
@@ -257,14 +252,14 @@ function SmsTemplatesTab() {
             fullWidth
             variant="outlined"
             size="small"
-            helperText="Используйте {{client_name}}, {{deal_number}}, {{amount}}, {{date}}"
+            helperText={t("settings.smsTemplates.placeholders.variables")}
           />
           <AppInput
-            label="Дней до события"
+            label={t("settings.smsTemplates.fields.daysBefore")}
             type="number"
             value={form.daysBefore}
             onChangeValue={(v) => setForm((prev) => ({ ...prev, daysBefore: v }))}
-            placeholder="Необязательно (например: 3)"
+            placeholder={t("settings.smsTemplates.placeholders.daysBefore")}
           />
         </Box>
       </AppDrawerForm>
@@ -287,6 +282,7 @@ const EMPTY_BULK_FORM: BulkSendFormState = {
 };
 
 function SmsLogsTab() {
+  const { locale, t } = useI18n();
   const { data: smsTemplates } = useSmsTemplatesQuery();
   const [statusFilter, setStatusFilter] = useState("");
   const [sendModalOpen, setSendModalOpen] = useState(false);
@@ -303,6 +299,13 @@ function SmsLogsTab() {
   );
 
   const logs = logsResult?.items ?? [];
+  const statusOptions = [
+    { value: "", label: t("settings.smsLogs.filters.allStatuses") },
+    { value: "sent", label: t("settings.smsLogs.status.sent") },
+    { value: "delivered", label: t("settings.smsLogs.status.delivered") },
+    { value: "failed", label: t("settings.smsLogs.status.failed") },
+    { value: "pending", label: t("settings.smsLogs.status.pending") },
+  ] as const;
 
   function handleOpenSendModal() {
     setSendForm(EMPTY_SEND_FORM);
@@ -352,7 +355,7 @@ function SmsLogsTab() {
   const columns: readonly AppDataTableColumn<SmsLog>[] = [
     {
       id: "phone",
-      header: "Телефон",
+      header: t("settings.smsLogs.columns.phone"),
       cell: (row) => (
         <Typography variant="body2" fontWeight={600}>
           {row.phone}
@@ -363,7 +366,7 @@ function SmsLogsTab() {
     },
     {
       id: "message",
-      header: "Сообщение",
+      header: t("settings.smsLogs.columns.message"),
       cell: (row) => (
         <Typography
           variant="body2"
@@ -381,7 +384,7 @@ function SmsLogsTab() {
     },
     {
       id: "status",
-      header: "Статус",
+      header: t("settings.smsLogs.columns.status"),
       cell: (row) => {
         const tone =
           row.status === "delivered"
@@ -391,26 +394,34 @@ function SmsLogsTab() {
               : row.status === "sent"
                 ? "info"
                 : "muted";
-        return <AppStatusBadge label={row.status} tone={tone} />;
+        const statusLabel =
+          row.status === "sent"
+            ? t("settings.smsLogs.status.sent")
+            : row.status === "delivered"
+              ? t("settings.smsLogs.status.delivered")
+              : row.status === "failed"
+                ? t("settings.smsLogs.status.failed")
+                : t("settings.smsLogs.status.pending");
+        return <AppStatusBadge label={statusLabel} tone={tone} />;
       },
       sortAccessor: (row) => row.status,
     },
     {
       id: "clientName",
-      header: "Клиент",
+      header: t("settings.smsLogs.columns.client"),
       cell: (row) => (
         <Typography variant="body2" color="text.secondary">
-          {row.clientName ?? "—"}
+          {row.clientName ?? t("settings.smsTemplates.common.dash")}
         </Typography>
       ),
       searchAccessor: (row) => row.clientName,
     },
     {
       id: "createdAt",
-      header: "Дата",
+      header: t("settings.smsLogs.columns.date"),
       cell: (row) => (
         <Typography variant="body2" color="text.secondary">
-          {new Date(row.createdAt).toLocaleString("ru-RU")}
+          {new Date(row.createdAt).toLocaleString(locale === "en" ? "en-US" : "ru-RU")}
         </Typography>
       ),
       sortAccessor: (row) => row.createdAt,
@@ -428,20 +439,20 @@ function SmsLogsTab() {
           displayEmpty
           sx={{ minWidth: 180 }}
         >
-          {SMS_STATUS_OPTIONS.map((opt) => (
+          {statusOptions.map((opt) => (
             <MenuItem key={opt.value} value={opt.value}>
               {opt.label}
             </MenuItem>
           ))}
         </Select>
         <AppButton
-          label="Отправить SMS"
+          label={t("settings.smsLogs.sendButton")}
           variant="primary"
           size="md"
           onClick={handleOpenSendModal}
         />
         <AppButton
-          label="Массовая рассылка"
+          label={t("settings.smsLogs.bulkButton")}
           variant="secondary"
           size="md"
           onClick={() => { setBulkForm(EMPTY_BULK_FORM); setBulkModalOpen(true); }}
@@ -451,16 +462,16 @@ function SmsLogsTab() {
       {isError && (
         <AppStatePanel
           tone="error"
-          title="Ошибка загрузки"
-          description="Не удалось загрузить логи SMS. Попробуйте обновить страницу."
+          title={t("settings.smsLogs.error.title")}
+          description={t("settings.smsLogs.error.description")}
         />
       )}
 
       {!isLoading && !isError && logs.length === 0 && (
         <AppStatePanel
           tone="empty"
-          title="Логи не найдены"
-          description="SMS-сообщения ещё не отправлялись или не соответствуют выбранному фильтру."
+          title={t("settings.smsLogs.empty.title")}
+          description={t("settings.smsLogs.empty.description")}
         />
       )}
 
@@ -469,7 +480,7 @@ function SmsLogsTab() {
           data={logs}
           columns={columns}
           rowKey={(row) => row.id}
-          searchPlaceholder="Поиск по телефону..."
+          searchPlaceholder={t("settings.smsLogs.searchPlaceholder")}
           storageKey="sms-logs-table"
         />
       )}
@@ -483,11 +494,11 @@ function SmsLogsTab() {
       >
         <DialogTitle>
           <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            Отправить SMS
+            {t("settings.smsLogs.sendModal.title")}
             <IconButton
               onClick={() => setSendModalOpen(false)}
               size="small"
-              aria-label="Закрыть"
+              aria-label={t("settings.smsLogs.common.close")}
             >
               <svg
                 aria-hidden
@@ -506,13 +517,13 @@ function SmsLogsTab() {
         <DialogContent dividers>
           <Box sx={{ display: "flex", flexDirection: "column", gap: 2, pt: 1 }}>
             <AppInput
-              label="Телефон *"
+              label={t("settings.smsLogs.sendModal.phone")}
               value={sendForm.phone}
               onChangeValue={(v) => setSendForm((prev) => ({ ...prev, phone: v }))}
               placeholder="+992 900 000000"
             />
             <TextField
-              label="Сообщение *"
+              label={t("settings.smsLogs.sendModal.message")}
               value={sendForm.message}
               onChange={(e) =>
                 setSendForm((prev) => ({ ...prev, message: e.target.value }))
@@ -526,7 +537,7 @@ function SmsLogsTab() {
             {smsTemplates && smsTemplates.length > 0 && (
               <Box>
                 <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: "block" }}>
-                  Шаблон (необязательно)
+                  {t("settings.smsLogs.common.templateOptional")}
                 </Typography>
                 <Select
                   size="small"
@@ -537,7 +548,7 @@ function SmsLogsTab() {
                   displayEmpty
                   fullWidth
                 >
-                  <MenuItem value="">Без шаблона</MenuItem>
+                  <MenuItem value="">{t("settings.smsLogs.common.noTemplate")}</MenuItem>
                   {smsTemplates.map((tpl) => (
                     <MenuItem key={tpl.id} value={tpl.id}>
                       {tpl.name}
@@ -548,12 +559,12 @@ function SmsLogsTab() {
             )}
             <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 1, mt: 1 }}>
               <AppButton
-                label="Отмена"
+                label={t("common.cancel")}
                 variant="secondary"
                 onClick={() => setSendModalOpen(false)}
               />
               <AppButton
-                label="Отправить"
+                label={t("settings.smsLogs.common.send")}
                 variant="primary"
                 isLoading={sendMutation.isPending}
                 disabled={
@@ -574,11 +585,11 @@ function SmsLogsTab() {
       >
         <DialogTitle>
           <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            Массовая рассылка SMS
+            {t("settings.smsLogs.bulkModal.title")}
             <IconButton
               onClick={() => setBulkModalOpen(false)}
               size="small"
-              aria-label="Закрыть"
+              aria-label={t("settings.smsLogs.common.close")}
             >
               <svg
                 aria-hidden
@@ -597,7 +608,7 @@ function SmsLogsTab() {
         <DialogContent dividers>
           <Box sx={{ display: "flex", flexDirection: "column", gap: 2, pt: 1 }}>
             <TextField
-              label="Телефоны (по одному на строку) *"
+              label={t("settings.smsLogs.bulkModal.phones")}
               value={bulkForm.phones}
               onChange={(e) =>
                 setBulkForm((prev) => ({ ...prev, phones: e.target.value }))
@@ -608,10 +619,12 @@ function SmsLogsTab() {
               variant="outlined"
               size="small"
               placeholder={"+992900000001\n+992900000002\n+992900000003"}
-              helperText={`${bulkForm.phones.split("\n").filter((p) => p.trim()).length} номеров`}
+              helperText={t("settings.smsLogs.bulkModal.numbersCount", {
+                count: bulkForm.phones.split("\n").filter((p) => p.trim()).length,
+              })}
             />
             <TextField
-              label="Сообщение *"
+              label={t("settings.smsLogs.sendModal.message")}
               value={bulkForm.message}
               onChange={(e) =>
                 setBulkForm((prev) => ({ ...prev, message: e.target.value }))
@@ -625,7 +638,7 @@ function SmsLogsTab() {
             {smsTemplates && smsTemplates.length > 0 && (
               <Box>
                 <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: "block" }}>
-                  Шаблон (необязательно)
+                  {t("settings.smsLogs.common.templateOptional")}
                 </Typography>
                 <Select
                   size="small"
@@ -636,7 +649,7 @@ function SmsLogsTab() {
                   displayEmpty
                   fullWidth
                 >
-                  <MenuItem value="">Без шаблона</MenuItem>
+                  <MenuItem value="">{t("settings.smsLogs.common.noTemplate")}</MenuItem>
                   {smsTemplates.map((tpl) => (
                     <MenuItem key={tpl.id} value={tpl.id}>
                       {tpl.name}
@@ -647,12 +660,12 @@ function SmsLogsTab() {
             )}
             <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 1, mt: 1 }}>
               <AppButton
-                label="Отмена"
+                label={t("common.cancel")}
                 variant="secondary"
                 onClick={() => setBulkModalOpen(false)}
               />
               <AppButton
-                label="Отправить всем"
+                label={t("settings.smsLogs.bulkModal.sendAll")}
                 variant="primary"
                 isLoading={bulkSendMutation.isPending}
                 disabled={
@@ -671,14 +684,15 @@ function SmsLogsTab() {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function SettingsSmsTemplatesPage() {
+  const { t } = useI18n();
   return (
     <main className="space-y-6 p-4 md:p-6">
       <AppPageHeader
-        title="SMS-шаблоны"
+        title={t("settings.smsTemplates.pageTitle")}
         breadcrumbs={[
-          { id: "dashboard", label: "Панель", href: routes.dashboard },
-          { id: "settings", label: "Настройки", href: routes.settings },
-          { id: "sms-templates", label: "SMS-шаблоны" },
+          { id: "dashboard", label: t("nav.dashboard"), href: routes.dashboard },
+          { id: "settings", label: t("nav.settings"), href: routes.settings },
+          { id: "sms-templates", label: t("settings.smsTemplates.pageTitle") },
         ]}
       />
 
@@ -686,12 +700,12 @@ export default function SettingsSmsTemplatesPage() {
         tabs={[
           {
             id: "templates",
-            title: "Шаблоны",
+            title: t("settings.smsTemplates.tabs.templates"),
             content: <SmsTemplatesTab />,
           },
           {
             id: "logs",
-            title: "Логи",
+            title: t("settings.smsTemplates.tabs.logs"),
             content: <SmsLogsTab />,
           },
         ]}
