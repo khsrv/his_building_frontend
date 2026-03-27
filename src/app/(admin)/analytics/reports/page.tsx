@@ -2,14 +2,19 @@
 
 import { useMemo } from "react";
 import { useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
 import {
   AppButton,
-  AppChartWidget,
   type AppChartDataPoint,
   AppKpiGrid,
   AppPageHeader,
   AppStatePanel,
 } from "@/shared/ui";
+
+const AppChartWidget = dynamic(
+  () => import("@/shared/ui/primitives/chart-widget").then((m) => ({ default: m.AppChartWidget })),
+  { ssr: false },
+);
 import { routes } from "@/shared/constants/routes";
 import { useCashFlowReportQuery } from "@/modules/finance/presentation/hooks/use-cash-flow-report-query";
 import { useReceivablesReportQuery } from "@/modules/finance/presentation/hooks/use-receivables-report-query";

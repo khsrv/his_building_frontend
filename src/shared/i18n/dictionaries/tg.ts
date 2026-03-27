@@ -90,6 +90,7 @@ export const tgDictionary = {
   "nav.settings_pricing": "Қоидаҳои нарх",
   "nav.settings_brokers": "Брокерон",
   "nav.settings_invoices": "Ҳисобнома",
+  "nav.settings_audit_log": "Журнали аудит",
   "nav.admin": "Идора",
   "nav.admin_tenants": "Иҷорагирон",
   "sidebar.expand": "Кушодани меню",

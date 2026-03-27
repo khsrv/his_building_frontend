@@ -3,6 +3,7 @@
 import { useCallback, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useParams, useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
 import {
   Box,
   Divider,
@@ -12,7 +13,6 @@ import {
 } from "@mui/material";
 import {
   AppButton,
-  AppColorGrid,
   AppDrawerForm,
   AppInput,
   AppPageHeader,
@@ -24,6 +24,11 @@ import {
   ShimmerBox,
 } from "@/shared/ui";
 import type { AppColorGridCell, AppColorGridRow, PageHeaderCrumb } from "@/shared/ui";
+
+const AppColorGrid = dynamic(
+  () => import("@/shared/ui/primitives/color-grid").then((m) => ({ default: m.AppColorGrid })),
+  { ssr: false },
+);
 import { routes } from "@/shared/constants/routes";
 import { usePropertyDetailQuery } from "@/modules/properties/presentation/hooks/use-property-detail-query";
 import { useChessBoardQuery } from "@/modules/properties/presentation/hooks/use-chessboard-query";

@@ -90,6 +90,7 @@ export const enDictionary = {
   "nav.settings_pricing": "Pricing Rules",
   "nav.settings_brokers": "Brokers",
   "nav.settings_invoices": "Billing",
+  "nav.settings_audit_log": "Audit Log",
   "nav.admin": "Administration",
   "nav.admin_tenants": "Tenants",
   "sidebar.expand": "Expand sidebar",

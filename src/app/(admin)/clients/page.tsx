@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import {
   AppButton,
@@ -18,6 +19,8 @@ import {
 import { IconClients, IconDeals, IconCoins, IconDebt } from "@/shared/ui/icons/kpi-icons";
 import { routes } from "@/shared/constants/routes";
 import { useClientsListQuery } from "@/modules/clients/presentation/hooks/use-clients-list-query";
+import { fetchClientDetail } from "@/modules/clients/infrastructure/clients-repository";
+import { clientKeys } from "@/modules/clients/presentation/query-keys";
 import { CreateClientDrawer } from "@/modules/clients/presentation/components/create-client-drawer";
 import type { Client, ClientSource } from "@/modules/clients/domain/client";
 import { usePropertyContext } from "@/shared/providers/property-provider";
@@ -52,9 +55,21 @@ function fmtMoney(v: number): string {
 
 export default function ClientsPage() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [filterType, setFilterType] = useState<string>("with_deals");
   const { currentPropertyId } = usePropertyContext();
+
+  const handleClientHover = useCallback(
+    (row: Client) => {
+      void queryClient.prefetchQuery({
+        queryKey: clientKeys.detail(row.id),
+        queryFn: () => fetchClientDetail(row.id),
+        staleTime: 30_000,
+      });
+    },
+    [queryClient],
+  );
 
   const { data, isLoading, isError, error } = useClientsListQuery({
     page: 1,
@@ -215,6 +230,7 @@ export default function ClientsPage() {
                 enableExport
                 enableSettings
                 onRowClick={(row) => router.push(routes.clientDetail(row.id))}
+                onRowHover={handleClientHover}
               />
             )}
           </div>

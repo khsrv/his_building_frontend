@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useDeferredValue, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useDeferredValue, useMemo, useRef, useState, type ReactNode } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { Dialog, DialogContent, DialogTitle } from "@mui/material";
 import { cn } from "@/shared/lib/ui/cn";
 import { AppInput } from "@/shared/ui/primitives/input";
@@ -54,6 +55,7 @@ export function AppSearchableSelect<T extends AppSearchableSelectOption>({
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const deferredSearch = useDeferredValue(search);
+  const listRef = useRef<HTMLDivElement>(null);
 
   const selectedOption = useMemo(
     () => options.find((o) => o.id === value),
@@ -74,6 +76,13 @@ export function AppSearchableSelect<T extends AppSearchableSelectOption>({
     },
     [onChange],
   );
+
+  const rowVirtualizer = useVirtualizer({
+    count: filtered.length,
+    getScrollElement: () => listRef.current,
+    estimateSize: () => 44,
+    overscan: 5,
+  });
 
   return (
     <>
@@ -112,33 +121,49 @@ export function AppSearchableSelect<T extends AppSearchableSelectOption>({
               {emptyLabel ?? t("searchSelect.empty")}
             </p>
           ) : (
-            <div className="max-h-[360px] overflow-auto">
-              {filtered.map((option) => (
-                <button
-                  className={cn(
-                    "flex w-full items-center rounded-lg px-3 py-2 text-left text-sm transition-colors",
-                    option.disabled
-                      ? "cursor-default opacity-40"
-                      : "cursor-pointer hover:bg-muted",
-                    option.id === value && "bg-primary/10 text-primary",
-                  )}
-                  disabled={option.disabled}
-                  key={option.id}
-                  onClick={() => handleSelect(option)}
-                  type="button"
-                >
-                  {renderOption ? (
-                    renderOption(option)
-                  ) : (
-                    <div>
-                      <span className="font-medium text-foreground">{option.label}</span>
-                      {option.secondary ? (
-                        <span className="ml-2 text-xs text-muted-foreground">{option.secondary}</span>
-                      ) : null}
+            <div className="max-h-[360px] overflow-auto" ref={listRef}>
+              <div style={{ height: `${rowVirtualizer.getTotalSize()}px`, position: "relative" }}>
+                {rowVirtualizer.getVirtualItems().map((virtualItem) => {
+                  const option = filtered[virtualItem.index];
+                  if (!option) return null;
+                  return (
+                    <div
+                      key={virtualItem.key}
+                      style={{
+                        position: "absolute",
+                        top: 0,
+                        left: 0,
+                        width: "100%",
+                        transform: `translateY(${virtualItem.start}px)`,
+                      }}
+                    >
+                      <button
+                        className={cn(
+                          "flex w-full items-center rounded-lg px-3 py-2 text-left text-sm transition-colors",
+                          option.disabled
+                            ? "cursor-default opacity-40"
+                            : "cursor-pointer hover:bg-muted",
+                          option.id === value && "bg-primary/10 text-primary",
+                        )}
+                        disabled={option.disabled}
+                        onClick={() => handleSelect(option)}
+                        type="button"
+                      >
+                        {renderOption ? (
+                          renderOption(option)
+                        ) : (
+                          <div>
+                            <span className="font-medium text-foreground">{option.label}</span>
+                            {option.secondary ? (
+                              <span className="ml-2 text-xs text-muted-foreground">{option.secondary}</span>
+                            ) : null}
+                          </div>
+                        )}
+                      </button>
                     </div>
-                  )}
-                </button>
-              ))}
+                  );
+                })}
+              </div>
             </div>
           )}
         </DialogContent>

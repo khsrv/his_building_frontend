@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import { Box, Stack } from "@mui/material";
+import dynamic from "next/dynamic";
 import {
-  AppChartWidget,
   type AppChartDataPoint,
   AppDataTable,
   type AppDataTableColumn,
@@ -14,6 +14,11 @@ import {
   AppStatePanel,
   AppTabs,
 } from "@/shared/ui";
+
+const AppChartWidget = dynamic(
+  () => import("@/shared/ui/primitives/chart-widget").then((m) => ({ default: m.AppChartWidget })),
+  { ssr: false },
+);
 import { routes } from "@/shared/constants/routes";
 import { useIncomeExpenseReportQuery } from "@/modules/finance/presentation/hooks/use-income-expense-report-query";
 import { useCashFlowReportQuery } from "@/modules/finance/presentation/hooks/use-cash-flow-report-query";

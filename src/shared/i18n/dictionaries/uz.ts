@@ -90,6 +90,7 @@ export const uzDictionary = {
   "nav.settings_pricing": "Narx qoidalari",
   "nav.settings_brokers": "Brokerlar",
   "nav.settings_invoices": "Billing",
+  "nav.settings_audit_log": "Audit jurnal",
   "nav.admin": "Boshqaruv",
   "nav.admin_tenants": "Tenantlar",
   "sidebar.expand": "Menyuni kengaytirish",

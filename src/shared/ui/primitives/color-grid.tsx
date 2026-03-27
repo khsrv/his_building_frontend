@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type ReactNode } from "react";
+import { memo, useCallback, useMemo, useState, type ReactNode } from "react";
 import { Popover } from "@mui/material";
 import { cn } from "@/shared/lib/ui/cn";
 import { useI18n } from "@/shared/providers/locale-provider";
@@ -60,6 +60,46 @@ const cellSizeClasses = {
 
 type StatusKey = "free" | "booked" | "sold" | "reserved";
 
+// ─── Memoized cell — avoids re-render when only unrelated rows/cells change ──
+
+interface GridCellProps {
+  cell: AppColorGridCell;
+  cellSize: keyof typeof cellSizeClasses;
+  onClick: (cell: AppColorGridCell, el: HTMLElement) => void;
+}
+
+const GridCell = memo(function GridCell({ cell, cellSize, onClick }: GridCellProps) {
+  const cfg = STATUS_STYLE[cell.status];
+  const hasSubContent = cellSize === "xl" && (cell.sublabel ?? cell.secondarySublabel);
+  return (
+    <button
+      className={cn(
+        "flex shrink-0 items-center justify-center rounded-lg border border-border font-medium transition-colors",
+        cellSizeClasses[cellSize],
+        cfg.bg,
+        cfg.text,
+        cell.status === "unavailable" ? "cursor-default border-dashed" : "cursor-pointer",
+        hasSubContent && "flex-col gap-0 px-1",
+      )}
+      onClick={(e) => onClick(cell, e.currentTarget)}
+      title={cell.tooltip ?? cell.label}
+      type="button"
+    >
+      {hasSubContent ? (
+        <>
+          <span className="text-xs font-semibold leading-tight">{cell.label}</span>
+          <span className="text-sm leading-tight opacity-80">{cell.sublabel}</span>
+          {cell.secondarySublabel ? (
+            <span className="text-sm leading-tight opacity-70">{cell.secondarySublabel}</span>
+          ) : null}
+        </>
+      ) : (
+        cell.label
+      )}
+    </button>
+  );
+});
+
 export function AppColorGrid({
   rows,
   onCellClick,
@@ -96,6 +136,9 @@ export function AppColorGrid({
     }));
   }, [rows, filterStatuses]);
 
+  // Reversed copy memoized to avoid allocation on every render.
+  const reversedRows = useMemo(() => [...filteredRows].reverse(), [filteredRows]);
+
   const stats = useMemo(() => {
     const all = rows.flatMap((r) => r.cells);
     const counts: Record<AppColorGridCellStatus, number> = {
@@ -105,14 +148,17 @@ export function AppColorGrid({
     return counts;
   }, [rows]);
 
-  const handleCellClick = (cell: AppColorGridCell, el: HTMLElement) => {
-    if (cell.status === "unavailable") return;
-    if (cell.popoverContent) {
-      setPopoverAnchor({ el, cell });
-      return;
-    }
-    onCellClick?.(cell);
-  };
+  const handleCellClick = useCallback(
+    (cell: AppColorGridCell, el: HTMLElement) => {
+      if (cell.status === "unavailable") return;
+      if (cell.popoverContent) {
+        setPopoverAnchor({ el, cell });
+        return;
+      }
+      onCellClick?.(cell);
+    },
+    [onCellClick],
+  );
 
   const legendStatuses: readonly StatusKey[] = ["free", "booked", "sold", "reserved"];
 
@@ -143,7 +189,7 @@ export function AppColorGrid({
 
       <div className="overflow-auto rounded-xl border border-border bg-card p-2 shadow-sm">
         <div className="flex flex-col gap-1">
-          {[...filteredRows].reverse().map((row) => (
+          {reversedRows.map((row) => (
             <div className="flex items-center gap-1" key={row.id}>
               <span className={cn(
                 "shrink-0 text-right text-xs font-medium text-muted-foreground whitespace-nowrap",
@@ -152,40 +198,14 @@ export function AppColorGrid({
                 {row.label}
               </span>
               <div className="flex flex-nowrap gap-1">
-                {row.cells.map((cell) => {
-                  const cfg = STATUS_STYLE[cell.status];
-                  const hasSubContent = cellSize === "xl" && (cell.sublabel ?? cell.secondarySublabel);
-                  return (
-                    <button
-                      className={cn(
-                        "flex shrink-0 items-center justify-center rounded-lg border border-border font-medium transition-colors",
-                        cellSizeClasses[cellSize],
-                        cfg.bg,
-                        cfg.text,
-                        cell.status === "unavailable"
-                          ? "cursor-default border-dashed"
-                          : "cursor-pointer",
-                        hasSubContent && "flex-col gap-0 px-1",
-                      )}
-                      key={cell.id}
-                      onClick={(e) => handleCellClick(cell, e.currentTarget)}
-                      title={cell.tooltip ?? cell.label}
-                      type="button"
-                    >
-                      {hasSubContent ? (
-                        <>
-                          <span className="text-xs font-semibold leading-tight">{cell.label}</span>
-                          <span className="text-sm leading-tight opacity-80">{cell.sublabel}</span>
-                          {cell.secondarySublabel ? (
-                            <span className="text-sm leading-tight opacity-70">{cell.secondarySublabel}</span>
-                          ) : null}
-                        </>
-                      ) : (
-                        cell.label
-                      )}
-                    </button>
-                  );
-                })}
+                {row.cells.map((cell) => (
+                  <GridCell
+                    cell={cell}
+                    cellSize={cellSize}
+                    key={cell.id}
+                    onClick={handleCellClick}
+                  />
+                ))}
                 {onRowAddClick ? (
                   <button
                     className={cn(

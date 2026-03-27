@@ -25,6 +25,7 @@
     "@mui/x-date-pickers": "^8.10.0",
     "@tanstack/react-query": "^5.80.0",
     "@tanstack/react-query-devtools": "^5.80.0",
+    "@tanstack/react-virtual": "^3.13.23",
     "date-fns": "^4.1.0",
     "jspdf": "^4.2.0",
     "jspdf-autotable": "^5.0.7",

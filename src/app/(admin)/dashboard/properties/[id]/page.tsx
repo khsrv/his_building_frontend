@@ -2,15 +2,20 @@
 
 import { useMemo } from "react";
 import { useParams } from "next/navigation";
+import dynamic from "next/dynamic";
 import {
   AppPageHeader,
   AppKpiGrid,
-  AppChartWidget,
   AppDataTable,
   ShimmerBox,
   AppStatePanel,
   AppCurrencyDisplay,
 } from "@/shared/ui";
+
+const AppChartWidget = dynamic(
+  () => import("@/shared/ui/primitives/chart-widget").then((m) => ({ default: m.AppChartWidget })),
+  { ssr: false },
+);
 import { IconBuilding, IconAvailable, IconDeals, IconOverdue, IconIncome, IconCoins, IconDebt } from "@/shared/ui/icons/kpi-icons";
 import type { AppStatCardProps } from "@/shared/ui";
 import type { AppChartDataPoint, AppChartSeries } from "@/shared/ui/primitives/chart-widget";

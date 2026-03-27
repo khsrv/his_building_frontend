@@ -8,6 +8,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 
 const STORAGE_KEY = "hisob:selectedPropertyId";
 
@@ -37,9 +38,13 @@ interface PropertyProviderProps {
 
 export function PropertyProvider({ children }: PropertyProviderProps) {
   const [currentPropertyId, setRawPropertyId] = useState<string>(readStoredPropertyId);
+  const queryClient = useQueryClient();
 
   const setCurrentPropertyId = useCallback((id: string) => {
     setRawPropertyId(id);
+    // Invalidate all cached queries so per-property data is re-fetched
+    // after switching to a different property context.
+    void queryClient.invalidateQueries();
     try {
       if (id) {
         localStorage.setItem(STORAGE_KEY, id);
@@ -49,7 +54,7 @@ export function PropertyProvider({ children }: PropertyProviderProps) {
     } catch {
       // localStorage unavailable — ignore
     }
-  }, []);
+  }, [queryClient]);
 
   const value = useMemo<PropertyContextValue>(
     () => ({

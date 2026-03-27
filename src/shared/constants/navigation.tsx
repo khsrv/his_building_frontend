@@ -264,6 +264,7 @@ export const NAVIGATION_ITEMS: readonly NavItem[] = [
       { id: "settings-pricing", labelKey: "nav.settings_pricing", href: routes.settingsPricingRules, icon: <SettingsIcon />, permission: "settings.company" },
       { id: "settings-brokers", labelKey: "nav.settings_brokers", href: routes.settingsBrokers, icon: <SettingsIcon />, permission: "settings.company" },
       { id: "settings-invoices", labelKey: "nav.settings_invoices", href: routes.settingsInvoices, icon: <SettingsIcon />, permission: "settings.company" },
+      { id: "settings-audit-log", labelKey: "nav.settings_audit_log", href: routes.settingsAuditLog, icon: <SettingsIcon />, permission: "settings.users" as PermissionCode },
     ],
   },
   {

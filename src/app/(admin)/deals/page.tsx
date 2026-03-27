@@ -1,5 +1,7 @@
 "use client";
 
+import { useCallback } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import {
   AppButton,
@@ -15,6 +17,8 @@ import {
 import { IconDeals, IconCategory } from "@/shared/ui/icons/kpi-icons";
 import { routes } from "@/shared/constants/routes";
 import { useEnrichedDealsListQuery } from "@/modules/deals/presentation/hooks/use-enriched-deals-list-query";
+import { fetchDealDetail } from "@/modules/deals/infrastructure/repository";
+import { dealKeys } from "@/modules/deals/presentation/query-keys";
 import { usePropertyContext } from "@/shared/providers/property-provider";
 import type { Deal, DealStatus, DealPaymentType } from "@/modules/deals/domain/deal";
 
@@ -135,7 +139,19 @@ const columns: readonly AppDataTableColumn<Deal>[] = [
 
 export default function DealsPage() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { currentPropertyId } = usePropertyContext();
+
+  const handleDealHover = useCallback(
+    (row: Deal) => {
+      void queryClient.prefetchQuery({
+        queryKey: dealKeys.detail(row.id),
+        queryFn: () => fetchDealDetail(row.id),
+        staleTime: 30_000,
+      });
+    },
+    [queryClient],
+  );
 
   const { data = [], error } = useEnrichedDealsListQuery(
     currentPropertyId ? { propertyId: currentPropertyId, limit: 200 } : { limit: 200 },
@@ -196,6 +212,7 @@ export default function DealsPage() {
                 enableExport
                 enableSettings
                 onRowClick={(row) => router.push(routes.dealDetail(row.id))}
+                onRowHover={handleDealHover}
               />
             )
           }

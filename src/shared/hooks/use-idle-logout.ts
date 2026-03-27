@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useCallback } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 
 const IDLE_EVENTS = ["mousemove", "keydown", "mousedown", "touchstart", "scroll"] as const;
 
@@ -14,14 +15,17 @@ const IDLE_EVENTS = ["mousemove", "keydown", "mousedown", "touchstart", "scroll"
  */
 export function useIdleLogout(timeoutMs = 30 * 60 * 1000) {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const queryClient = useQueryClient();
 
   const handleLogout = useCallback(() => {
+    // Wipe all cached query data so the next session starts clean
+    queryClient.clear();
     // Clear tokens and redirect
     import("@/shared/lib/http/token-storage").then(({ tokenStorage }) => {
       tokenStorage.clearAll();
     });
     window.location.href = "/login?reason=idle";
-  }, []);
+  }, [queryClient]);
 
   const resetTimer = useCallback(() => {
     if (timerRef.current) {

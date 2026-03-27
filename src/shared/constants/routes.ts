@@ -95,6 +95,7 @@ export const routes = {
   settingsPricingRules: "/settings/pricing-rules",
   settingsBrokers: "/settings/brokers",
   settingsInvoices: "/settings/invoices",
+  settingsAuditLog: "/settings/audit-log",
 
   // Administration (super_admin)
   adminTenants: "/admin/tenants",

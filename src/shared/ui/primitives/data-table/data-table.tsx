@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
+import { useCallback, useDeferredValue, useEffect, useMemo, useState, type MouseEvent } from "react";
 import {
   Box,
   Chip,
@@ -74,6 +74,7 @@ export function AppDataTable<TData>({
   filterFields,
   syncFiltersToUrl = false,
   onRowClick,
+  onRowHover,
   rowActions,
   rowActionsTriggerLabel,
   rowActionsColumnHeader,
@@ -1585,6 +1586,18 @@ export function AppDataTable<TData>({
                 labelRowsPerPage: t("table.rowsPerPage"),
                 SelectProps: { size: "small" },
               },
+              ...(onRowHover && {
+                row: {
+                  onMouseEnter: (event: MouseEvent<HTMLElement>) => {
+                    const rowId = event.currentTarget.getAttribute("data-id");
+                    if (!rowId) return;
+                    const found = gridRows.find(
+                      (r) => !isSummaryRowModel(r) && rowKey(r as TData) === rowId,
+                    );
+                    if (found) onRowHover(found as TData);
+                  },
+                } as object,
+              }),
             }}
             sortModel={sortModel}
             sortingMode="server"

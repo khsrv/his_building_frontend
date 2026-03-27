@@ -93,6 +93,7 @@ export const ruDictionary = {
   "nav.settings_pricing": "Правила цен",
   "nav.settings_brokers": "Брокеры",
   "nav.settings_invoices": "Биллинг",
+  "nav.settings_audit_log": "Журнал аудита",
   "nav.admin": "Администрирование",
   "nav.admin_tenants": "Тенанты",
   "sidebar.expand": "Раскрыть меню",

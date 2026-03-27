@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(export GOPATH=/Users/yaqubiam/go)",
+      "Bash(grep -n \"PropertyProvider\\\\|QueryProvider\" /Users/yaqubiam/Desktop/projects/hisob_building_frontend/src/shared/providers/*.tsx)",
+      "Bash(bash -c \"cd /Users/yaqubiam/Desktop/projects/hisob_building_backand && go build ./internal/usecase/deal/... ./internal/app/... 2>&1\")",
+      "Bash(bash -c \"npx tsc --noEmit 2>&1 | head -30\")",
+      "Bash(bash -c \"cd /Users/yaqubiam/Desktop/projects/hisob_building_backand && go build ./... 2>&1\")",
+      "Bash(/Users/yaqubiam/Desktop/projects/hisob_building_frontend/.agent/optimization.md:*)",
+      "Bash(find /Users/yaqubiam/Desktop/projects/hisob_building_backand -type f -name \"*.go\" -exec grep -l \"audit\\\\|AuditLogger\\\\|AuditRecord\" {})"
+    ],
+    "additionalDirectories": [
+      "/Users/yaqubiam/Desktop/projects/hisob_building_backand/internal/usecase/deal",
+      "/Users/yaqubiam/Desktop/projects/hisob_building_backand/migrations",
+      "/Users/yaqubiam/Desktop/projects/hisob_building_backand/internal/repository/postgres"
+    ]
+  }
+}

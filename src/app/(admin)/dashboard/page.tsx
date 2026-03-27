@@ -2,16 +2,21 @@
 
 import { useState, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
 import { Box, Chip, LinearProgress, Paper, Stack, Typography } from "@mui/material";
 import {
   AppButton,
   AppPageHeader,
   AppKpiGrid,
-  AppChartWidget,
   AppSelect,
   AppStatePanel,
   AppDateRangePicker,
 } from "@/shared/ui";
+
+const AppChartWidget = dynamic(
+  () => import("@/shared/ui/primitives/chart-widget").then((m) => ({ default: m.AppChartWidget })),
+  { ssr: false },
+);
 import type { AppStatCardProps, AppDateRangeValue } from "@/shared/ui";
 import type { AppChartSeries } from "@/shared/ui/primitives/chart-widget";
 import { routes } from "@/shared/constants/routes";

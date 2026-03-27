@@ -62,7 +62,9 @@ function isLikelyNetworkError(error: unknown): boolean {
 
   if (error instanceof Error) {
     const message = error.message.toLowerCase();
-    if (error.name === "TypeError" || error.name === "AbortError") {
+    // Note: AbortError is NOT a network error — it's intentional cancellation.
+    // Re-thrown directly in doRequest so TanStack Query can detect it.
+    if (error.name === "TypeError") {
       return true;
     }
     if (message.includes("failed to fetch") || message.includes("network") || message.includes("fetch")) {
@@ -119,6 +121,8 @@ async function doRequest<T>(
       cache: "no-store",
     });
   } catch (error) {
+    // Re-throw AbortError as-is so TanStack Query cancellation works correctly.
+    if (error instanceof Error && error.name === "AbortError") throw error;
     throw mapFetchFailure(error);
   }
 

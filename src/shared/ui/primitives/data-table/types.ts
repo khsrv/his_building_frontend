@@ -111,6 +111,7 @@ export interface AppDataTableProps<TData> {
   filterFields?: readonly AppDataTableFilterField<TData>[];
   syncFiltersToUrl?: boolean;
   onRowClick?: (row: TData) => void;
+  onRowHover?: (row: TData) => void;
   rowActions?: (row: TData) => readonly AppActionMenuGroup[];
   rowActionsTriggerLabel?: string;
   rowActionsColumnHeader?: string;

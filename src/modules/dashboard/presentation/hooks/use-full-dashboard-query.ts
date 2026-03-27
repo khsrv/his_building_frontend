@@ -169,6 +169,6 @@ export function useFullDashboardQuery(params?: FullDashboardParams) {
   return useQuery({
     queryKey: dashboardKeys.full(params),
     queryFn: () => fetchFullDashboard(params),
-    refetchInterval: 5 * 60 * 1000, // auto-refresh every 5 minutes
+    refetchInterval: 15 * 60 * 1000, // auto-refresh every 15 minutes
   });
 }

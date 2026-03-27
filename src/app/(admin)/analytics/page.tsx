@@ -1,8 +1,8 @@
 "use client";
 
 import { useMemo } from "react";
+import dynamic from "next/dynamic";
 import {
-  AppChartWidget,
   type AppChartDataPoint,
   AppDataTable,
   type AppDataTableColumn,
@@ -10,6 +10,11 @@ import {
   AppPageHeader,
   AppStatePanel,
 } from "@/shared/ui";
+
+const AppChartWidget = dynamic(
+  () => import("@/shared/ui/primitives/chart-widget").then((m) => ({ default: m.AppChartWidget })),
+  { ssr: false },
+);
 import { routes } from "@/shared/constants/routes";
 import { useDashboardSummaryQuery } from "@/modules/dashboard/presentation/hooks/use-dashboard-summary-query";
 import { useDashboardSalesQuery } from "@/modules/dashboard/presentation/hooks/use-dashboard-sales-query";

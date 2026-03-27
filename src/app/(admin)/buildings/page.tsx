@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import dynamic from "next/dynamic";
 import {
   Box,
   Divider,
@@ -11,7 +12,6 @@ import {
 } from "@mui/material";
 import {
   AppButton,
-  AppColorGrid,
   AppCrudPageScaffold,
   AppDataTable,
   type AppDataTableColumn,
@@ -29,6 +29,11 @@ import {
   ShimmerBox,
 } from "@/shared/ui";
 import type { AppColorGridRow, AppColorGridCell } from "@/shared/ui";
+
+const AppColorGrid = dynamic(
+  () => import("@/shared/ui/primitives/color-grid").then((m) => ({ default: m.AppColorGrid })),
+  { ssr: false },
+);
 import { IconBuilding, IconAvailable, IconCoins, IconIncome } from "@/shared/ui/icons/kpi-icons";
 import { routes } from "@/shared/constants/routes";
 import { usePropertiesListQuery } from "@/modules/properties/presentation/hooks/use-properties-list-query";
